@@ -26,8 +26,19 @@ class Command:
     def run(self, args):
         data = dataset.DataSet(args.dataset)
         images = data.images()
+        # print '#'*100
+        # print images
+        # print '#'*100
         exifs = {im: data.load_exif(im) for im in images}
-        pairs, preport = match_candidates_from_metadata(images, exifs, data)
+        if data.config.get('image_matcher_type', False) == 'VOCAB_TREE':
+            pairs, preport = match_candidates_from_vocab_tree(images, exifs, data)
+        elif data.config.get('image_matcher_type', False) == 'BRUTEFORCE':
+            pairs, preport = match_candidates_bruteforce(images, exifs, data)
+        else:
+            pairs, preport = match_candidates_from_metadata(images, exifs, data)
+
+        # import sys
+        # sys.exit(1)
 
         num_pairs = sum(len(c) for c in pairs.values())
         logger.info('Matching {} image pairs'.format(num_pairs))
@@ -200,6 +211,89 @@ def match_candidates_from_metadata(images, exifs, data):
     }
     return res, report
 
+def match_candidates_from_vocab_tree(images, exifs, data):
+    """Compute candidate matching pairs from vocab tree rankings"""
+    relevant_ranks = data.config['relevant_ranks']
+    debug = False
+    # gps_neighbors = data.config['matching_gps_neighbors']
+    # time_neighbors = data.config['matching_time_neighbors']
+    # order_neighbors = data.config['matching_order_neighbors']
+
+    if not data.reference_lla_exists():
+        data.invent_reference_lla()
+    reference = data.load_reference_lla()
+
+    ranks, scores = data.load_vocab_ranks_and_scores()
+    if debug:
+        import json
+        key = '028.jpg'
+        print json.dumps(ranks[key], sort_keys=True, indent=4, separators=(',', ': '))
+    
+    pairs = set()
+    for i, im1 in enumerate(ranks):
+        for j, im2 in enumerate(ranks[im1]):
+            if im1 == im2:
+                continue
+            if ranks[im1][im2] > relevant_ranks + 1:
+                continue
+
+            if im1 < im2:
+                pairs.add((im1,im2))
+            else:
+                pairs.add((im2,im1))
+
+    if debug:
+        print '#'*100
+        for im1,im2 in pairs:
+            if im1 == key or im2 == key:
+                print '{}-{}'.format(im1,im2)
+    # print json.dumps(pairs, sort_keys=True, indent=4, separators=(',', ': '))
+    
+    # if not all(map(has_gps_info, exifs.values())):
+    #     if gps_neighbors != 0:
+    #         logger.warn("Not all images have GPS info. "
+    #                     "Disabling matching_gps_neighbors.")
+    #     gps_neighbors = 0
+    #     max_distance = 0
+
+    # images.sort()
+
+    # if max_distance == gps_neighbors == time_neighbors == order_neighbors == 0:
+    #     # All pair selection strategies deactivated so we match all pairs
+    #     d = set()
+    #     t = set()
+    #     o = set()
+    #     pairs = combinations(images, 2)
+    # else:
+    #     d = match_candidates_by_distance(images, exifs, reference,
+    #                                      gps_neighbors, max_distance)
+    #     t = match_candidates_by_time(images, exifs, time_neighbors)
+    #     o = match_candidates_by_order(images, exifs, order_neighbors)
+    #     pairs = d | t | o
+
+    res = {im: [] for im in images}
+    for im1, im2 in pairs:
+        res[im1].append(im2)
+
+    report = {
+        "relevant_ranks": relevant_ranks,
+        "num_pairs": len(pairs)
+    }
+    return res, report
+
+def match_candidates_bruteforce(images, exifs, data):
+    res = {im: [] for im in images}
+    for i, im1 in enumerate(images):
+        for j, im2 in enumerate(images):
+            if j <= i:
+                continue
+            res[im1].append(im2)
+
+    report = {
+        "num_pairs": len(images) * (len(images)-1)/2.0
+    }
+    return res, report
+
 
 def match_arguments(pairs, ctx):
     for i, (im, candidates) in enumerate(pairs.items()):
@@ -220,6 +314,13 @@ def match(args):
     preemptive_lowes_ratio = config['preemptive_lowes_ratio']
 
     im1_matches = {}
+    im1_all_matches = {}
+    im1_all_robust_matches = {}
+    im1_valid_rmatches = {}
+    im1_T = {}
+    im1_F = {}
+    im1_valid_inliers = {}
+    im1_calibration_flag = {}
 
     for im2 in candidates:
         # preemptive matching
@@ -235,6 +336,9 @@ def match(args):
                 logger.debug(
                     "Discarding based of preemptive matches {0} < {1}".format(
                         len(matches_pre), preemptive_threshold))
+                im1_all_matches[im2] = matches_pre
+                im1_all_robust_matches[im2] = []
+                im1_valid_rmatches[im2] = -1
                 continue
 
         # symmetric matching
@@ -254,6 +358,9 @@ def match(args):
             im1, im2, len(matches)))
         if len(matches) < robust_matching_min_match:
             im1_matches[im2] = []
+            im1_all_matches[im2] = matches
+            im1_all_robust_matches[im2] = []
+            im1_valid_rmatches[im2] = 0
             continue
 
         # robust matching
@@ -261,12 +368,21 @@ def match(args):
         camera1 = ctx.cameras[ctx.exifs[im1]['camera']]
         camera2 = ctx.cameras[ctx.exifs[im2]['camera']]
 
-        rmatches = matching.robust_match(p1, p2, camera1, camera2, matches,
+        [rmatches, T, F, validity], calibration_flag = matching.robust_match(p1, p2, camera1, camera2, matches,
                                          config)
+
+        im1_all_matches[im2] = matches
+        im1_all_robust_matches[im2] = rmatches
+        im1_valid_rmatches[im2] = 1
+        im1_T[im2] = T.tolist()
+        im1_F[im2] = F.tolist()
+        im1_valid_inliers[im2] = validity
+        im1_calibration_flag[im2] = calibration_flag
 
         if len(rmatches) < robust_matching_min_match:
             im1_matches[im2] = []
             continue
+
         im1_matches[im2] = rmatches
         logger.debug('Robust matching time : {0}s'.format(
             timer() - t_robust_matching))
@@ -274,3 +390,6 @@ def match(args):
         logger.debug("Full matching {0} / {1}, time: {2}s".format(
             len(rmatches), len(matches), timer() - t))
     ctx.data.save_matches(im1, im1_matches)
+    ctx.data.save_all_matches(im1, im1_all_matches, im1_valid_rmatches, im1_all_robust_matches)
+    ctx.data.save_pairwise_results(im1, im1_T, im1_F, im1_valid_inliers, im1_calibration_flag)
+

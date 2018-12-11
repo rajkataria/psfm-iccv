@@ -694,6 +694,81 @@ def reconstructed_points_for_images(graph, reconstruction, images):
             res.append((image, common_tracks))
     return sorted(res, key=lambda x: -x[1])
 
+def reconstructed_weighted_points_for_images(data, graph, reconstruction, images):#, im_matches, im_match_scores):
+    """Number of reconstructed points visible on each image.
+
+    Returns:
+        A list of (image, num_point) pairs sorted by decreasing number
+        of points.
+    """
+    res = []
+    res_common_tracks = []
+    resectioning_score = {}
+    track_scores = {}
+    im_matches = {}
+    # im_match_scores = {}
+    im_matching_results = data.load_image_matching_results()
+    for image in images:
+        resectioning_score[image] = 0.0
+        if image not in reconstruction.shots:
+            common_tracks = 0
+            track_scores[image] = {}
+            for track in graph[image]:
+                feature_id = graph[image][track]['feature_id']
+                track_score = 0.0
+                if track not in reconstruction.points:
+                    continue
+                for track_image in graph[track]:
+                    if track_image not in reconstruction.shots:
+                        continue
+                    track_image_feature_id = graph[track][track_image]['feature_id']
+                    
+                    if image not in im_matches:
+                        m, f, rm = data.load_all_matches(image)
+                        im_matches[image] = rm
+                        # if image in im_matching_results:
+                        #     im_match_scores[image] = im_matching_results[image]
+                    if track_image not in im_matches:
+                        m, f, rm = data.load_all_matches(track_image)
+                        im_matches[track_image] = rm
+                        # if track_image in im_matching_results:
+                        #     im_match_scores[track_image] = im_matching_results[track_image]
+                        
+                        # im_matches[track_image] = data.load_matches(track_image)
+                        # im_match_scores[track_image] = data.load_match_scores(track_image)
+
+                    if track_image not in im_matches[image]:# or len(im_matches[image][track_image]):
+                        im1 = track_image
+                        fid1 = track_image_feature_id
+                        im2 = image
+                        fid2 = feature_id
+                    else:
+                        im1 = image
+                        fid1 = feature_id
+                        im2 = track_image
+                        fid2 = track_image_feature_id
+
+                    if im1 not in im_matches or im2 not in im_matches[im1] or len(im_matches[im1][im2]) == 0:
+                        continue
+
+                    rmatches = im_matches[im1][im2][:,0:2].astype(int)
+                    relevant_index = np.where((rmatches[:,0] == fid1) & (rmatches[:,1] == fid2))
+
+                    if len(im_matches[im1][im2][relevant_index, :].flatten()) == 0:
+                        continue
+
+                    feature_matching_score = 1.0 #im_matches[im1][im2][relevant_index, :].flatten()[-1]
+                    # image_matching_score = im_match_scores[im1][im2]['score']
+                    image_matching_score = im_matching_results[im1][im2]['score']
+                    track_score += feature_matching_score * image_matching_score
+
+                resectioning_score[image] += track_score
+                track_scores[image][track] = track_scores
+                if track in reconstruction.points:
+                    common_tracks += 1
+            res.append((image, resectioning_score[image]))
+            res_common_tracks.append((image, common_tracks))
+    return sorted(res, key=lambda x: -x[1]) #, sorted(res_common_tracks, key=lambda x: -x[1]), track_scores
 
 def resect(data, graph, reconstruction, shot_id):
     """Try resecting and adding a shot to the reconstruction.
@@ -963,13 +1038,17 @@ class ShouldBundle:
     def __init__(self, data, reconstruction):
         self.interval = data.config['bundle_interval']
         self.new_points_ratio = data.config['bundle_new_points_ratio']
+        self.size_increase = data.config['bundle_size_increase']
         self.done(reconstruction)
 
     def should(self, reconstruction):
-        max_points = self.num_points_last * self.new_points_ratio
-        max_shots = self.num_shots_last + self.interval
-        return (len(reconstruction.points) >= max_points or
-                len(reconstruction.shots) >= max_shots)
+        recon_size_increase = 1.0 * len(reconstruction.shots) / self.num_shots_last
+        if recon_size_increase >= 1.0 + self.size_increase:
+            max_points = self.num_points_last * self.new_points_ratio
+            max_shots = self.num_shots_last + self.interval
+            return (len(reconstruction.points) >= max_points or
+                    len(reconstruction.shots) >= max_shots)
+        return False
 
     def done(self, reconstruction):
         self.num_points_last = len(reconstruction.points)
@@ -1009,8 +1088,13 @@ def grow_reconstruction(data, graph, reconstruction, images, gcp):
                 [reconstruction], 'reconstruction.{}.json'.format(
                     datetime.datetime.now().isoformat().replace(':', '_')))
 
-        common_tracks = reconstructed_points_for_images(graph, reconstruction,
-                                                        images)
+        if data.config.get('use_image_matching_classifier', False) and data.config.get('weighted_resectioning', False):
+            common_tracks = reconstructed_weighted_points_for_images(data, graph, reconstruction, images)#, im_matches, im_match_scores)
+        elif data.config.get('use_image_matching_classifier', False):
+            common_tracks = reconstructed_points_for_images(graph, reconstruction, images)            
+        else:
+            common_tracks = reconstructed_points_for_images(graph, reconstruction, images)
+
         if not common_tracks:
             break
 
@@ -1075,7 +1159,12 @@ def incremental_reconstruction(data):
     if not data.reference_lla_exists():
         data.invent_reference_lla()
 
-    graph = data.load_tracks_graph()
+    if data.config.get('use_image_matching_classifier', False) and data.config.get('weighted_resectioning', False):
+        graph = data.load_tracks_graph('tracks-all-matches.csv')
+    elif data.config.get('use_image_matching_classifier', False):
+        graph = data.load_tracks_graph('tracks-thresholded-matches.csv')
+    else:
+        graph = data.load_tracks_graph('tracks.csv')
     tracks, images = matching.tracks_and_images(graph)
     chrono.lap('load_tracks_graph')
     remaining_images = set(images)
@@ -1104,7 +1193,13 @@ def incremental_reconstruction(data):
                 reconstructions.append(reconstruction)
                 reconstructions = sorted(reconstructions,
                                          key=lambda x: -len(x.shots))
-                data.save_reconstruction(reconstructions)
+                
+                if data.config.get('use_image_matching_classifier', False) and data.config.get('weighted_resectioning', False):
+                    data.save_reconstruction(reconstructions, filename='reconstruction-classifier-weighted.json')
+                elif data.config.get('use_image_matching_classifier', False):
+                    data.save_reconstruction(reconstructions, filename='reconstruction-classifier.json')
+                else:
+                    data.save_reconstruction(reconstructions)
 
     for k, r in enumerate(reconstructions):
         logger.info("Reconstruction {}: {} images, {} points".format(

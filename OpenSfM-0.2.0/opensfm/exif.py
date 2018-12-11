@@ -56,7 +56,11 @@ def compute_focal(focal_35, focal, sensor_width, sensor_string):
 def sensor_string(make, model):
     if make != 'unknown':
         # remove duplicate 'make' information in 'model'
-        model = model.replace(make, '')
+        try:
+            model = model.replace(make, '')
+        except AttributeError:
+            make = ''
+            model = ''
     return (make.strip() + ' ' + model.strip()).lower()
 
 
@@ -69,7 +73,11 @@ def camera_id(exif):
 def camera_id_(make, model, width, height, projection_type, focal):
     if make != 'unknown':
         # remove duplicate 'make' information in 'model'
-        model = model.replace(make, '')
+        try:
+            model = model.replace(make, '')
+        except AttributeError:
+            make = ''
+            model = ''
     return ' '.join([
         'v2',
         make.strip(),
@@ -99,17 +107,20 @@ def get_xmp(fileobj):
     xmp_start = img_str.find('<x:xmpmeta')
     xmp_end = img_str.find('</x:xmpmeta')
 
-    if xmp_start < xmp_end:
-        xmp_str = img_str[xmp_start:xmp_end + 12]
-        xdict = x2d.parse(xmp_str)
-        xdict = xdict.get('x:xmpmeta', {})
-        xdict = xdict.get('rdf:RDF', {})
-        xdict = xdict.get('rdf:Description', {})
-        if isinstance(xdict, list):
-            return xdict
+    try:
+        if xmp_start < xmp_end:
+            xmp_str = img_str[xmp_start:xmp_end + 12]
+            xdict = x2d.parse(xmp_str)
+            xdict = xdict.get('x:xmpmeta', {})
+            xdict = xdict.get('rdf:RDF', {})
+            xdict = xdict.get('rdf:Description', {})
+            if isinstance(xdict, list):
+                return xdict
+            else:
+                return [xdict]
         else:
-            return [xdict]
-    else:
+            return []
+    except:
         return []
 
 
@@ -124,7 +135,10 @@ def get_gpano_from_xmp(xmp):
 class EXIF:
 
     def __init__(self, fileobj):
-        self.tags = exifread.process_file(fileobj, details=False)
+        try:
+            self.tags = exifread.process_file(fileobj, details=False)
+        except UnicodeEncodeError:
+            self.tags = {}#{'Image Model': '', 'Image Make': ''}
         fileobj.seek(0)
         self.xmp = get_xmp(fileobj)
 
@@ -201,9 +215,12 @@ class EXIF:
 
     def extract_lon_lat(self):
         if 'GPS GPSLatitude' in self.tags:
-            reflon, reflat = self.extract_ref_lon_lat()
-            lat = gps_to_decimal(self.tags['GPS GPSLatitude'].values, reflat)
-            lon = gps_to_decimal(self.tags['GPS GPSLongitude'].values, reflon)
+            try:
+                reflon, reflat = self.extract_ref_lon_lat()
+                lat = gps_to_decimal(self.tags['GPS GPSLatitude'].values, reflat)
+                lon = gps_to_decimal(self.tags['GPS GPSLongitude'].values, reflon)
+            except TypeError:
+                lon, lat = None, None
         else:
             lon, lat = None, None
         return lon, lat
@@ -246,10 +263,10 @@ class EXIF:
                 s = str(self.tags[ts[0]].values)
                 try:
                     d = datetime.datetime.strptime(s, '%Y:%m:%d %H:%M:%S')
+                    timestamp = (d - datetime.datetime(1970, 1, 1)).total_seconds()   # Assuming d is in UTC
+                    timestamp += int(str(self.tags.get(ts[1], 0))) / 1000.0;
                 except ValueError:
                     continue
-                timestamp = (d - datetime.datetime(1970, 1, 1)).total_seconds()   # Assuming d is in UTC
-                timestamp += int(str(self.tags.get(ts[1], 0))) / 1000.0;
                 return timestamp
         return 0.0
 
@@ -279,8 +296,14 @@ class EXIF:
 def hard_coded_calibration(exif):
     focal = exif['focal_ratio']
     fmm35 = int(round(focal * 36.0))
-    make = exif['make'].strip().lower()
-    model = exif['model'].strip().lower()
+    try:
+        make = exif['make'].strip().lower()
+    except AttributeError:
+        make = ''
+    try:
+        model = exif['model'].strip().lower()
+    except AttributeError:
+        model = ''
     if 'gopro' in make:
         if fmm35 == 20:
             # GoPro Hero 3, 7MP medium
