@@ -434,6 +434,10 @@ class DataSet:
         """File for flags indicating whether calibrated robust matching occured"""
         return os.path.join(self.__results_path(), 'ate_results.{}'.format(ext))
 
+    def __reconstruction_results_file(self, ext='pkl.gz'):
+        """File for flags indicating whether calibrated robust matching occured"""
+        return os.path.join(self.__results_path(), 'reconstruction_results.{}'.format(ext))
+
     def matches_exists(self, image):
         return os.path.isfile(self.__matches_file(image))
 
@@ -913,6 +917,13 @@ class DataSet:
         with gzip.open(self.__ate_results_file('pkl.gz'), 'wb') as fout:
             pickle.dump(results, fout)
         with open(self.__ate_results_file('json'), 'w') as fout:
+            json.dump(results, fout, sort_keys=True, indent=4, separators=(',', ': '))
+
+    def save_reconstruction_results(self, results):
+        io.mkdir_p(self.__results_path())
+        with gzip.open(self.__reconstruction_results_file('pkl.gz'), 'wb') as fout:
+            pickle.dump(results, fout)
+        with open(self.__reconstruction_results_file('json'), 'w') as fout:
             json.dump(results, fout, sort_keys=True, indent=4, separators=(',', ': '))
 
     def find_matches(self, im1, im2):

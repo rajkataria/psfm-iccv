@@ -1337,6 +1337,10 @@ def create_feature_matching_dataset(ctx):
     config = data.config
     processes = ctx.data.config['processes']
 
+    if not data.reconstruction_exists('reconstruction_gt.json'):
+        logger.info('Creating feature matching dataset - No ground-truth reconstruction exists!')
+        return
+
     args = []
     for im in images:
         element = [data, im, data.load_reconstruction('reconstruction_gt.json'), 1.0,\
@@ -1359,5 +1363,9 @@ def create_image_matching_dataset(ctx):
     exifs = ctx.exifs
     config = data.config
     processes = ctx.data.config['processes']
+
+    if not data.reconstruction_exists('reconstruction_gt.json'):
+        logger.info('Creating image matching dataset - No ground-truth reconstruction exists!')
+        return
 
     data.save_image_matching_dataset(robust_matches_threshold=15)

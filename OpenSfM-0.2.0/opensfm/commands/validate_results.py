@@ -33,13 +33,19 @@ class Command:
 
     def run(self, args):
         data = dataset.DataSet(args.dataset)
+        
+        ate_results = self.get_ate_results(data)
+        reconstruction_results = self.get_reconstruction_results(data)
+
+        data.save_ate_results(ate_results)
+        data.save_reconstruction_results(reconstruction_results)
+
+    def get_reconstruction_results(self, data):
+        reconstruction_results = {}
+        relevant_reconstructions = []
         options = {
             'min_triangulated': 0,
-            'debug': False,
-            'display_mode': 0,
-            'show_header': True,
-            'show_dataset': True,
-            'dataset': data.data_path
+            'debug': False
         }
         baseline_command_keys = [
             'focal_from_exif',
@@ -60,87 +66,93 @@ class Command:
             'reconstruct'
         ]
 
-
-
-        logger.info('Baseline:')
         graph = data.load_tracks_graph('tracks.csv')
-        
+        graph_thresholded_matches = data.load_tracks_graph('tracks-thresholded-matches.csv')
+        graph_all_matches = data.load_tracks_graph('tracks-all-matches.csv')
+        if data.reconstruction_exists('reconstruction.json'):
+            logger.info('Computing reconstruction results for baseline...')
+            stats_label = 'baseline'
+            reconstruction_baseline = data.load_reconstruction('reconstruction.json')[0]
+            relevant_reconstructions.append([graph, reconstruction_baseline, baseline_command_keys, stats_label])
 
-        reconstruction_baseline_gt = data.load_reconstruction('reconstruction_gt.json')[0]
-        reconstruction_baseline = data.load_reconstruction('reconstruction.json')[0]
-        self.intersect_reconstructions(data, reconstruction_baseline_gt, reconstruction_baseline)
+        if data.reconstruction_exists('reconstruction_colmap.json'):
+            logger.info('Computing reconstruction results for colmap...')
+            stats_label = 'colmap'
+            reconstruction_colmap = data.load_reconstruction('reconstruction_colmap.json')[0]
+            relevant_reconstructions.append([graph, reconstruction_colmap, {}, stats_label])
 
-        reconstruction_colmap_gt = data.load_reconstruction('reconstruction_gt.json')[0]
-        reconstruction_colmap = data.load_reconstruction('reconstruction_colmap.json')[0]
-        self.intersect_reconstructions(data, reconstruction_colmap_gt, reconstruction_colmap)
-
-        if False:
-            reconstruction_classifier_weighted_gt = data.load_reconstruction('reconstruction_gt.json')[0]
+        if data.reconstruction_exists('reconstruction-classifier-weighted.json'):
+            logger.info('Computing reconstruction results for image matching classifier with weighted resectioning reconstruction...')
+            stats_label = 'classifier-weighted'
             reconstruction_classifier_weighted = data.load_reconstruction('reconstruction-classifier-weighted.json')[0]
-            self.intersect_reconstructions(data, reconstruction_classifier_weighted_gt, reconstruction_classifier_weighted)
+            relevant_reconstructions.append([graph_all_matches, reconstruction_classifier_weighted, classifier_command_keys, stats_label])
 
-            reconstruction_classifier_gt = data.load_reconstruction('reconstruction_gt.json')[0]
+        if data.reconstruction_exists('reconstruction-classifier.json'):
+            logger.info('Computing reconstruction results for image matching classifier reconstruction...')
+            stats_label = 'classifier'
             reconstruction_classifier = data.load_reconstruction('reconstruction-classifier.json')[0]
-            self.intersect_reconstructions(data, reconstruction_classifier_gt, reconstruction_classifier)
+            relevant_reconstructions.append([graph_thresholded_matches, reconstruction_classifier, classifier_command_keys, stats_label])
 
-        # print ('{} / {}'.format(len(reconstruction[0].shots.keys()), len(reconstruction_gt[0].shots.keys())))
-        # data.save_tum_format(reconstruction_gt, suffix='gt')
-        # data.save_tum_format(reconstruction, suffix='opensfm')
-        # data.save_tum_format(reconstruction_classifier_weighted, suffix='opensfm-classifier-weighted')
-        # data.save_tum_format(reconstruction_classifier, suffix='opensfm-classifier')
-
-        relevant_reconstructions = [
-            [reconstruction_baseline_gt, reconstruction_baseline, 'baseline'],
-            [reconstruction_colmap_gt, reconstruction_colmap, 'colmap'],
-            # [reconstruction_classifier_weighted_gt, reconstruction_classifier_weighted, 'classifier-weighted'],
-            # [reconstruction_classifier_gt, reconstruction_classifier, 'classifier'],
-        ]
         for datum in relevant_reconstructions:
-            r_gt, r, label = datum
-            camera = types.PerspectiveCamera()
-            camera_gt = types.PerspectiveCamera()
-            
-            r.add_camera(camera)
-            r_gt.add_camera(camera_gt)
-            # print (r_gt.cameras)
+            g, r, k, l = datum
+            reconstruction_results[l] = self.calculate_reconstruction_results(data, g, r, options, k)
 
+        return reconstruction_results
 
-        ate_results = self.ransac_based_ate_evaluation(data, relevant_reconstructions)
+    def get_ate_results(self, data):
+        if not data.reconstruction_exists('reconstruction_gt.json'):
+            logger.info('Skipping ATE calculation since no ground-truth exists...')
+        else:
+            relevant_reconstructions = []
+            # reconstruction_statistics = {}
 
-        # self.calculate_statistics(data, graph, recon, options, baseline_command_keys)
-        # self.save_tum_format(recon)
-        if False:
-            logger.info('Thresholded classifier scores with baseline resectioning:')
-            graph = data.load_tracks_graph('tracks-thresholded-matches.csv')
-            recon = data.load_reconstruction('reconstruction-classifier.json')
-            self.calculate_statistics(data, graph, recon, options, classifier_command_keys)
-            
-            logger.info('All matches with weighted resectioning:')
-            graph = data.load_tracks_graph('tracks-all-matches.csv')
-            recon = data.load_reconstruction('reconstruction-classifier-weighted.json')
-            self.calculate_statistics(data, graph, recon, options, classifier_command_keys)
+            if data.reconstruction_exists('reconstruction.json'):
+                logger.info('Computing ATE for baseline...')
+                stats_label = 'baseline'
+                reconstruction_baseline_gt = data.load_reconstruction('reconstruction_gt.json')[0]
+                reconstruction_baseline = data.load_reconstruction('reconstruction.json')[0]
+                self.intersect_reconstructions(data, reconstruction_baseline_gt, reconstruction_baseline)
+                relevant_reconstructions.append([reconstruction_baseline_gt, reconstruction_baseline, stats_label])
 
+            if data.reconstruction_exists('reconstruction_colmap.json'):
+                logger.info('Computing ATE for colmap reconstruction...')
+                stats_label = 'colmap'
+                reconstruction_colmap_gt = data.load_reconstruction('reconstruction_gt.json')[0]
+                reconstruction_colmap = data.load_reconstruction('reconstruction_colmap.json')[0]
+                self.intersect_reconstructions(data, reconstruction_colmap_gt, reconstruction_colmap)
+                relevant_reconstructions.append([reconstruction_colmap_gt, reconstruction_colmap, stats_label])
 
-        # start = timer()
-        # features, colors = self.load_features(data)
-        # features_end = timer()
-        # matches = self.load_matches(data)
-        # matches_end = timer()
-        # tracks_graph = matching.create_tracks_graph(features, colors, matches,
-        #                                             data.config)
-        # tracks_end = timer()
-        # data.save_tracks_graph(tracks_graph)
-        # end = timer()
+            if data.reconstruction_exists('reconstruction-classifier-weighted.json'):
+                logger.info('Computing ATE for image matching classifier with weighted resectioning reconstruction...')
+                stats_label = 'classifier-weighted'
+                reconstruction_classifier_weighted_gt = data.load_reconstruction('reconstruction_gt.json')[0]
+                reconstruction_classifier_weighted = data.load_reconstruction('reconstruction-classifier-weighted.json')[0]
+                self.intersect_reconstructions(data, reconstruction_classifier_weighted_gt, reconstruction_classifier_weighted)
+                relevant_reconstructions.append([reconstruction_classifier_weighted_gt, reconstruction_classifier_weighted, stats_label])
 
-        # with open(data.profile_log(), 'a') as fout:
-        #     fout.write('create_tracks: {0}\n'.format(end - start))
+            if data.reconstruction_exists('reconstruction-classifier.json'):
+                logger.info('Computing ATE for image matching classifier reconstruction...')
+                stats_label = 'classifier'
+                reconstruction_classifier_gt = data.load_reconstruction('reconstruction_gt.json')[0]
+                reconstruction_classifier = data.load_reconstruction('reconstruction-classifier.json')[0]
+                self.intersect_reconstructions(data, reconstruction_classifier_gt, reconstruction_classifier)
+                relevant_reconstructions.append([reconstruction_classifier_gt, reconstruction_classifier, stats_label])
 
-        # self.write_report(data,
-        #                   tracks_graph,
-        #                   features_end - start,
-        #                   matches_end - features_end,
-        #                   tracks_end - matches_end)
-
+            relevant_reconstructions = [
+                [reconstruction_baseline_gt, reconstruction_baseline, 'baseline'],
+                [reconstruction_colmap_gt, reconstruction_colmap, 'colmap'],
+                [reconstruction_classifier_weighted_gt, reconstruction_classifier_weighted, 'classifier-weighted'],
+                [reconstruction_classifier_gt, reconstruction_classifier, 'classifier'],
+            ]
+            for datum in relevant_reconstructions:
+                r_gt, r, label = datum
+                camera = types.PerspectiveCamera()
+                camera_gt = types.PerspectiveCamera()
+                r.add_camera(camera)
+                r_gt.add_camera(camera_gt)
+             
+            ate_results = self.ransac_based_ate_evaluation(data, relevant_reconstructions)
+        return ate_results
 
     def prune_reconstructions(self, data, reconstruction):
         # Only really applies to TUM datasets, but we can blindly run it on all
@@ -160,14 +172,11 @@ class Command:
         images_gt = []
         images = []
 
-        # for r in reconstruction_gt:
         images_gt = set(reconstruction_gt.shots.keys())
         images = set(reconstruction.shots.keys())
         
         common_images = images.intersection(images_gt)
 
-        # for r in reconstruction:
-        #     additional_shots = []
         remove_shots = []
         for s in reconstruction.shots:
             if s in list(images - common_images):
@@ -183,7 +192,7 @@ class Command:
             del reconstruction_gt.shots[s]
                 # del reconstruction_gt[0].shots[s]
 
-    def calculate_statistics(self, data, graph, reconstruction, options, command_keys):
+    def calculate_reconstruction_results(self, data, graph, reconstruction, options, command_keys):
         registered = 0
         error = 0.0
         count = 0
@@ -194,53 +203,41 @@ class Command:
 
         # graph = data.load_tracks_graph()
         tracks, images = matching.tracks_and_images(graph)
-        recon0 = reconstruction[0]
         cameras = len(data.images())
-        for s in recon0.shots:
-            pts_triangulated = set(recon0.points.keys()).intersection(set(graph[s].keys()))
+        for s in reconstruction.shots:
+            pts_triangulated = set(reconstruction.points.keys()).intersection(set(graph[s].keys()))
             if len(pts_triangulated) >= options['min_triangulated']:
-                if options['debug']:
-                    print 'Image: {}   Tracks: {}   Points Triangulated: {}'.format(s, len(graph[s].keys()), len(pts_triangulated))
+                # if options['debug']:
+                    # print 'Image: {}   Tracks: {}   Points Triangulated: {}'.format(s, len(graph[s].keys()), len(pts_triangulated))
                 registered += 1
 
-        for pid in recon0.points:
-            if recon0.points[pid].reprojection_error:
-                error = error + recon0.points[pid].reprojection_error
+        for pid in reconstruction.points:
+            if reconstruction.points[pid].reprojection_error:
+                error = error + reconstruction.points[pid].reprojection_error
                 count = count + 1
             else:
                 missing_errors = missing_errors + 1
-
-        profile_fn = os.path.join(options['dataset'], 'profile.log')
+        
+        profile_fn = os.path.join(data.data_path, 'profile.log')
         if os.path.exists(profile_fn):
             with open(profile_fn, 'r') as f:
-                for data in f.readlines():
-                    datums = data.split(':')
+                for line in f.readlines():
+                    datums = line.split(':')
                     if datums[0] in command_keys:
                         times[datums[0]] = float(datums[1])
 
             for key in times:
                 total_time = total_time + times[key]
-                if options['debug']:
-                    print key + ' - ' + str(times[key])
 
-        if options['display_mode'] == 0:
-            logger.info('\t{} - Cameras Registered ({}/{}) Reprojection Error ({} points) : {} Missing Errors: {} ' \
-                'Total Time: {}'.format(options['dataset'], registered, cameras, count, error/count, missing_errors, round(total_time,2)))
-        # elif options['display_mode'] == 1    :
-        #     if options['show_header']:
-        #         logger.info('Dataset, Cameras Registered, Cameras Registered (minimum {} points triangulated), Points Triangulated, ' \
-        #             'Reprojection Error, Missing Images, Total Time'.format(options['min_triangulated']))
-        #     logger.info('{},{},{},{},{},{},{}'.format(options['dataset'], registered, cameras, count, error/count, missing_errors, round(total_time,2)))
-        elif options['display_mode'] == 1:
-            if options['show_dataset']:
-                if options['show_header']:
-                    logger.info('\tDataset, Cameras Registered, Points Triangulated, Total Time')
-                logger.info('\t{},{},{},{}'.format(options['dataset'], registered, count, round(total_time,2)))
-            else:
-                if options['show_header']:
-                    logger.info('\tCameras Registered, Points Triangulated, Total Time')
-                logger.info('\t{},{},{}'.format(registered, count, round(total_time,2)))
-        return
+
+        results = {
+            'dataset': os.path.basename(os.path.normpath(data.data_path)),
+            'registered images': registered,
+            'total images in dataset': cameras,
+            'points triangulated ': len(reconstruction.points.keys()),
+            'time': round(total_time, 2)
+        }
+        return results
 
     def get_sample_matches(self, matches):
         samples = np.random.choice(len(matches), 2, replace=False)
@@ -318,17 +315,12 @@ class Command:
                 'total images %f': len(gt_full_list)
             }
             
-        print (json.dumps(results, sort_keys=True, indent=4, separators=(',', ': ')))
         return results
 
     def calculate_thresholded_ate(self,gt, osfm):
         alignment_error = osfm - gt
         translation_error_per_image = np.sqrt(np.sum(np.multiply(alignment_error,alignment_error),0)).A[0]
         translation_error = np.sqrt(np.dot(translation_error_per_image,translation_error_per_image) / len(translation_error_per_image))
-        # image_alignment_threshold = np.sqrt(np.sum(np.power(np.max(gt, axis=1) - np.min(gt, axis=1), 2))) * 0.01
-        # ransac_threshold = image_alignment_threshold * 0.1
-        # ransac_score = len(translation_error_per_image[translation_error_per_image < ransac_threshold])
-        # images_aligned = len(translation_error_per_image[translation_error_per_image < image_alignment_threshold])
         image_alignment_threshold_cm = 0.01
         image_alignment_threshold_dm = 0.1
         image_alignment_threshold_m = 1.0
