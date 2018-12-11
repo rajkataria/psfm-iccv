@@ -38,14 +38,21 @@ hahog_edge_threshold: 10
 hahog_normalize_to_uchar: no
 
 # Params for general matching
-lowes_ratio: 0.8              # Ratio test for matches
-preemptive_lowes_ratio: 0.6   # Ratio test for preemptive matches
-matcher_type: FLANN           # FLANN or BRUTEFORCE
+lowes_ratio: 0.8                # Ratio test for matches
+preemptive_lowes_ratio: 0.6     # Ratio test for preemptive matches
+matcher_type: FLANN             # FLANN or BRUTEFORCE
+image_matcher_type: VOCAB_TREE  # VOCAB_TREE OR METADATA
 
 # Params for FLANN matching
 flann_branching: 16           # See OpenCV doc
 flann_iterations: 10          # See OpenCV doc
 flann_checks: 200             # Smaller -> Faster (but might lose good matches)
+
+# Params for VOCAB_TREE matching
+relevant_ranks: 50
+
+# Libraries
+libvot: ../libvot/
 
 # Params for preemptive matching
 matching_gps_distance: 150            # Maximum gps distance between two images for matching
@@ -85,6 +92,7 @@ radial_distorsion_p2_sd: 0.01   # The standard deviation of the second tangentia
 
 bundle_outlier_threshold: 0.006 # Points with larger reprojection error after bundle adjustment are removed
 bundle_interval: 0              # Bundle after adding 'bundle_interval' cameras
+bundle_size_increase: 0.05      # Bundle after size of model increased by 'bundle_size_increase' percentage
 bundle_new_points_ratio: 1.2    # Bundle when (new points) / (bundled points) > bundle_new_points_ratio
 optimize_camera_parameters: yes # Optimize internal camera parameters during bundle
 local_bundle_radius: 0          # Max image graph distance for images to be included in local bundle adjustment
@@ -123,7 +131,18 @@ depthmap_min_consistent_views: 3      # Min number of views that should reconstr
 depthmap_save_debug_files: no         # Save debug files with partial reconstruction results
 
 # Other params
-processes: 1                  # Number of threads to use
+processes: 1                          # Number of threads to use
+
+# Classifier params
+error_inlier_threshold: 0.01
+error_outlier_threshold: 0.08
+use_image_matching_classifier: yes
+image_matching_classifier_threshold: 0.3
+weighted_resectioning: no
+image_matching_classifier: RM+VD+SE+TE+PE+Barn+Caterpillar+Church+Ignatius+6-50-thresholds-15-50.pkl
+image_matching_classifier_thresholds: 
+    - 15
+    - 50
 
 # Params for submodel split and merge
 submodel_size: 80                                                   # Average number of images per submodel
@@ -132,6 +151,7 @@ submodels_relpath: "submodels"                                      # Relative p
 submodel_relpath_template: "submodels/submodel_%04d"                # Template to generate the relative path to a submodel directory
 submodel_images_relpath_template: "submodels/submodel_%04d/images"  # Template to generate the relative path to a submodel images directory
 submodel_use_symlinks: yes                                          # Symlink global features and matches to be reused on each submodel
+
 '''
 
 
@@ -152,3 +172,8 @@ def load_config(filepath):
                 config[k] = v
 
     return config
+
+def save_config(filepath, config):
+    """Save config to filepath"""
+    with open(filepath, 'w') as fout:
+        yaml.dump(config, fout)

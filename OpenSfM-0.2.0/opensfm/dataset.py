@@ -3,6 +3,7 @@
 import os
 import json
 import pickle
+import pyquaternion
 import gzip
 
 import cv2
@@ -13,7 +14,7 @@ import six
 from opensfm import io
 from opensfm import config
 from opensfm import context
-
+from pyquaternion import Quaternion 
 
 class DataSet:
     """
@@ -32,6 +33,7 @@ class DataSet:
         self.data_path = data_path
 
         self._load_config()
+        self._save_config(self.config)
 
         # Load list of images.
         image_list_file = os.path.join(self.data_path, 'image_list.txt')
@@ -54,6 +56,10 @@ class DataSet:
     def _load_config(self):
         config_file = os.path.join(self.data_path, 'config.yaml')
         self.config = config.load_config(config_file)
+
+    def _save_config(self, config_):
+        config_file = os.path.join(self.data_path, 'config.yaml')
+        config.save_config(config_file, config_)
 
     def images(self):
         """Return list of file names of all images in this dataset"""
@@ -312,9 +318,121 @@ class DataSet:
         """Return path of matches directory"""
         return os.path.join(self.data_path, 'matches')
 
+    def __all_matches_path(self):
+        """Return path of all matches directory"""
+        return os.path.join(self.data_path, 'all_matches')
+
+    def __pairwise_results_path(self):
+        """Return path of all matches directory"""
+        return os.path.join(self.data_path, 'pairwise_results')
+
+    def __classifier_features_path(self):
+        """Return path of all matches directory"""
+        return os.path.join(self.data_path, 'classifier_features')
+    
+    def __classifier_dataset_path(self):
+        return os.path.join(self.data_path, 'classifier_dataset')
+
+    def __results_path(self):
+        return os.path.join(self.data_path, 'results')
+
+    def __classifier_dataset_unthresholded_matches_path(self):
+        return os.path.join(self.__classifier_dataset_path(), 'unthresholded_matches')
+    
+    def __classifier_dataset_unthresholded_inliers_path(self):
+        return os.path.join(self.__classifier_dataset_path(), 'unthresholded_inliers')
+
+    def __classifier_dataset_unthresholded_outliers_path(self):
+        return os.path.join(self.__classifier_dataset_path(), 'unthresholded_outliers')
+
+    def __classifier_dataset_unthresholded_features_path(self):
+        return os.path.join(self.__classifier_dataset_path(), 'unthresholded_features')
+
     def __matches_file(self, image):
         """File for matches for an image"""
         return os.path.join(self.__matches_path(), '{}_matches.pkl.gz'.format(image))
+
+    def __all_matches_file(self, image):
+        """File for all matches for an image"""
+        return os.path.join(self.__all_matches_path(), '{}_matches.pkl.gz'.format(image))
+
+    def __matches_flags_file(self, image):
+        """File for matches flags for an image"""
+        return os.path.join(self.__all_matches_path(), '{}_matches_flags.pkl.gz'.format(image))
+
+    def __all_robust_matches_file(self, image):
+        """File for all matches for an image"""
+        return os.path.join(self.__all_matches_path(), '{}_robust_matches.pkl.gz'.format(image))
+
+    def __transformations_file(self, image):
+        """File for transformations for an image (w.r.t. other images)"""
+        return os.path.join(self.__pairwise_results_path(), '{}_transformations.pkl.gz'.format(image))
+
+    def __fundamentals_file(self, image):
+        """File for fundamental matrices for an image (w.r.t. other images)"""
+        return os.path.join(self.__pairwise_results_path(), '{}_fundamentals.pkl.gz'.format(image))
+
+    def __valid_inliers_file(self, image):
+        """File for flags indicating valid inliers for an image"""
+        return os.path.join(self.__pairwise_results_path(), '{}_valid_inliers.pkl.gz'.format(image))
+
+    def __calibration_flags_file(self, image):
+        """File for flags indicating whether calibrated robust matching occured"""
+        return os.path.join(self.__pairwise_results_path(), '{}_calibration_flags.pkl.gz'.format(image))
+
+    def __feature_transformations_file(self, ext='pkl.gz'):
+        """File for flags indicating whether calibrated robust matching occured"""
+        return os.path.join(self.__classifier_features_path(), 'transformations.{}'.format(ext))
+
+    def __feature_triplet_errors_file(self, ext='pkl.gz'):
+        """File for flags indicating whether calibrated robust matching occured"""
+        return os.path.join(self.__classifier_features_path(), 'triplet_errors.{}'.format(ext))
+
+    def __feature_triplet_pairwise_errors_file(self, ext='pkl.gz'):
+        """File for flags indicating whether calibrated robust matching occured"""
+        return os.path.join(self.__classifier_features_path(), 'triplet_pairwise_errors.{}'.format(ext))
+
+    def __feature_spatial_entropies_file(self, ext='pkl.gz'):
+        """File for flags indicating whether calibrated robust matching occured"""
+        return os.path.join(self.__classifier_features_path(), 'spatial_entropies.{}'.format(ext))
+
+    def __feature_color_histograms_file(self, ext='pkl.gz'):
+        """File for flags indicating whether calibrated robust matching occured"""
+        return os.path.join(self.__classifier_features_path(), 'color_histograms.{}'.format(ext))
+
+    def __feature_photometric_errors_file(self, ext='pkl.gz'):
+        """File for flags indicating whether calibrated robust matching occured"""
+        return os.path.join(self.__classifier_features_path(), 'photometric_errors.{}'.format(ext))
+
+    def __feature_nbvs_file(self, ext='pkl.gz'):
+        """File for flags indicating whether calibrated robust matching occured"""
+        return os.path.join(self.__classifier_features_path(), 'nbvs.{}'.format(ext))
+
+    def __feature_image_matching_results_file(self, ext='pkl.gz'):
+        """File for flags indicating whether calibrated robust matching occured"""
+        return os.path.join(self.__classifier_features_path(), 'image_matching_results.{}'.format(ext))
+
+    def __unthresholded_matches_file(self, image):
+        return os.path.join(self.__classifier_dataset_unthresholded_matches_path(), '{}_matches.pkl.gz'.format(image))
+
+    def __unthresholded_inliers_file(self, image):
+        return os.path.join(self.__classifier_dataset_unthresholded_inliers_path(), '{}_inliers.pkl.gz'.format(image))
+
+    def __unthresholded_outliers_file(self, image):
+        return os.path.join(self.__classifier_dataset_unthresholded_outliers_path(), '{}_outliers.pkl.gz'.format(image))
+
+    def __unthresholded_features_file(self, image):
+        return os.path.join(self.__classifier_dataset_unthresholded_features_path(), '{}_features.pkl.gz'.format(image))
+
+    def __feature_matching_dataset_file(self, suffix):
+        return os.path.join(self.__classifier_dataset_path(), 'feature_matching_dataset_{}.csv'.format(suffix))
+
+    def __image_matching_dataset_file(self, suffix):
+        return os.path.join(self.__classifier_dataset_path(), 'image_matching_dataset_{}.csv'.format(suffix))
+
+    def __ate_results_file(self, ext='pkl.gz'):
+        """File for flags indicating whether calibrated robust matching occured"""
+        return os.path.join(self.__results_path(), 'ate_results.{}'.format(ext))
 
     def matches_exists(self, image):
         return os.path.isfile(self.__matches_file(image))
@@ -324,10 +442,478 @@ class DataSet:
             matches = pickle.load(fin)
         return matches
 
+    def load_all_matches(self, image):
+        try:
+            with gzip.open(self.__all_matches_file(image), 'rb') as fin:
+                matches = pickle.load(fin)
+        except:
+            matches = None
+
+        try:
+            with gzip.open(self.__matches_flags_file(image), 'rb') as fin:
+                flags = pickle.load(fin)
+        except:
+            flags = None
+
+        try:
+            with gzip.open(self.__all_robust_matches_file(image), 'rb') as fin:
+                robust_matches = pickle.load(fin)
+        except:
+            robust_matches = None
+
+        return matches, flags, robust_matches
+
+    def all_matches_exists(self, image):
+        return os.path.isfile(self.__all_matches_file(image)) and \
+            os.path.isfile(self.__matches_flags_file(image)) and \
+            os.path.isfile(self.__all_robust_matches_file(image))
+
+    def load_pairwise_results(self, image):
+        with gzip.open(self.__transformations_file(image), 'rb') as fin:
+            Ts = pickle.load(fin)
+        with gzip.open(self.__fundamentals_file(image), 'rb') as fin:
+            Fs = pickle.load(fin)
+        with gzip.open(self.__valid_inliers_file(image), 'rb') as fin:
+            valid_inliers = pickle.load(fin)
+        with gzip.open(self.__calibration_flags_file(image), 'rb') as fin:
+            calibration_flags = pickle.load(fin)
+        return Ts, Fs, valid_inliers, calibration_flags
+
     def save_matches(self, image, matches):
         io.mkdir_p(self.__matches_path())
         with gzip.open(self.__matches_file(image), 'wb') as fout:
             pickle.dump(matches, fout)
+
+    def save_all_matches(self, image, matches, flags, robust_matches):
+        io.mkdir_p(self.__all_matches_path())
+        with gzip.open(self.__all_matches_file(image), 'wb') as fout:
+            pickle.dump(matches, fout)
+        with gzip.open(self.__matches_flags_file(image), 'wb') as fout:
+            pickle.dump(flags, fout)
+        with gzip.open(self.__all_robust_matches_file(image), 'wb') as fout:
+            pickle.dump(robust_matches, fout)
+    
+    def save_pairwise_results(self, image, Ts, Fs, valid_inliers, calibration_flags):
+        io.mkdir_p(self.__pairwise_results_path())
+        with gzip.open(self.__transformations_file(image), 'wb') as fout:
+            pickle.dump(Ts, fout)
+        with gzip.open(self.__fundamentals_file(image), 'wb') as fout:
+            pickle.dump(Fs, fout)
+        with gzip.open(self.__valid_inliers_file(image), 'wb') as fout:
+            pickle.dump(valid_inliers, fout)
+        with gzip.open(self.__calibration_flags_file(image), 'wb') as fout:
+            pickle.dump(calibration_flags, fout)
+
+    def transformations_exists(self):
+        return os.path.isfile(self.__feature_transformations_file())
+
+    def save_transformations(self, transformations):
+        io.mkdir_p(self.__classifier_features_path())
+        with gzip.open(self.__feature_transformations_file('pkl.gz'), 'wb') as fout:
+            pickle.dump(transformations, fout)
+        with open(self.__feature_transformations_file('json'), 'w') as fout:
+            json.dump(transformations, fout, sort_keys=True, indent=4, separators=(',', ': '))
+
+    def load_transformations(self):
+        with gzip.open(self.__feature_transformations_file(), 'rb') as fin:
+            transformations = pickle.load(fin)
+        return transformations
+
+    def save_triplet_errors(self, triplet_errors):
+        io.mkdir_p(self.__classifier_features_path())
+        with gzip.open(self.__feature_triplet_errors_file('pkl.gz'), 'wb') as fout:
+            pickle.dump(triplet_errors, fout)
+        with open(self.__feature_triplet_errors_file('json'), 'w') as fout:
+            json.dump(triplet_errors, fout, sort_keys=True, indent=4, separators=(',', ': '))
+
+    def triplet_errors_exists(self):
+        return os.path.isfile(self.__feature_triplet_errors_file()) and \
+            os.path.isfile(self.__feature_triplet_pairwise_errors_file())
+
+    def save_triplet_pairwise_errors(self, triplet_pairwise_errors):
+        io.mkdir_p(self.__classifier_features_path())
+        with gzip.open(self.__feature_triplet_pairwise_errors_file('pkl.gz'), 'wb') as fout:
+            pickle.dump(triplet_pairwise_errors, fout)
+        with open(self.__feature_triplet_pairwise_errors_file('json'), 'w') as fout:
+            json.dump(triplet_pairwise_errors, fout, sort_keys=True, indent=4, separators=(',', ': '))
+
+    def load_triplet_pairwise_errors(self):
+        with gzip.open(self.__feature_triplet_pairwise_errors_file(), 'rb') as fin:
+            triplet_pairwise_errors = pickle.load(fin)
+        return triplet_pairwise_errors
+
+    def save_spatial_entropies(self, spatial_entropies):
+        io.mkdir_p(self.__classifier_features_path())
+        with gzip.open(self.__feature_spatial_entropies_file('pkl.gz'), 'wb') as fout:
+            pickle.dump(spatial_entropies, fout)
+        with open(self.__feature_spatial_entropies_file('json'), 'w') as fout:
+            json.dump(spatial_entropies, fout, sort_keys=True, indent=4, separators=(',', ': '))
+
+    def spatial_entropies_exists(self):
+        return os.path.isfile(self.__feature_spatial_entropies_file())
+
+    def load_spatial_entropies(self):
+        with gzip.open(self.__feature_spatial_entropies_file(), 'rb') as fin:
+            spatial_entropies = pickle.load(fin)
+        return spatial_entropies
+
+    def save_color_histograms(self, color_histograms):
+        io.mkdir_p(self.__classifier_features_path())
+        with gzip.open(self.__feature_color_histograms_file('pkl.gz'), 'wb') as fout:
+            pickle.dump(color_histograms, fout)
+        with open(self.__feature_color_histograms_file('json'), 'w') as fout:
+            json.dump(color_histograms, fout, sort_keys=True, indent=4, separators=(',', ': '))
+
+    def color_histograms_exists(self):
+        return os.path.isfile(self.__feature_color_histograms_file())
+
+    def load_color_histograms(self):
+        with gzip.open(self.__feature_color_histograms_file(), 'rb') as fin:
+            color_histograms = pickle.load(fin)
+        return color_histograms
+
+    def save_photometric_errors(self, photometric_errors):
+        io.mkdir_p(self.__classifier_features_path())
+        with gzip.open(self.__feature_photometric_errors_file('pkl.gz'), 'wb') as fout:
+            pickle.dump(photometric_errors, fout)
+        with open(self.__feature_photometric_errors_file('json'), 'w') as fout:
+            json.dump(photometric_errors, fout, sort_keys=True, indent=4, separators=(',', ': '))
+
+    def load_photometric_errors(self):
+        with gzip.open(self.__feature_photometric_errors_file(), 'rb') as fin:
+            photometric_errors = pickle.load(fin)
+        return photometric_errors
+
+    def photometric_errors_exists(self):
+        return os.path.isfile(self.__feature_photometric_errors_file())
+
+    def save_nbvs(self, nbvs):
+        io.mkdir_p(self.__classifier_features_path())
+        with gzip.open(self.__feature_nbvs_file('pkl.gz'), 'wb') as fout:
+            pickle.dump(nbvs, fout)
+        with open(self.__feature_nbvs_file('json'), 'w') as fout:
+            json.dump(nbvs, fout, sort_keys=True, indent=4, separators=(',', ': '))
+
+    def nbvs_exists(self):
+        return os.path.isfile(self.__feature_nbvs_file())
+
+    def load_nbvs(self):
+        with gzip.open(self.__feature_nbvs_file(), 'rb') as fin:
+            nbvs = pickle.load(fin)
+        return nbvs
+
+    def save_image_matching_results(self, results):
+        io.mkdir_p(self.__classifier_features_path())
+        with gzip.open(self.__feature_image_matching_results_file('pkl.gz'), 'wb') as fout:
+            pickle.dump(results, fout)
+        with open(self.__feature_image_matching_results_file('json'), 'w') as fout:
+            json.dump(results, fout, sort_keys=True, indent=4, separators=(',', ': '))
+
+    def load_image_matching_results(self):
+        with gzip.open(self.__feature_image_matching_results_file(), 'rb') as fin:
+            results = pickle.load(fin)
+        return results
+
+    def save_unthresholded_matches(self, image, matches):
+        io.mkdir_p(self.__classifier_dataset_unthresholded_matches_path())
+        with gzip.open(self.__unthresholded_matches_file(image), 'wb') as fout:
+            pickle.dump(matches, fout)
+
+    def unthresholded_matches_exists(self, image):
+        return os.path.isfile(self.__unthresholded_matches_file(image))
+
+    def load_unthresholded_matches(self, image):
+        with gzip.open(self.__unthresholded_matches_file(image), 'rb') as fin:
+            matches = pickle.load(fin)
+        return matches
+
+    def save_unthresholded_inliers(self, image, inliers):
+        io.mkdir_p(self.__classifier_dataset_unthresholded_inliers_path())
+        with gzip.open(self.__unthresholded_inliers_file(image), 'wb') as fout:
+            pickle.dump(inliers, fout)
+
+    def load_unthresholded_inliers(self, image):
+        with gzip.open(self.__unthresholded_inliers_file(image), 'rb') as fin:
+            inliers = pickle.load(fin)
+        return inliers
+
+    def save_unthresholded_outliers(self, image, outliers):
+        io.mkdir_p(self.__classifier_dataset_unthresholded_outliers_path())
+        with gzip.open(self.__unthresholded_outliers_file(image), 'wb') as fout:
+            pickle.dump(outliers, fout)
+
+    def load_unthresholded_outliers(self, image):
+        with gzip.open(self.__unthresholded_outliers_file(image), 'rb') as fin:
+            outliers = pickle.load(fin)
+        return outliers
+
+    def save_unthresholded_features(self, image, features):
+        io.mkdir_p(self.__classifier_dataset_unthresholded_features_path())
+        with gzip.open(self.__unthresholded_features_file(image), 'wb') as fout:
+            pickle.dump(features, fout)
+
+    def load_unthresholded_features(self, image):
+        with gzip.open(self.__unthresholded_features_file(image), 'rb') as fin:
+            features = pickle.load(fin)
+        return features
+
+    def load_general_dataset(self, dataset_fn, load_file_names=True):
+        with open(dataset_fn, 'r') as fin:
+            data = fin.readlines()
+            fns = []
+            for i,datum in enumerate(data):
+                if i == 0: # header row
+                    # Initialize variables
+                    header = datum.split(',')
+                    # Skip image 1 and image 2 names for columns and header row for rows
+                    data_formatted = np.zeros((len(data)-1, len(header)-2)).astype(np.float)
+                    continue
+
+                data_split = datum.split(',')
+                for di, d in enumerate(data_split):
+                    if di == 0 or di == 1:
+                        if len(fns) < i:
+                            fns.append([None,None])
+                        fns[i-1][di] = data_split[di].strip()
+                        continue
+                    data_formatted[i-1,di-2] = float(d)
+        if load_file_names:
+            return np.array(fns), data_formatted
+        return data_formatted
+
+    def save_feature_matching_dataset(self, lowes_threshold):
+        with open(self.__feature_matching_dataset_file(suffix=lowes_threshold), 'w') as fout:
+            fout.write('image 1,image 2, index 1, index 2, max lowe\'s ratio, max reprojection error, size 1, angle 1, size 2, angle 2, reproj error 1, reproj error 2, label\n')
+            for im1 in self.images():
+                if not self.unthresholded_matches_exists(im1):
+                    continue
+                im1_unthresholded_matches = self.load_unthresholded_matches(im1)
+                im1_unthresholded_inliers = self.load_unthresholded_inliers(im1)
+                im1_unthresholded_outliers = self.load_unthresholded_outliers(im1)
+                im1_unthresholded_features = self.load_unthresholded_features(im1)
+
+                for im2 in im1_unthresholded_matches:
+                    for i,m in enumerate(im1_unthresholded_matches[im2]):
+                        features = im1_unthresholded_features[im2][i]
+                        if m in im1_unthresholded_inliers[im2]:
+                            label = 1
+                        elif m in im1_unthresholded_outliers[im2]:
+                            label = -1
+                        else:
+                            label = 0
+
+                        max_lowes_ratio = max(float(m[2]), float(m[3]))
+                        if max_lowes_ratio > lowes_threshold:
+                            continue
+                        # image 1,image 2, index 1, index 2, max lowe\'s ratio, max reprojection error, size 1, angle 1, size 2, angle 2, label
+                        fout.write(
+                            str(im1) + ', ' + \
+                            str(im2) + ', ' + \
+                            str(int(m[0])) + ', ' + \
+                            str(int(m[1])) + ', ' + \
+                            str(round(max_lowes_ratio, 3)) + ', ' + \
+                            str(round(max(float(features[0]), float(features[1])), 6)) + ', ' + \
+                            str(float(features[4])) + ', ' + \
+                            str(float(features[5])) + ', ' + \
+                            str(float(features[6])) + ', ' + \
+                            str(float(features[7])) + ', ' + \
+                            str(float(features[0])) + ', ' + \
+                            str(float(features[1])) + ', ' + \
+                            str(label) + '\n')
+
+    def load_feature_matching_dataset(self, lowes_threshold):
+        fns, data = self.load_general_dataset(self.__feature_matching_dataset_file(suffix=lowes_threshold))
+        indices_1 = data[:,0]
+        indices_2 = data[:,1]
+        max_distances = data[:,2]
+        errors = data[:,3]
+        size1 = data[:,4]
+        angle1 = data[:,5]
+        size2 = data[:,6]
+        angle2 = data[:,7]
+        rerr1 = data[:,8]
+        rerr2 = data[:,9]
+        labels = data[:,10]
+        return fns, [indices_1, indices_2, max_distances, errors, size1, size2, angle1, angle2, rerr1, \
+            rerr2, labels]
+
+    def save_image_matching_dataset(self, robust_matches_threshold):
+        write_header = True
+        lowes_threshold = 0.8
+        transformations = self.load_transformations()
+        spatial_entropies = self.load_spatial_entropies()
+        photometric_errors = self.load_photometric_errors()
+        nbvs = self.load_nbvs()
+        triplet_pairwise_errors = self.load_triplet_pairwise_errors()
+        color_histograms = self.load_color_histograms()
+        vt_ranks, vt_scores = self.load_vocab_ranks_and_scores()
+        counter = 0
+        with open(self.__image_matching_dataset_file(suffix=robust_matches_threshold), 'w') as fout:
+            
+            for im1 in self.images():
+                if im1 not in transformations:
+                    continue
+                im_all_matches, _, im_all_rmatches = self.load_all_matches(im1)
+                im_unthresholded_inliers = self.load_unthresholded_inliers(im1)
+                for im2 in transformations[im1]:
+                    R = np.around(np.array(transformations[im1][im2]['rotation']), decimals=2)
+                    se = spatial_entropies[im1][im2]
+                    pe_histogram = ','.join(map(str, np.around(np.array(photometric_errors[im1][im2]['histogram']), decimals=2)))
+                    pe_polygon_area_percentage = photometric_errors[im1][im2]['polygon_area_percentage']
+                    nbvs_im1 = nbvs[im1][im2]['nbvs_im1']
+                    nbvs_im2 = nbvs[im1][im2]['nbvs_im2']
+                    te_histogram = ','.join(map(str, np.around(np.array(triplet_pairwise_errors[im1][im2]['histogram']), decimals=2)))
+                    ch_im1 = ','.join(map(str, np.around(np.array(color_histograms[im1]['histogram']), decimals=2)))
+                    ch_im2 = ','.join(map(str, np.around(np.array(color_histograms[im2]['histogram']), decimals=2)))
+                    vt_rank_percentage_im1_im2 = 100.0 * vt_ranks[im1][im2] / len(self.images())
+                    vt_rank_percentage_im2_im1 = 100.0 * vt_ranks[im2][im1] / len(self.images())
+
+                    if im2 not in im_unthresholded_inliers or \
+                        im_unthresholded_inliers[im2] is None:
+                        label = -1
+                        num_rmatches = 0
+                        num_matches = 0
+                        num_thresholded_gt_inliers = 0
+                    else:
+                        max_lowes_thresholds = np.maximum(im_unthresholded_inliers[im2][:,2], im_unthresholded_inliers[im2][:,3])
+                        num_thresholded_gt_inliers = len(np.where(max_lowes_thresholds < lowes_threshold)[0])
+                        if num_thresholded_gt_inliers < robust_matches_threshold:
+                            label = -1
+                            num_rmatches = len(im_all_rmatches[im2])
+                            num_matches = len(im_all_matches[im2])
+                        else:
+                            label = 1
+                            num_rmatches = len(im_all_rmatches[im2])
+                            num_matches = len(im_all_matches[im2])
+
+                    # print ('*'*100)
+                    # print ('num_matches: {} / num_rmatches: {} / num_thresholded_gt_inliers: {} / num_unthresholded_gt_inliers: {}'.format(num_matches, num_rmatches, num_thresholded_gt_inliers, len(im_unthresholded_inliers[im2])))
+                    # print (max_lowes_thresholds)
+                    # print ('*'*100)
+                    # counter = counter + 1
+                    # if counter > 10:
+                    #     import sys; sys.exit(1)
+                    if write_header:
+                        fout.write('image 1, image 2,\
+                            R11, R12, R13, R21, R22, R23, R31, R32, R33,\
+                            # of rmatches, # of matches,\
+                            spatial entropy 1 8x8, spatial entropy 2 8x8, spatial entropy 1 16x16, spatial entropy 2 16x16,\
+                            photometric error histogram {} photometric error area percentage,\
+                            colmap score im1, colmap score im2,\
+                            triplet error histogram {}\
+                            color histogram im1 {} color histogram im2 {}\
+                            vt rank percentage im1-im2, vt rank percentage im2-im1,\
+                            # of gt inliers, label\n'.format(\
+                                ','*len(pe_histogram.split(',')), \
+                                ','*len(te_histogram.split(',')), \
+                                ','*len(ch_im1.split(',')), \
+                                ','*len(ch_im2.split(','))
+                                )
+                            )
+                        write_header = False
+
+                    # import sys; sys.exit(1)
+                    # 2 +
+                    # 9 +
+                    # 2 + 
+                    # 4 +
+                    # 51 + 1 +
+                    # 2 + 
+                    # 80 + 
+                    # 384 + 
+                    # 384 + 
+                    # 2 + 
+                    # 1 
+                    # = 922
+                    fout.write(
+                        '{}, {}, \
+                        {}, {}, {}, {}, {}, {}, {}, {}, {}, \
+                        {}, {}, \
+                        {}, {}, {}, {}, \
+                        {}, {}, \
+                        {}, {}, \
+                        {}, \
+                        {}, {}, \
+                        {}, {}, \
+                        {}, {}\n'.format( \
+                        im1, im2, \
+                        R[0,0], R[0,1], R[0,2], R[1,0], R[1,1], R[1,2], R[2,0], R[2,1], R[2,2], \
+                        num_rmatches, num_matches, \
+                        se['entropy_im1_8'], se['entropy_im2_8'], se['entropy_im1_16'], se['entropy_im2_16'], \
+                        pe_histogram, pe_polygon_area_percentage, \
+                        nbvs_im1, nbvs_im2, \
+                        te_histogram, \
+                        ch_im1, ch_im2, \
+                        vt_rank_percentage_im1_im2, vt_rank_percentage_im2_im1, \
+                        num_thresholded_gt_inliers, label))
+
+    def load_image_matching_dataset(self, robust_matches_threshold, rmatches_min_threshold=0, rmatches_max_threshold=10000):
+        fns, data = self.load_general_dataset(self.__image_matching_dataset_file(suffix=robust_matches_threshold))
+        R11s = data[:,0]
+        R12s = data[:,1]
+        R13s = data[:,2]
+        R21s = data[:,3]
+        R22s = data[:,4]
+        R23s = data[:,5]
+        R31s = data[:,6]
+        R32s = data[:,7]
+        R33s = data[:,8]
+        num_rmatches = data[:,9]
+        num_matches = data[:,10]
+        spatial_entropy_1_8x8 = data[:,11]
+        spatial_entropy_2_8x8 = data[:,12]
+        spatial_entropy_1_16x16 = data[:,13]
+        spatial_entropy_2_16x16 = data[:,14]
+        pe_histogram = data[:,15:66] # 51 dimensional vector
+        pe_polygon_area_percentage = data[:,66]
+        nbvs_im1 = data[:,67]
+        nbvs_im2 = data[:,68]
+        te_histogram = data[:,69:149] # 81 dimensional vector
+        ch_im1 = data[:,149:533] # 384 dimensional vector
+        ch_im2 = data[:,533:917] # 384 dimensional vector
+        vt_rank_percentage_im1_im2 = data[:,917]
+        vt_rank_percentage_im2_im1 = data[:,918]
+        gt_inliers = data[:,919]
+        labels = data[:,920]
+
+        ri = np.where((num_rmatches >= rmatches_min_threshold) & (num_rmatches <= rmatches_max_threshold))[0]
+        return fns[ri], [R11s[ri], R12s[ri], R13s[ri], R21s[ri], R22s[ri], R23s[ri], R31s[ri], R32s[ri], R33s[ri], \
+          num_rmatches[ri], num_matches[ri], \
+          spatial_entropy_1_8x8[ri], spatial_entropy_2_8x8[ri], spatial_entropy_1_16x16[ri], spatial_entropy_2_16x16[ri], \
+          pe_histogram[ri], pe_polygon_area_percentage[ri], \
+          nbvs_im1[ri], nbvs_im2[ri], \
+          te_histogram[ri], \
+          ch_im1[ri], ch_im2[ri], \
+          vt_rank_percentage_im1_im2[ri], vt_rank_percentage_im2_im1[ri], \
+          gt_inliers[ri], labels[ri]]
+
+    def save_tum_format(self, reconstruction, suffix):
+        io.mkdir_p(self.__results_path())
+        for i, r in enumerate(reconstruction):
+            with open(self.__reconstruction_tum_file('reconstruction-{}-{}.txt'.format(i, suffix)), 'w') as f:
+                f.write('# ground truth trajectory\n')
+                f.write('# file: \'\'\n')
+                f.write('# timestamp tx ty tz qx qy qz qw\n')
+
+                for timestamp, s in enumerate(sorted(r.shots.keys())):
+                    # print ('{} / {}'.format(timestamp, s))
+                    q = Quaternion(matrix=r.shots[s].pose.get_rotation_matrix().T)
+                    qw,qx,qy,qz = q
+                    tx, ty, tz = r.shots[s].pose.get_origin()
+                    # if suffix == 'gt':
+                    #     f.write('{} {} {} {} {} {} {} {}\n'.format(timestamp, round(tx,4), round(tz,4), round(ty,4), \
+                    #         round(qx,4), round(qz,4), round(qy,4), round(qw,4)))
+                    # else:
+                    f.write('{} {} {} {} {} {} {} {}\n'.format(timestamp, round(tx,4), round(ty,4), round(tz,4), \
+                        round(qx,4), round(qy,4), round(qz,4), round(qw,4)))
+                    
+
+    def save_ate_results(self, results):
+        io.mkdir_p(self.__results_path())
+        with gzip.open(self.__ate_results_file('pkl.gz'), 'wb') as fout:
+            pickle.dump(results, fout)
+        with open(self.__ate_results_file('json'), 'w') as fout:
+            json.dump(results, fout, sort_keys=True, indent=4, separators=(',', ': '))
 
     def find_matches(self, im1, im2):
         if self.matches_exists(im1):
@@ -364,6 +950,10 @@ class DataSet:
         """Return path of reconstruction file"""
         return os.path.join(self.data_path, filename or 'reconstruction.json')
 
+    def __reconstruction_tum_file(self, filename):
+        """Return path of reconstruction file"""
+        return os.path.join(self.__results_path(), filename)
+
     def reconstruction_exists(self, filename=None):
         return os.path.isfile(self.__reconstruction_file(filename))
 
@@ -383,6 +973,30 @@ class DataSet:
     def save_undistorted_reconstruction(self, reconstruction):
         return self.save_reconstruction(
             reconstruction, filename='undistorted_reconstruction.json')
+
+    def load_vocab_ranks_and_scores(self):
+        im_scores = {}
+        im_ranks = {}
+        images = self.images()
+        with open(os.path.join(self.data_path, 'vocab_out','match.out'),'r') as f:
+            i1_prev = None
+            for r, datum in enumerate(f.readlines()):
+                i1, i2, score = datum.split(' ')
+                i1 = int(i1)
+                i2 = int(i2)
+                score = float(score)
+                if r == 0 or i1 != i1_prev:
+                    rank = 1
+                if images[i1] not in im_scores:
+                    im_scores[images[i1]] = {images[i2]: 0.0}
+                    im_ranks[images[i1]] = {images[i2]: 0}
+
+                im_scores[images[int(i1)]][images[int(i2)]] = score
+                im_ranks[images[int(i1)]][images[int(i2)]] = rank
+
+                rank = rank + 1
+                i1_prev = i1
+        return im_ranks, im_scores
 
     def __reference_lla_path(self):
         return os.path.join(self.data_path, 'reference_lla.json')

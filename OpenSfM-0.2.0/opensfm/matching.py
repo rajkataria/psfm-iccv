@@ -95,7 +95,7 @@ def match_lowe_bf(f1, f2, config):
 def robust_match_fundamental(p1, p2, matches, config):
     """Filter matches by estimating the Fundamental matrix via RANSAC."""
     if len(matches) < 8:
-        return np.array([])
+        return np.array([]), np.array([]), np.zeros((3,3)), 0
 
     p1 = p1[matches[:, 0]][:, :2].copy()
     p2 = p2[matches[:, 1]][:, :2].copy()
@@ -106,9 +106,9 @@ def robust_match_fundamental(p1, p2, matches, config):
     inliers = mask.ravel().nonzero()
 
     if F[2, 2] == 0.0:
-        return []
+        return [], np.array([]), np.zeros((3,3)), 0
 
-    return matches[inliers]
+    return matches[inliers], np.array([]), F, 1
 
 
 def _compute_inliers_bearings(b1, b2, T, threshold=0.01):
@@ -131,7 +131,7 @@ def robust_match_calibrated(p1, p2, camera1, camera2, matches, config):
     """Filter matches by estimating the Essential matrix via RANSAC."""
 
     if len(matches) < 8:
-        return np.array([])
+        return np.array([]), np.array([]), np.zeros((3,3)), 0
 
     p1 = p1[matches[:, 0]][:, :2].copy()
     p2 = p2[matches[:, 1]][:, :2].copy()
@@ -143,7 +143,7 @@ def robust_match_calibrated(p1, p2, camera1, camera2, matches, config):
 
     inliers = _compute_inliers_bearings(b1, b2, T, threshold)
 
-    return matches[inliers]
+    return matches[inliers], T, np.zeros((3,3)), 1
 
 
 def robust_match(p1, p2, camera1, camera2, matches, config):
@@ -156,9 +156,9 @@ def robust_match(p1, p2, camera1, camera2, matches, config):
             and camera1.k1 == 0.0
             and camera2.projection_type == 'perspective'
             and camera2.k1 == 0.0):
-        return robust_match_fundamental(p1, p2, matches, config)
+        return robust_match_fundamental(p1, p2, matches, config), 0
     else:
-        return robust_match_calibrated(p1, p2, camera1, camera2, matches, config)
+        return robust_match_calibrated(p1, p2, camera1, camera2, matches, config), 1
 
 
 def _good_track(track, min_length):

@@ -43,7 +43,7 @@ include_directories(${GFLAGS_INCLUDE_DIR})
 find_package(Glog REQUIRED)
 include_directories(${GLOG_INCLUDE_DIR})
 
-find_package(OpenCV REQUIRED)
+find_package(OpenCV 3.2.0 REQUIRED)
 include_directories(${OpenCV_INCLUDE_DIRS})
 
 option(BUILD_FOR_PYTHON3 "build pyopengv for Python 3" OFF)

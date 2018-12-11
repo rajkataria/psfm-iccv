@@ -4,6 +4,7 @@ import io
 import json
 import logging
 import os
+import pyquaternion
 import sys
 
 import cv2
@@ -15,6 +16,7 @@ from opensfm import features
 from opensfm import geo
 from opensfm import types
 from opensfm import context
+from pyquaternion import Quaternion
 
 
 logger = logging.getLogger(__name__)
@@ -804,3 +806,58 @@ def reconstruction_to_ply(reconstruction, no_cameras=False, no_points=False):
     ]
 
     return '\n'.join(header + vertices + [''])
+
+
+# NVM - Raj - used for colmap comparison purposes
+
+def reconstruction_from_nvm(data_path, nvm_file, reconstruction_file=None):
+    if not nvm_file or not os.path.isfile(nvm_file):
+        return None
+
+    with open(nvm_file, 'r') as fin:
+        lines = fin.readlines()
+
+        # initialization
+        reconstruction = types.Reconstruction()
+        camera = types.PerspectiveCamera()
+        camera.id = 'dummy_camera'
+        camera.width = 640
+        camera.height = 480
+        camera.focal = 0.85
+        reconstruction.add_camera(camera)
+
+        for d,datum in enumerate(lines):
+            # Header
+            # NVM_V3
+            #
+            if d < 2: # Skip header
+                continue
+
+            if d == 2:
+                num_cameras = int(datum)
+                continue
+
+            # Actual camera information
+            # 000001.jpg 1156.19 0.530173 0.000750277 0.846232 -0.0529769 3.23925 0.140912 0.566615 0.0318637 0
+            # <File name> <focal length> <quaternion WXYZ> <camera center> <radial distortion> 0
+            shot_key, focal, qw, qx, qy, qz, ox, oy, oz, radial_distortion, _ = datum.split()
+            q = Quaternion(np.array([float(qw), float(qx), float(qy), float(qz)]))
+
+            shot = types.Shot()
+            shot.id = shot_key
+            shot.camera = camera
+            shot.pose = types.Pose()
+            shot.pose.set_rotation_matrix(q.rotation_matrix)
+            shot.pose.set_origin([float(ox), float(oy), float(oz)])
+            reconstruction.add_shot(shot)
+
+            if d ==  num_cameras + 2:
+                break
+
+    # save reconstruction
+    if reconstruction_file is not None:
+        print ('{}'.format(reconstruction_file))
+        with open(reconstruction_file, 'wb') as fout:
+            obj = reconstructions_to_json([reconstruction])
+            json_dump(obj, fout)
+    return reconstruction
