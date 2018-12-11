@@ -8,7 +8,7 @@ DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 # $DIR/opensfm detect_features $1
 # $DIR/opensfm evaluate_vt_rankings $1
 # $DIR/opensfm match_features $1
-# $DIR/opensfm calculate_features $1
+$DIR/opensfm calculate_features $1
 $DIR/opensfm classify_images $1
 $DIR/opensfm create_tracks_classifier $1
 $DIR/opensfm reconstruct $1

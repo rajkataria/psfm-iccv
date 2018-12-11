@@ -131,12 +131,12 @@ depthmap_min_consistent_views: 3      # Min number of views that should reconstr
 depthmap_save_debug_files: no         # Save debug files with partial reconstruction results
 
 # Other params
-processes: 1                          # Number of threads to use
+processes: 72                          # Number of threads to use
 
 # Classifier params
 error_inlier_threshold: 0.01
 error_outlier_threshold: 0.08
-use_image_matching_classifier: yes
+use_image_matching_classifier: no
 image_matching_classifier_threshold: 0.3
 weighted_resectioning: no
 image_matching_classifier: RM+VD+SE+TE+PE+Barn+Caterpillar+Church+Ignatius+6-50-thresholds-15-50.pkl

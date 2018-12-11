@@ -3,24 +3,11 @@ import logging
 import math
 import numpy as np
 import os
-# import pyquaternion
 import sys
 from timeit import default_timer as timer
 
-# from networkx.algorithms import bipartite
-
 from opensfm import dataset
-# from opensfm import evaluate_ate_scale, associate
 from opensfm import io
-# from opensfm import matching
-# from opensfm import types
-# from pyquaternion import Quaternion
-
-# import matplotlib
-# matplotlib.use('Agg')
-# import matplotlib.pyplot as plt
-# import matplotlib.pylab as pylab
-# from matplotlib.patches import Ellipse
 
 logger = logging.getLogger(__name__)
 

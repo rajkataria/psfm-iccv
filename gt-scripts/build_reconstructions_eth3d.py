@@ -1,148 +1,11 @@
-#!/usr/bin/python
-#! -*- encoding: utf-8 -*-
-#
-# eth3DToReconJSON.py
-#
-# python script to convert ETH3D data to opensfm reconstruction
-# written by Joe DeGol
-#
-# usage : python eth3DToReconJSON.py <options>
-#
-# Options:
-# -h  --help   help message
-# -i  --indir  path to directory with images.txt, cameras.txt, and points3D.txt inside (e.g. ./courtyard)
 
-
-
-
-
-#=============================================================================#
-#================================== Preamble =================================#
-#=============================================================================#
-
-#=============== imports ===============#
-
-# system
 import os
 import sys
 import getopt
 import math
 import numpy as np
 
-# opensfm
-path =  './pipelines/baseline/OpenSfM-0.2.0-VT-Faster-BA/'
-if not path in sys.path:
-  sys.path.insert(1, path)
-del path
-from opensfm import dataset, matching, reconstruction, types, io
-
-#============= End Imports =============#
-
-#=============== Globals ===============#
-
-myDataPath = ""
-
-#============= End Globals =============#
-
-#=============================================================================#
-#================================ End Preamble ===============================#
-#=============================================================================#
-
-
-
-
-
-#=============================================================================#
-#================================= Functions =================================#
-#=============================================================================#
-
-
-#=============== Intro ===============#
-def intro():
-    print('========================================')
-    print('= eth3DToReconJSON.py ')
-    print('========================================')
-    print('=')
-#============= End Intro =============#
-
-
-#=============== Outro ===============#
-def outro():
-    print('=')
-    print('========================================')
-    print('= End eth3DToReconJSON.py ')
-    print('========================================')
-#============= End Outro =============#
-
-
-#=============== Message ===============#
-def message(str_param, newline_param=1, continued_param=0):
-
-    #if continued, dont write start character
-    if continued_param == 0:
-        sys.stdout.write('= ')
-
-    #write
-    sys.stdout.write(str_param)
-
-    #newline if requested
-    if newline_param > 0:
-        sys.stdout.write('\n')
-
-    #flush
-    sys.stdout.flush()
-#============= End Message =============#
-
-
-#=============== Help ===============#
-def help():
-    print('========================================')
-    print('= Help Menu')
-    print('========================================')
-    message('usage:')
-    message('python eth3DToReconJSON.py <options>')
-    message('')
-    message('-h  --help    :  this help menu')
-    message('-i  --indir  path to directory with images.txt, cameras.txt, and points3D.txt inside')
-    print('========================================')
-#============= End Help =============#
-
-
-#=============== Parse Args ===============#
-def parse_args(argv):
-
-    # variables
-    global myDataPath
-    inputPathGiven = False
-
-    # try to getopt inputs
-    try:
-        opts, args = getopt.getopt(argv, "hi:c:", ["indir=","rchar="])
-    except getopt.GetoptError:
-        help()
-        outro()
-        sys.exit(2)
-
-    # for each argument
-    for opt, arg in opts:
-
-        #help
-        if opt in ('-h', "--help"):
-            help()
-            outro()
-            sys.exit()
-
-        # root dir
-        if opt in ('-i', "--indir"):
-            myDataPath = arg
-            inputPathGiven = True
-
-    if inputPathGiven is False:
-        message('Error: No input directory given. Use -i option.')
-        outro()
-        sys.exit()
-
-#============= End Parse Args =============#
+from argparse import ArgumentParser
 
 #=============== Quaternion to AxisAngle ===============#
 # convert quaternion to aa:
@@ -182,22 +45,15 @@ def quat2aa(qw,qx,qy,qz):
 #============= End Quaternion to AxisAngle =============#
 
 #=============== Convert to Recon JSONs ===============#
-def convertToReconJSONs():
+def convertToReconJSONs(dataset_path):
+    gt_folder = 'dslr_calibration_undistorted'
 
-    # variables
-    global myDataPath
+    images_file = os.path.join(dataset_path, gt_folder,'images.txt')
+    cameras_file = os.path.join(dataset_path, gt_folder,'cameras.txt')
+    points_file = os.path.join(dataset_path, gt_folder,'points3D.txt')
+    convertToReconJSON(images_file, cameras_file, points_file, dataset_path)
 
-    # iterate file tree
-    for root, dirs, files in os.walk(myDataPath):
-        for file in files:
-            if file == 'images.txt':
-                images_file = os.path.join(root,file)
-                cameras_file = os.path.join(root,'cameras.txt')
-                points_file = os.path.join(root,'points3D.txt')
-                message( 'processing ' + images_file )
-                convertToReconJSON(images_file, cameras_file, points_file, root)
-
-def convertToReconJSON(images_file, cameras_file, points_file, root):
+def convertToReconJSON(images_file, cameras_file, points_file, dataset_path):
 
     # variables
     extrinsic_line = True
@@ -282,7 +138,7 @@ def convertToReconJSON(images_file, cameras_file, points_file, root):
             extrinsic_line = True
 
     # save as json
-    data = dataset.DataSet(root)
+    data = dataset.DataSet(dataset_path)
     data.save_reconstruction([new_recon],'reconstruction_gt.json')
 
 #============= End Convert to Recon JSONs =============#
@@ -301,40 +157,23 @@ def convertToReconJSON(images_file, cameras_file, points_file, root):
 
 #=============== main ===============#
 def main():
+    parser = ArgumentParser(
+        description='test apriltag Python bindings')
 
-    #===== Setup =====#
+    parser.add_argument('-s', '--opensfm_path', help='opensfm path')
+    parser.add_argument('-o', '--dataset_path', help='path of the dataset')
 
-    # intro
-    intro()
+    parser.add_argument('--debug', dest='debug', action='store_true', help='show mask')
+    parser.set_defaults(debug=False)
+    parser_options = parser.parse_args()
 
-    # parse arguments
-    parse_args(sys.argv[1:])
+    if not parser_options.opensfm_path in sys.path:
+      sys.path.insert(1, parser_options.opensfm_path)
+    from opensfm import dataset, matching, reconstruction, types, io
 
-    #=== End Setup ===#
+    global dataset, types
 
+    convertToReconJSONs(parser_options.dataset_path)
 
-    #===== Run =====#
-
-    # iterate file tree and convertToReconJSON
-    convertToReconJSONs()
-
-    #=== End Run ===#
-
-
-    #===== Shutdown =====#
-
-    # outro
-    outro()
-
-    #=== End Shutdown ===#
-
-#============= end main =============#
-
-#=============== conditional script ===============#
 if __name__ == "__main__":
     main()
-#============= end conditional script =============#
-
-#=============================================================================#
-#=================================== End Main ================================#
-#=============================================================================#
