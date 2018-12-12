@@ -75,7 +75,9 @@ class Command:
             except IOError:
                 continue
             for im2 in im1_matches:
-                if im2 in im_matching_results[im1] and im_matching_results[im1][im2]['score'] >= image_matching_classifier_threshold:
+                if im1 in im_matching_results and im2 in im_matching_results[im1] and im_matching_results[im1][im2]['score'] >= image_matching_classifier_threshold:
+                    matches[im1, im2] = im1_matches[im2]
+                elif im2 in im_matching_results and im1 in im_matching_results[im2] and im_matching_results[im2][im1]['score'] >= image_matching_classifier_threshold:
                     matches[im1, im2] = im1_matches[im2]
         return matches
 
