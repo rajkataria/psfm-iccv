@@ -78,7 +78,7 @@ def build_reconstruction(opensfm_path, log_file, dataset_path):
     global types
 
 
-    Rs, ts, subsampled_images, timestamps = parse_log_file(log_file, sample_rate=1)
+    Rs, ts, subsampled_images, timestamps = parse_log_file(log_file, sample_rate=10)
     generate_dataset(dataset_path, subsampled_images)
     
     recon = types.Reconstruction()
