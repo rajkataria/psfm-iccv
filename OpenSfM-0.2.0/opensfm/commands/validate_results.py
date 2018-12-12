@@ -104,7 +104,6 @@ class Command:
             logger.info('Skipping ATE calculation since no ground-truth exists...')
         else:
             relevant_reconstructions = []
-            # reconstruction_statistics = {}
 
             if data.reconstruction_exists('reconstruction.json'):
                 logger.info('Computing ATE for baseline...')
@@ -138,12 +137,6 @@ class Command:
                 self.intersect_reconstructions(data, reconstruction_classifier_gt, reconstruction_classifier)
                 relevant_reconstructions.append([reconstruction_classifier_gt, reconstruction_classifier, stats_label])
 
-            relevant_reconstructions = [
-                [reconstruction_baseline_gt, reconstruction_baseline, 'baseline'],
-                [reconstruction_colmap_gt, reconstruction_colmap, 'colmap'],
-                [reconstruction_classifier_weighted_gt, reconstruction_classifier_weighted, 'classifier-weighted'],
-                [reconstruction_classifier_gt, reconstruction_classifier, 'classifier'],
-            ]
             for datum in relevant_reconstructions:
                 r_gt, r, label = datum
                 camera = types.PerspectiveCamera()
