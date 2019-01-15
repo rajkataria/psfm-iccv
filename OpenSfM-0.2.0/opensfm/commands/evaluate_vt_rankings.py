@@ -49,7 +49,7 @@ def vt_rankings(args):
 
     start = timer()
     subprocess.Popen("ls -d {}/images/* > {}/vt_image_list.txt".format(data.data_path, data.data_path), shell=True, stdout=subprocess.PIPE).stdout.read()
-    subprocess.Popen("{}/build/bin/libvot_feature -output_folder {}/sift/ {}/vt_image_list.txt".format(libvot, data.data_path, data.data_path), shell=True, stdout=subprocess.PIPE).stdout.read()
+    subprocess.Popen("{}/build/bin/libvot_feature -thread_num 10 -output_folder {}/sift/ {}/vt_image_list.txt".format(libvot, data.data_path, data.data_path), shell=True, stdout=subprocess.PIPE).stdout.read()
     subprocess.Popen("ls -d {}/sift/*.sift > {}/vt_sift_list.txt".format(data.data_path, data.data_path), shell=True, stdout=subprocess.PIPE).stdout.read()
     subprocess.Popen("{}/build/bin/image_search {}/vt_sift_list.txt {}/vocab_out".format(libvot, data.data_path, data.data_path), shell=True, stdout=subprocess.PIPE).stdout.read()
 
