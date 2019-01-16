@@ -198,6 +198,8 @@ class Command:
         tracks, images = matching.tracks_and_images(graph)
         cameras = len(data.images())
         for s in reconstruction.shots:
+            if s not in graph:
+                continue
             pts_triangulated = set(reconstruction.points.keys()).intersection(set(graph[s].keys()))
             if len(pts_triangulated) >= options['min_triangulated']:
                 # if options['debug']:
@@ -282,7 +284,7 @@ class Command:
             gt_xyz_full = np.matrix([[float(value) for value in gt_full_list[a][0:3]] for a,b in full_matches]).transpose()
             osfm_xyz_full = np.matrix([[float(value) for value in osfm_full_list[b][0:3]] for a,b in full_matches]).transpose()
 
-            max_score = sys.float_info.min
+            max_score = -sys.float_info.max
             for ransac_iteration in range(0, total_ransac_iterations):
                 images_aligned_cm, images_aligned_dm, images_aligned_m, translation_error, s, R, t = self.align_and_calculate_ate(data, gt_full_list, osfm_full_list, \
                     gt_xyz_full, osfm_xyz_full, full_matches, label, ate_options)
@@ -294,10 +296,10 @@ class Command:
                         'images_aligned_cm': images_aligned_cm, 'images_aligned_dm': images_aligned_dm, 'images_aligned_m': images_aligned_m,\
                         'translation_error': translation_error
                         }
-
-
-            self.plot_best_trajectories(data, gt_full_list, osfm_full_list, best_model['matches'], \
-                best_model['s'], best_model['R'], best_model['t'], label)
+            
+            if len(best_model['matches']) >= 2:
+                self.plot_best_trajectories(data, gt_full_list, osfm_full_list, best_model['matches'], \
+                    best_model['s'], best_model['R'], best_model['t'], label)
 
             results[label] = {
                 'absolute translational error %f m': best_model['translation_error'],
@@ -324,6 +326,9 @@ class Command:
         return images_aligned_cm, images_aligned_dm, images_aligned_m, translation_error
 
     def align_and_calculate_ate(self, data, gt_full_list, osfm_full_list, gt_xyz_full, osfm_xyz_full, full_matches, comparison_label, ate_options):
+        if len(full_matches) < 2:
+            return 0, 0, 0, 0.0, 1.0, np.zeros((3,3)), np.zeros((1,3)) 
+
         sampled_matches = self.get_sample_matches(full_matches)
         gt_xyz_sampled = np.matrix([[float(value) for value in gt_full_list[a][0:3]] for a,b in sampled_matches]).transpose()
         osfm_xyz_sampled = np.matrix([[float(value) for value in osfm_full_list[b][0:3]] for a,b in sampled_matches]).transpose()
