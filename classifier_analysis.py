@@ -96,8 +96,10 @@ def analyze_datasets(datasets, options={}):
         for k in [5, 10, 30]:
             _, mean_results_rmatches = get_precision_recall(fns, labels, criteria=num_rmatches, k=k)
             _, mean_results_scores = get_precision_recall(fns, labels, criteria=scores, k=k)
+            _, mean_results_labels = get_precision_recall(fns, labels, criteria=labels, k=k)
             print ('\tTop {} - Dataset: {}  Criteria: {}  Mean Precision: {}  Mean Recall: {}'.format(k, t.split('/')[-1], 'rmatches', mean_results_rmatches[0], mean_results_rmatches[1]))
             print ('\tTop {} - Dataset: {}  Criteria: {}  Mean Precision: {}  Mean Recall: {}'.format(k, t.split('/')[-1], 'scores', mean_results_scores[0], mean_results_scores[1]))
+            print ('\tTop {} - Dataset: {}  Criteria: {}  Mean Precision: {}  Mean Recall: {}'.format(k, t.split('/')[-1], 'labels', mean_results_labels[0], mean_results_labels[1]))
 
 def main(argv):
     parser = ArgumentParser(description='')
