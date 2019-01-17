@@ -41,7 +41,10 @@ def save_classifier(regr, name):
     joblib.dump(regr, name_)
 
 def load_classifier(name):
-    name_ = name + '.pkl'
+    if name.split('.')[-1] != 'pkl':
+        name_ = name + '.pkl'
+    else:
+        name_ = name
     return joblib.load(name_)
 
 def mkdir_p(path):
@@ -495,6 +498,25 @@ def main(argv):
         '/hdd/Research/psfm/pipelines/baseline/OpenSfM-0.2.0-VT-Faster-BA/data/GTAV_540-ClassifierDatasets/0000',
         '/hdd/Research/psfm/pipelines/baseline/OpenSfM-0.2.0-VT-Faster-BA/data/GTAV_540-ClassifierDatasets/0001',
         '/hdd/Research/psfm/pipelines/baseline/OpenSfM-0.2.0-VT-Faster-BA/data/GTAV_540-ClassifierDatasets/0002',
+        '/hdd/Research/psfm-iccv/data/GTAV_540/0065',
+        '/hdd/Research/psfm-iccv/data/GTAV_540/0071',
+        '/hdd/Research/psfm-iccv/data/GTAV_540/0073',
+        '/hdd/Research/psfm-iccv/data/GTAV_540/0088',
+        '/hdd/Research/psfm-iccv/data/GTAV_540/0089',
+        '/hdd/Research/psfm-iccv/data/GTAV_540/0098',
+        '/hdd/Research/psfm-iccv/data/GTAV_540/0100',
+        '/hdd/Research/psfm-iccv/data/GTAV_540/0102',
+        '/hdd/Research/psfm-iccv/data/GTAV_540/0112',
+        '/hdd/Research/psfm-iccv/data/GTAV_540/0116',
+        '/hdd/Research/psfm-iccv/data/GTAV_540/0118',
+
+        '/hdd/Research/psfm-iccv/data/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_360',
+        '/hdd/Research/psfm-iccv/data/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_desk',
+        '/hdd/Research/psfm-iccv/data/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_desk2',
+        '/hdd/Research/psfm-iccv/data/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_floor',
+        '/hdd/Research/psfm-iccv/data/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_plant',
+        '/hdd/Research/psfm-iccv/data/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_room',
+        '/hdd/Research/psfm-iccv/data/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_teddy',
 
         '/hdd/Research/psfm/pipelines/baseline/OpenSfM-0.2.0-VT-Faster-BA/data/ETH3D-ClassifierDatasets/courtyard',
         '/hdd/Research/psfm/pipelines/baseline/OpenSfM-0.2.0-VT-Faster-BA/data/ETH3D-ClassifierDatasets/delivery_area',
