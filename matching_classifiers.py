@@ -63,35 +63,7 @@ def calculate_accuracy(y, y_gt, color, ls, thresholds = np.linspace(0.0, 1.0, 10
     auc = sklearn.metrics.average_precision_score(y_gt, y)
     plt.step(recall, precision, color=color, alpha=0.2 * width,
         where='post')
-    # plt.fill_between(recall, precision, alpha=0.01*width, color=color)
     return auc
-
-def feature_matching_classifier_boosted_dts(options, fns, max_distances, size1, size2, angle1, angle2, labels, train, regr=None):
-    rng = np.random.RandomState(1)
-    X = np.concatenate((
-            max_distances.reshape((len(labels),1)),
-            size1.reshape((len(labels),1)),
-            size2.reshape((len(labels),1)),
-            size2.reshape((len(labels),1)) - size1.reshape((len(labels),1)), 
-            np.absolute(size2.reshape((len(labels),1)) - size1.reshape((len(labels),1))), 
-            angle1.reshape((len(labels),1)), 
-            angle2.reshape((len(labels),1)),
-            angle2.reshape((len(labels),1)) - angle1.reshape((len(labels),1)),
-            np.absolute(angle2.reshape((len(labels),1)) - angle1.reshape((len(labels),1))).tolist()
-        ),
-        axis=1)
-    y = labels
-
-    # Fit regression model
-    if regr is None:
-        regr = GradientBoostingClassifier(max_depth=options['max_depth'], n_estimators=options['n_estimators'], random_state=rng)
-        regr.fit(X, y)
-
-    # Predict
-    y_ = regr.predict_proba(X)[:,1]
-    print ("\tFinished Learning/Classifying Boosted Decision Tree")
-    auc = calculate_accuracy(y_, labels,'r','solid' if not train else 'dashed')
-    return regr, auc, y_
 
 def get_postfix(datasets):
   postfix = ''
@@ -124,17 +96,18 @@ def feature_matching_learned_classifier(options, training_datasets, testing_data
     #################################################################################################################################    
     for i,t in enumerate(training_datasets):
         data = dataset.DataSet(t)
-        _fns, [_indices_1, _indices_2, _max_distances, _errors, _size1, _size2, _angle1, _angle2, _rerr1, \
-            _rerr2, _labels] = data.load_feature_matching_dataset(lowes_threshold=0.8)
+        _fns, [_indices_1, _indices_2, _dists1, _dists2, _errors, _size1, _size2, _angle1, _angle2, _rerr1, \
+            _rerr2, _labels] = data.load_feature_matching_dataset(lowes_threshold=0.95)
         if i == 0:
-            fns, indices_1, indices_2, max_distances, errors, size1, size2, angle1, angle2, rerr1, \
-                rerr2, labels = _fns, _indices_1, _indices_2, _max_distances, _errors, _size1, _size2, _angle1, _angle2, _rerr1, \
+            fns, indices_1, indices_2, dists1, dists2, errors, size1, size2, angle1, angle2, rerr1, \
+                rerr2, labels = _fns, _indices_1, _indices_2, _dists1, _dists2, _errors, _size1, _size2, _angle1, _angle2, _rerr1, \
                 _rerr2, _labels
         else:
             fns = np.concatenate((fns, _fns), axis=0)
             indices_1 = np.concatenate((indices_1, _indices_1), axis=0)
             indices_2 = np.concatenate((indices_2, _indices_2), axis=0)
-            max_distances = np.concatenate((max_distances, _max_distances), axis=0)
+            dists1 = np.concatenate((dists1, _dists1), axis=0)
+            dists2 = np.concatenate((dists2, _dists2), axis=0)
             errors = np.concatenate((errors, _errors), axis=0)
             size1 = np.concatenate((size1, _size1), axis=0)
             size2 = np.concatenate((size2, _size2), axis=0)
@@ -144,15 +117,14 @@ def feature_matching_learned_classifier(options, training_datasets, testing_data
             rerr2 = np.concatenate((rerr2, _rerr2), axis=0)
             labels = np.concatenate((labels, _labels), axis=0)
     labels[labels < 0] = 0
-
+    max_distances = np.maximum(dists1, dists2)
     auc_baseline_train = calculate_accuracy(-1.0 * max_distances, labels, color='green', ls='dashed', thresholds=np.linspace(0.0,1.0,101))
-    regr_bdt, auc_bdts_train, y = \
-        feature_matching_classifier_boosted_dts(options, fns, max_distances, size1, size2, angle1, angle2, labels, train=True)
+    _, _, _, _, regr_bdt, y = classifier.classify_boosted_dts_feature_match([fns, dists1, dists2, size1, size2, angle1, angle2, labels, True, None, options])
+    auc_bdts_train = calculate_accuracy(y, labels,'r','dashed')
     training_postfix = get_postfix(training_datasets)
     data_folder = 'data/feature-matching-classifiers-results'
     mkdir_p(data_folder)
-    save_classifier(regr_bdt, os.path.join(data_folder, 'feature-matching-classifiers', \
-        '{}{}-{}'.format(training_postfix, options['max_depth'], options['n_estimators'])))
+    save_classifier(regr_bdt, os.path.join(data_folder, '{}{}-{}'.format(training_postfix, options['max_depth'], options['n_estimators'])))
     
     #################################################################################################################################
     #################################################################################################################################
@@ -162,17 +134,18 @@ def feature_matching_learned_classifier(options, training_datasets, testing_data
 
     for i,t in enumerate(testing_datasets):
         data = dataset.DataSet(t)
-        _fns, [_indices_1, _indices_2, _max_distances, _errors, _size1, _size2, _angle1, _angle2, _rerr1, \
+        _fns, [_indices_1, _indices_2, _dists1, _dists2, _errors, _size1, _size2, _angle1, _angle2, _rerr1, \
             _rerr2, _labels] = data.load_feature_matching_dataset(lowes_threshold=0.8)
         if i == 0:
-            fns, indices_1, indices_2, max_distances, errors, size1, size2, angle1, angle2, rerr1, \
-                rerr2, labels = _fns, _indices_1, _indices_2, _max_distances, _errors, _size1, _size2, _angle1, _angle2, _rerr1, \
+            fns, indices_1, indices_2, dists1, dists2, errors, size1, size2, angle1, angle2, rerr1, \
+                rerr2, labels = _fns, _indices_1, _indices_2, _dists1, _dists2, _errors, _size1, _size2, _angle1, _angle2, _rerr1, \
                 _rerr2, _labels
         else:
             fns = np.concatenate((fns, _fns), axis=0)
             indices_1 = np.concatenate((indices_1, _indices_1), axis=0)
             indices_2 = np.concatenate((indices_2, _indices_2), axis=0)
-            max_distances = np.concatenate((max_distances, _max_distances), axis=0)
+            dists1 = np.concatenate((dists1, _dists1), axis=0)
+            dists2 = np.concatenate((dists2, _dists2), axis=0)
             errors = np.concatenate((errors, _errors), axis=0)
             size1 = np.concatenate((size1, _size1), axis=0)
             size2 = np.concatenate((size2, _size2), axis=0)
@@ -183,8 +156,10 @@ def feature_matching_learned_classifier(options, training_datasets, testing_data
             labels = np.concatenate((labels, _labels), axis=0)
     labels[labels < 0] = 0
 
+    max_distances = np.maximum(dists1, dists2)
     auc_baseline_test = calculate_accuracy(-1.0 * max_distances, labels, color='blue', ls='dashed', thresholds=np.linspace(0.0,1.0,101))
-    _, auc_bdts_test, y = feature_matching_classifier_boosted_dts(options, fns, max_distances, size1, size2, angle1, angle2, labels, train=False, regr=regr_bdt)
+    _, _, _, _, regr_bdt, y = classifier.classify_boosted_dts_feature_match([fns, dists1, dists2, size1, size2, angle1, angle2, labels, False, regr_bdt, options])
+    auc_bdts_test = calculate_accuracy(y, labels,'r','solid')
   
     plt.legend(
         ['Baseline (Train - ' + str([os.path.basename(t) for t in training_datasets]) + '), AUC=' + str(auc_baseline_train), 
@@ -498,25 +473,25 @@ def main(argv):
         '/hdd/Research/psfm/pipelines/baseline/OpenSfM-0.2.0-VT-Faster-BA/data/GTAV_540-ClassifierDatasets/0000',
         '/hdd/Research/psfm/pipelines/baseline/OpenSfM-0.2.0-VT-Faster-BA/data/GTAV_540-ClassifierDatasets/0001',
         '/hdd/Research/psfm/pipelines/baseline/OpenSfM-0.2.0-VT-Faster-BA/data/GTAV_540-ClassifierDatasets/0002',
-        '/hdd/Research/psfm-iccv/data/GTAV_540/0065',
-        '/hdd/Research/psfm-iccv/data/GTAV_540/0071',
-        '/hdd/Research/psfm-iccv/data/GTAV_540/0073',
-        '/hdd/Research/psfm-iccv/data/GTAV_540/0088',
-        '/hdd/Research/psfm-iccv/data/GTAV_540/0089',
-        '/hdd/Research/psfm-iccv/data/GTAV_540/0098',
-        '/hdd/Research/psfm-iccv/data/GTAV_540/0100',
-        '/hdd/Research/psfm-iccv/data/GTAV_540/0102',
-        '/hdd/Research/psfm-iccv/data/GTAV_540/0112',
-        '/hdd/Research/psfm-iccv/data/GTAV_540/0116',
-        '/hdd/Research/psfm-iccv/data/GTAV_540/0118',
+        # '/hdd/Research/psfm-iccv/data/GTAV_540/0065',
+        # '/hdd/Research/psfm-iccv/data/GTAV_540/0071',
+        # '/hdd/Research/psfm-iccv/data/GTAV_540/0073',
+        # '/hdd/Research/psfm-iccv/data/GTAV_540/0088',
+        # '/hdd/Research/psfm-iccv/data/GTAV_540/0089',
+        # '/hdd/Research/psfm-iccv/data/GTAV_540/0098',
+        # '/hdd/Research/psfm-iccv/data/GTAV_540/0100',
+        # '/hdd/Research/psfm-iccv/data/GTAV_540/0102',
+        # '/hdd/Research/psfm-iccv/data/GTAV_540/0112',
+        # '/hdd/Research/psfm-iccv/data/GTAV_540/0116',
+        # '/hdd/Research/psfm-iccv/data/GTAV_540/0118',
 
-        '/hdd/Research/psfm-iccv/data/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_360',
-        '/hdd/Research/psfm-iccv/data/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_desk',
-        '/hdd/Research/psfm-iccv/data/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_desk2',
-        '/hdd/Research/psfm-iccv/data/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_floor',
-        '/hdd/Research/psfm-iccv/data/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_plant',
-        '/hdd/Research/psfm-iccv/data/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_room',
-        '/hdd/Research/psfm-iccv/data/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_teddy',
+        # '/hdd/Research/psfm-iccv/data/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_360',
+        # '/hdd/Research/psfm-iccv/data/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_desk',
+        # '/hdd/Research/psfm-iccv/data/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_desk2',
+        # '/hdd/Research/psfm-iccv/data/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_floor',
+        # '/hdd/Research/psfm-iccv/data/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_plant',
+        # '/hdd/Research/psfm-iccv/data/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_room',
+        # '/hdd/Research/psfm-iccv/data/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_teddy',
 
         '/hdd/Research/psfm/pipelines/baseline/OpenSfM-0.2.0-VT-Faster-BA/data/ETH3D-ClassifierDatasets/courtyard',
         '/hdd/Research/psfm/pipelines/baseline/OpenSfM-0.2.0-VT-Faster-BA/data/ETH3D-ClassifierDatasets/delivery_area',
@@ -547,8 +522,8 @@ def main(argv):
         'image_match_classifier_max_match': int(parser_options.image_match_classifier_max_match), \
         'feature_selection': False
     }
-    # feature_matching_learned_classifier(options, training_datasets, testing_datasets)
-    image_matching_learned_classifier(training_datasets, testing_datasets, options)  
+    feature_matching_learned_classifier(options, training_datasets, testing_datasets)
+    # image_matching_learned_classifier(training_datasets, testing_datasets, options)  
 
 if __name__ == '__main__':
     main(sys.argv)

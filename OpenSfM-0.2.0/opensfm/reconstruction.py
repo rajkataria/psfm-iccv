@@ -706,7 +706,7 @@ def reconstructed_weighted_points_for_images(data, graph, reconstruction, images
     resectioning_score = {}
     track_scores = {}
     im_matches = {}
-    # im_match_scores = {}
+    im_fmr = {} # feature matching results
     im_matching_results = data.load_image_matching_results()
     for image in images:
         resectioning_score[image] = 0.0
@@ -751,14 +751,17 @@ def reconstructed_weighted_points_for_images(data, graph, reconstruction, images
                     if im1 not in im_matches or im2 not in im_matches[im1] or len(im_matches[im1][im2]) == 0:
                         continue
 
+                    if im1 not in im_fmr:
+                        im_fmr[im1] = data.load_feature_matching_results(im1)
                     rmatches = im_matches[im1][im2][:,0:2].astype(int)
                     relevant_index = np.where((rmatches[:,0] == fid1) & (rmatches[:,1] == fid2))
+                    fm_relevant_index = np.where((np.array(im_fmr[im1][im2]['indices1']) == fid1) & \
+                        (np.array(im_fmr[im1][im2]['indices2']) == fid2))[0]
 
                     if len(im_matches[im1][im2][relevant_index, :].flatten()) == 0:
                         continue
 
-                    feature_matching_score = 1.0 #im_matches[im1][im2][relevant_index, :].flatten()[-1]
-                    # image_matching_score = im_match_scores[im1][im2]['score']
+                    feature_matching_score = np.array(im_fmr[im1][im2]['scores'])[fm_relevant_index][0]
                     image_matching_score = im_matching_results[im1][im2]['score']
                     track_score += feature_matching_score * image_matching_score
 
@@ -1088,12 +1091,11 @@ def grow_reconstruction(data, graph, reconstruction, images, gcp):
                 [reconstruction], 'reconstruction.{}.json'.format(
                     datetime.datetime.now().isoformat().replace(':', '_')))
 
-        if data.config.get('use_image_matching_classifier', False) and data.config.get('weighted_resectioning', False):
-            common_tracks = reconstructed_weighted_points_for_images(data, graph, reconstruction, images)#, im_matches, im_match_scores)
-        elif data.config.get('use_image_matching_classifier', False):
-            common_tracks = reconstructed_points_for_images(graph, reconstruction, images)            
+        if data.config.get('use_weighted_resectioning', False):
+            common_tracks = reconstructed_weighted_points_for_images(data, graph, reconstruction, images)
         else:
             common_tracks = reconstructed_points_for_images(graph, reconstruction, images)
+
 
         if not common_tracks:
             break
@@ -1158,13 +1160,24 @@ def incremental_reconstruction(data):
     chrono = Chronometer()
     if not data.reference_lla_exists():
         data.invent_reference_lla()
-
-    if data.config.get('use_image_matching_classifier', False) and data.config.get('weighted_resectioning', False):
-        graph = data.load_tracks_graph('tracks-all-matches.csv')
-    elif data.config.get('use_image_matching_classifier', False):
+    
+    if data.config.get('use_gt_matches', False):
+        graph = data.load_tracks_graph('tracks-gt-matches.csv')
+    elif data.config.get('use_image_matching_classifier', False) and \
+        data.config.get('use_weighted_feature_matches', False) and \
+        data.config.get('use_image_matching_thresholding', False):
+        graph = data.load_tracks_graph('tracks-thresholded-weighted-matches.csv')
+    elif data.config.get('use_image_matching_classifier', False) and \
+        data.config.get('use_weighted_feature_matches', False):
+        graph = data.load_tracks_graph('tracks-all-weighted-matches.csv')
+    elif data.config.get('use_image_matching_classifier', False) and \
+        data.config.get('use_image_matching_thresholding', False):
         graph = data.load_tracks_graph('tracks-thresholded-matches.csv')
+    elif data.config.get('use_image_matching_classifier', False):
+        graph = data.load_tracks_graph('tracks-all-matches.csv')
     else:
         graph = data.load_tracks_graph('tracks.csv')
+
     tracks, images = matching.tracks_and_images(graph)
     chrono.lap('load_tracks_graph')
     remaining_images = set(images)
@@ -1194,12 +1207,14 @@ def incremental_reconstruction(data):
                 reconstructions = sorted(reconstructions,
                                          key=lambda x: -len(x.shots))
                 
-                if data.config.get('use_image_matching_classifier', False) and data.config.get('weighted_resectioning', False):
-                    data.save_reconstruction(reconstructions, filename='reconstruction-classifier-weighted.json')
-                elif data.config.get('use_image_matching_classifier', False):
-                    data.save_reconstruction(reconstructions, filename='reconstruction-classifier.json')
-                else:
-                    data.save_reconstruction(reconstructions)
+                reconstruction_fn = 'reconstruction-imc-{}-wr-{}-gm-{}-wfm-{}-imt-{}.json'.format(\
+                    data.config['use_image_matching_classifier'], \
+                    data.config['use_weighted_resectioning'], \
+                    data.config['use_gt_matches'], \
+                    data.config['use_weighted_feature_matches'], \
+                    data.config['use_image_matching_thresholding']
+                    )
+                data.save_reconstruction(reconstructions, filename=reconstruction_fn)
 
     for k, r in enumerate(reconstructions):
         logger.info("Reconstruction {}: {} images, {} points".format(

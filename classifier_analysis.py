@@ -1,6 +1,8 @@
 import json
+import math
 import numpy as np
 import os
+import matplotlib.pyplot as plt; plt.rcdefaults()
 import sys
 
 from argparse import ArgumentParser
@@ -80,26 +82,183 @@ def get_precision_recall(fns, labels, criteria, k, debug=False):
     aggregated_results[1] /= len(unique_fns)
     return raw_results, aggregated_results
 
+def compare_metrics(metric1, metric2):
+    p_ties, r_ties = 0, 0
+    metric1_p_wins, metric1_r_wins = 0, 0
+    metric2_p_wins, metric2_r_wins = 0, 0
+
+    for i,_ in enumerate(metric1):
+        f1, p1, r1 = metric1[i]
+        f2, p2, r2 = metric2[i]
+
+        if p1 == p2:
+            p_ties += 1
+        elif p1 > p2:
+            metric1_p_wins += 1
+        elif p2 > p1:
+            metric2_p_wins += 1
+
+        if r1 == r2:
+            r_ties += 1
+        elif r1 > r2:
+            metric1_r_wins += 1
+        elif r2 > r1:
+            metric2_r_wins += 1
+
+        if f1 != f2:
+            print ('******** ERROR ********')
+            print ('{}: {}/{}    {}: {}/{}'.format(f1, p1,r1,f2, p2,r2))
+            import sys;sys.exit(1)
+    return metric1_p_wins, metric1_r_wins, p_ties, r_ties, metric2_p_wins, metric2_r_wins
+
 def analyze_datasets(datasets, options={}):
     data_folder = 'data/image-matching-classifiers-analysis'
+
     for i,t in enumerate(datasets):
-        data_fn = os.path.join(data_folder, t.split('/')[-1]) + '.json'
+        dataset_name = t.split('/')[-1]
+
+        data_fn = os.path.join(data_folder, dataset_name) + '.json'
         analysis_data = load_analysis_data(data_fn)
         print ('#'*100)
-        print ('Dataset: {}  Examples: {}'.format(t.split('/')[-1], len(analysis_data)))
+        print ('Dataset: {}  Examples: {}'.format(dataset_name, len(analysis_data)))
         
         fns = analysis_data[:,0:2]
         num_rmatches = analysis_data[:,2].astype(np.float)
         scores = analysis_data[:,3].astype(np.float)
         labels = analysis_data[:,4].astype(np.float)
 
-        for k in [5, 10, 30]:
-            _, mean_results_rmatches = get_precision_recall(fns, labels, criteria=num_rmatches, k=k)
-            _, mean_results_scores = get_precision_recall(fns, labels, criteria=scores, k=k)
-            _, mean_results_labels = get_precision_recall(fns, labels, criteria=labels, k=k)
-            print ('\tTop {} - Dataset: {}  Criteria: {}  Mean Precision: {}  Mean Recall: {}'.format(k, t.split('/')[-1], 'rmatches', mean_results_rmatches[0], mean_results_rmatches[1]))
-            print ('\tTop {} - Dataset: {}  Criteria: {}  Mean Precision: {}  Mean Recall: {}'.format(k, t.split('/')[-1], 'scores', mean_results_scores[0], mean_results_scores[1]))
-            print ('\tTop {} - Dataset: {}  Criteria: {}  Mean Precision: {}  Mean Recall: {}'.format(k, t.split('/')[-1], 'labels', mean_results_labels[0], mean_results_labels[1]))
+        rmatches_precisions, rmatches_recalls = [], []
+        scores_precisions, scores_recalls = [], []
+        labels_precisions, labels_recalls = [], []
+
+        rmatches_classifier_precision_wins, rmatches_classifier_recall_wins = [], []
+        classifier_rmatches_precision_wins, classifier_rmatches_recall_wins = [], []
+        rmatches_classifier_precision_ties, rmatches_classifier_recall_ties = [], []
+
+        rmatches_gt_precision_wins, rmatches_gt_recall_wins = [], []
+        gt_rmatches_precision_wins, gt_rmatches_recall_wins = [], []
+        rmatches_gt_precision_ties, rmatches_gt_recall_ties = [], []
+
+        ranks = [1, 2, 5, 10, 15, 20, 30, 40, 50]
+        for k in ranks:
+            raw_results_rmatches, mean_results_rmatches = get_precision_recall(fns, labels, criteria=num_rmatches, k=k)
+            raw_results_scores, mean_results_scores = get_precision_recall(fns, labels, criteria=scores, k=k)
+            raw_results_labels, mean_results_labels = get_precision_recall(fns, labels, criteria=labels, k=k)
+            print ('\tTop {} - Dataset: {}  Criteria: {}  Mean Precision: {}  Mean Recall: {}'.format(k, dataset_name, 'rmatches', mean_results_rmatches[0], mean_results_rmatches[1]))
+            print ('\tTop {} - Dataset: {}  Criteria: {}  Mean Precision: {}  Mean Recall: {}'.format(k, dataset_name, 'scores', mean_results_scores[0], mean_results_scores[1]))
+            print ('\tTop {} - Dataset: {}  Criteria: {}  Mean Precision: {}  Mean Recall: {}'.format(k, dataset_name, 'labels', mean_results_labels[0], mean_results_labels[1]))
+            
+            rmatches_classifier_p_wins, rmatches_classifier_r_wins, \
+                rmatches_classifier_ties_p, rmatches_classifier_ties_r, \
+                classifier_rmatches_p_wins, classifier_rmatches_r_wins = \
+                compare_metrics(raw_results_rmatches, raw_results_scores)
+
+            rmatches_gt_p_wins, rmatches_gt_r_wins, \
+                rmatches_gt_ties_p, rmatches_gt_ties_r, \
+                gt_rmatches_p_wins, gt_rmatches_r_wins = \
+                compare_metrics(raw_results_rmatches, raw_results_labels)
+
+            rmatches_precisions.append(mean_results_rmatches[0])
+            rmatches_recalls.append(mean_results_rmatches[1])
+            scores_precisions.append(mean_results_scores[0])
+            scores_recalls.append(mean_results_scores[1])
+            labels_precisions.append(mean_results_labels[0])
+            labels_recalls.append(mean_results_labels[1])
+
+            rmatches_classifier_precision_wins.append(rmatches_classifier_p_wins)
+            rmatches_classifier_recall_wins.append(rmatches_classifier_r_wins)
+            classifier_rmatches_precision_wins.append(classifier_rmatches_p_wins)
+            classifier_rmatches_recall_wins.append(classifier_rmatches_r_wins)
+            rmatches_classifier_precision_ties.append(rmatches_classifier_ties_p)
+            rmatches_classifier_recall_ties.append(rmatches_classifier_ties_r)
+
+            rmatches_gt_precision_wins.append(rmatches_gt_p_wins)
+            rmatches_gt_recall_wins.append(rmatches_gt_r_wins)
+            gt_rmatches_precision_wins.append(gt_rmatches_p_wins)
+            gt_rmatches_recall_wins.append(gt_rmatches_r_wins)
+            rmatches_gt_precision_ties.append(rmatches_gt_ties_p)
+            rmatches_gt_recall_ties.append(rmatches_gt_ties_r)
+
+
+        plt.figure(1)
+        plt.subplot(2, math.ceil(len(datasets)/2.0), i + 1)
+        plt.ylabel('Count')
+        plt.xlabel('k')
+        plt.title('Dataset: {}'.format(dataset_name), fontsize=18)
+        plt.plot(ranks, rmatches_classifier_precision_wins, '--', linewidth=2)
+        plt.plot(ranks, rmatches_classifier_recall_wins, dashes=[30, 5, 10, 5])
+        plt.plot(ranks, classifier_rmatches_precision_wins, '--', linewidth=2)
+        plt.plot(ranks, classifier_rmatches_recall_wins, dashes=[30, 5, 10, 5])
+        plt.plot(ranks, rmatches_classifier_precision_ties, '--', linewidth=2)
+        plt.plot(ranks, rmatches_classifier_recall_ties, dashes=[30, 5, 10, 5])
+        plt.legend([
+            'rmatches precision winner', 'rmatches recall winner', \
+            'classifier precision winner', 'classifier recall winner', \
+            'precision ties', 'recall ties'
+            ], 
+            loc='lower left',
+            shadow=True,
+            fontsize=10
+            )
+
+        plt.figure(2)
+        plt.subplot(2, math.ceil(len(datasets)/2.0), i + 1)
+        plt.ylabel('Count')
+        plt.xlabel('k')
+        plt.title('Dataset: {}'.format(dataset_name), fontsize=18)
+        plt.plot(ranks, rmatches_gt_precision_wins, '--', linewidth=2)
+        plt.plot(ranks, rmatches_gt_recall_wins, dashes=[30, 5, 10, 5])
+        plt.plot(ranks, gt_rmatches_precision_wins, '--', linewidth=2)
+        plt.plot(ranks, gt_rmatches_recall_wins, dashes=[30, 5, 10, 5])
+        plt.plot(ranks, rmatches_gt_precision_ties, '--', linewidth=2)
+        plt.plot(ranks, rmatches_gt_recall_ties, dashes=[30, 5, 10, 5])
+        plt.legend([
+            'rmatches precision winner', 'rmatches recall winner', \
+            'gt precision winner', 'gt recall winner', \
+            'precision ties', 'recall ties'
+            ], 
+            loc='lower left',
+            shadow=True,
+            fontsize=10
+            )
+
+
+        plt.figure(3)
+
+        plt.subplot(2, math.ceil(len(datasets)/2.0), i + 1)
+        plt.ylabel('Precision')
+        plt.xlabel('Recall')
+        plt.ylim(0,1.0)
+        plt.xlim(0,1.0)
+        plt.title('Dataset: {}'.format(dataset_name), fontsize=18)
+
+        plt.plot(rmatches_recalls, rmatches_precisions)
+        plt.plot(scores_recalls, scores_precisions)
+        plt.plot(labels_recalls, labels_precisions)
+
+        plt.legend(
+            ['Baseline - rmatches', 'Classifier scores', 'Ground-truth labels'], 
+            loc='lower left',
+            shadow=True,
+            fontsize=10
+            )
+
+
+    plt.figure(1)
+    fig = plt.gcf()
+    fig.set_size_inches(37, 21)
+    plt.savefig(os.path.join(data_folder, 'rmatches_classifier_pr_winners.png'))
+
+    plt.figure(2)
+    fig = plt.gcf()
+    fig.set_size_inches(37, 21)
+    plt.savefig(os.path.join(data_folder, 'rmatches_gt_pr_winners.png'))
+
+    plt.figure(3)
+    fig = plt.gcf()
+    fig.set_size_inches(37, 21)
+    plt.savefig(os.path.join(data_folder, 'MeanPerImagePR.png'))
+    
 
 def main(argv):
     parser = ArgumentParser(description='')
@@ -136,7 +295,7 @@ def main(argv):
         '/hdd/Research/psfm/pipelines/baseline/OpenSfM-0.2.0-VT-Faster-BA/data/ETH3D-ClassifierDatasets/living_room',
     ]
 
-    classify_images(datasets, options)
+    # classify_images(datasets, options)
     analyze_datasets(datasets, options)
 
 if __name__ == '__main__':

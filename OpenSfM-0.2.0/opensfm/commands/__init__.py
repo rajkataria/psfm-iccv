@@ -2,7 +2,9 @@
 from . import extract_metadata
 from . import detect_features
 from . import evaluate_vt_rankings
+from . import classify_features
 from . import match_features
+from . import match_fm_classifier_features
 from . import calculate_features
 from . import classify_images
 from . import create_tracks
@@ -26,7 +28,9 @@ opensfm_commands = [
     detect_features,
     evaluate_vt_rankings,
     match_features,
+    match_fm_classifier_features,
     calculate_features,
+    classify_features,
     classify_images,
     create_tracks,
     create_tracks_classifier,

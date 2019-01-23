@@ -23,16 +23,34 @@ class Command:
         start = timer()
         features, colors = self.load_features(data)
         features_end = timer()
+
         matches_all = self.load_all_matches(data)
         matches_thresholded = self.load_thresholded_matches(data)
+        matches_all_weighted = self.load_all_weighted_matches(data)
+        matches_thresholded_weighted = self.load_thresholded_weighted_matches(data)
+        if data.reconstruction_exists('reconstruction_gt.json'):
+            matches_gt = self.load_gt_matches(data)
+
         matches_end = timer()
         tracks_graph_all = matching.create_tracks_graph(features, colors, matches_all,
                                                     data.config)
         tracks_graph_thresholded = matching.create_tracks_graph(features, colors, matches_thresholded,
                                                     data.config)
+        tracks_graph_all_weighted = matching.create_tracks_graph(features, colors, matches_all_weighted,
+                                                    data.config)
+        tracks_graph_thresholded_weighted = matching.create_tracks_graph(features, colors, matches_thresholded_weighted,
+                                                    data.config)
+
+        if data.reconstruction_exists('reconstruction_gt.json'):
+            tracks_graph_gt = matching.create_tracks_graph(features, colors, matches_gt,
+                                                        data.config)
         tracks_end = timer()
         data.save_tracks_graph(tracks_graph_all, 'tracks-all-matches.csv')
         data.save_tracks_graph(tracks_graph_thresholded, 'tracks-thresholded-matches.csv')
+        data.save_tracks_graph(tracks_graph_all_weighted, 'tracks-all-weighted-matches.csv')
+        data.save_tracks_graph(tracks_graph_thresholded_weighted, 'tracks-thresholded-weighted-matches.csv')
+        if data.reconstruction_exists('reconstruction_gt.json'):
+            data.save_tracks_graph(tracks_graph_gt, 'tracks-gt-matches.csv')
         end = timer()
 
         with open(data.profile_log(), 'a') as fout:
@@ -78,6 +96,48 @@ class Command:
                 if im1 in im_matching_results and im2 in im_matching_results[im1] and im_matching_results[im1][im2]['score'] >= image_matching_classifier_threshold:
                     matches[im1, im2] = im1_matches[im2]
                 elif im2 in im_matching_results and im1 in im_matching_results[im2] and im_matching_results[im2][im1]['score'] >= image_matching_classifier_threshold:
+                    matches[im1, im2] = im1_matches[im2]
+        return matches
+
+    def load_all_weighted_matches(self, data):
+        matches = {}
+        for im1 in data.images():
+            try:
+                im1_matches = data.load_weighted_matches(im1)
+            except IOError:
+                continue
+            for im2 in im1_matches:
+                matches[im1, im2] = im1_matches[im2]
+        return matches
+
+    def load_thresholded_weighted_matches(self, data):
+        matches = {}
+        image_matching_classifier_threshold = data.config.get('image_matching_classifier_threshold')
+        im_matching_results = data.load_image_matching_results()
+        for im1 in data.images():
+            try:
+                im1_matches = data.load_weighted_matches(im1)
+            except IOError:
+                continue
+            for im2 in im1_matches:
+                if im1 in im_matching_results and im2 in im_matching_results[im1] and im_matching_results[im1][im2]['score'] >= image_matching_classifier_threshold:
+                    matches[im1, im2] = im1_matches[im2]
+                elif im2 in im_matching_results and im1 in im_matching_results[im2] and im_matching_results[im2][im1]['score'] >= image_matching_classifier_threshold:
+                    matches[im1, im2] = im1_matches[im2]
+        return matches
+
+    def load_gt_matches(self, data):
+        matches = {}
+        im_matching_results = data.load_groundtruth_image_matching_results()
+        for im1 in data.images():
+            try:
+                _, _, im1_matches = data.load_all_matches(im1)
+            except IOError:
+                continue
+            for im2 in im1_matches:
+                if im1 in im_matching_results and im2 in im_matching_results[im1] and im_matching_results[im1][im2]['score'] == 1.0:
+                    matches[im1, im2] = im1_matches[im2]
+                elif im2 in im_matching_results and im1 in im_matching_results[im2] and im_matching_results[im2][im1]['score'] == 1.0:
                     matches[im1, im2] = im1_matches[im2]
         return matches
 

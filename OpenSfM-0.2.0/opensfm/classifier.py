@@ -9,6 +9,7 @@ import pyopengv
 import random
 
 from opensfm import features, multiview
+from opensfm import context
 from multiprocessing import Pool
 from sklearn.externals import joblib
 from scipy.spatial import Delaunay, ConvexHull
@@ -19,6 +20,105 @@ from timeit import default_timer as timer
 
 logger = logging.getLogger(__name__)
 
+def weighted_samples(p1, p2, weights, num_samples, cum_sum_weights):
+    # Get samples
+    samples = np.random.rand(num_samples) * cum_sum_weights[-1]
+    sample_indices = np.zeros((num_samples,)).astype(np.int32)
+    for i, s in enumerate(samples):
+        sample_indices[i] = np.where(s < cum_sum_weights)[0][0]
+    return p1[sample_indices], p2[sample_indices]
+
+def getReprojectionError(p1_homo, p2_homo, F):
+    line1 = np.matrix(p2_homo) * np.matrix(F)
+    line1 /= np.linalg.norm(line1[:,0:2], axis=1)[:, np.newaxis]
+    
+    line2 = np.matrix(F) * np.matrix(p1_homo).T
+    line2 = line2.T
+    line2 /= np.linalg.norm(line2[:,0:2], axis=1)[:, np.newaxis]
+
+    result1 = np.matrix(line1) * np.matrix(p1_homo).T
+    result2 = np.matrix(line2) * np.matrix(p2_homo).T
+
+    reproj1 = np.abs(np.diag(result1))
+    reproj2 = np.abs(np.diag(result2))
+    
+    return reproj1, reproj2
+
+def weighted_ransac_compute_inliers(F, p1, p2, weights, config):
+    if type(F) != np.ndarray:
+        return 0.0, 0
+    if F[2,2] == 0.0:
+        return 0.0, 0
+
+    reproj1, reproj2 = getReprojectionError(p1, p2, F)
+
+    robust_matching_threshold = config.get('robust_matching_threshold', 0.006)
+    inlier_indices = np.where((reproj1 < robust_matching_threshold) & (reproj2 < robust_matching_threshold))
+    
+    return inlier_indices, np.sum(weights[inlier_indices])
+
+def robust_match_fundamental_weighted(p1, p2, matches, config, w=np.array([])):
+    '''Computes robust matches by estimating the Fundamental matrix via RANSAC.
+    '''
+    if len(matches) < 8:
+        return [], np.array([]), np.zeros((3,3)), 0
+
+    if len(w) > 0:
+        weights = w
+    else:
+        weights = matches[:, 4].copy()
+
+    relevant_indices = np.isfinite(weights)
+    weights = weights[relevant_indices]
+    matches = matches[relevant_indices]
+
+    p1 = p1[matches[:, 0].astype(int)][:, :2].copy()
+    p2 = p2[matches[:, 1].astype(int)][:, :2].copy()
+
+    p1 = np.concatenate((p1, np.ones((len(p1),1))), axis=1)
+    p2 = np.concatenate((p2, np.ones((len(p2),1))), axis=1)
+
+    probability_ = 0.9999
+    max_score = 0.0
+    num_samples = 8
+    iterations_ = 0
+
+    epsilon = 0.00000001
+    weights_sum = np.sum(weights)
+    weights_cum_sum = np.cumsum(weights)
+
+    weights_length = len(weights)
+    FM_8POINT = cv2.FM_8POINT if context.OPENCV3 else cv2.cv.CV_FM_8POINT
+    FM_LMEDS = cv2.FM_LMEDS if context.OPENCV3 else cv2.cv.CV_FM_LMEDS
+
+    if len(np.where(weights > 0.0)[0]) < 8:
+        return [], np.array([]), np.zeros((3,3)), 0
+
+    for i in xrange(0,1000):
+        iterations_ += 1
+
+        p1_, p2_ = weighted_samples(p1, p2, weights, num_samples, weights_cum_sum)
+        F_est, mask = cv2.findFundamentalMat(p1_, p2_, FM_8POINT)
+        inliers_est, score = weighted_ransac_compute_inliers(F_est, p1, p2, weights, config)
+        if score >= max_score:
+            max_score = score
+            F = F_est
+            inliers = inliers_est
+
+            w = max_score / (1.0 * weights_sum)
+            p_no_outliers = 1.0 - np.power(w, num_samples)
+            p_no_outliers = np.maximum(epsilon, p_no_outliers)
+            p_no_outliers = np.minimum(1.0 - epsilon, p_no_outliers)
+            k = np.log10(1.0 - probability_) / np.log10(p_no_outliers)
+            if i >= k:
+                break
+
+    if type(F) != np.ndarray:
+        return [], np.array([]), np.zeros((3,3)), 0
+    if F[2,2] == 0.0:
+        return [], np.array([]), np.zeros((3,3)), 0
+
+    return matches[inliers], np.array([]), F, 1
 
 def calculate_spatial_entropy(image_coordinates, grid_size):
     epsilon = 0.000000000001
@@ -49,33 +149,32 @@ def next_best_view_score(image_coordinates):
     score += np.sum(dmap) * grid_size
   return score
 
-def classify_feature_matches(regr, distances, size1, size2, angle1, angle2):
-    num_matches = len(distances)
-    X = np.concatenate((distances.reshape((num_matches,1)),
-        size1.reshape((num_matches,1)),
-        size2.reshape((num_matches,1)),
-        size2.reshape((num_matches,1)) - size1.reshape((num_matches,1)), 
-        np.absolute(size2.reshape((num_matches,1)) - size1.reshape((num_matches,1))), 
-        angle1.reshape((num_matches,1)), 
-        angle2.reshape((num_matches,1)),
-        angle2.reshape((num_matches,1)) - angle1.reshape((num_matches,1)),
-        np.absolute(angle2.reshape((num_matches,1)) - angle1.reshape((num_matches,1))).tolist()
+def classify_boosted_dts_feature_match(arg):
+    fns, indices1, indices2, dists1, dists2, size1, size2, angle1, angle2, labels, \
+        train, regr, options = arg
+    rng = np.random.RandomState(1)
+    num_matches = len(dists1)
+    X = np.concatenate(( \
+            np.maximum(dists1, dists2).reshape((num_matches,1)),
+            size1.reshape((num_matches,1)),
+            size2.reshape((num_matches,1)),
+            size2.reshape((num_matches,1)) - size1.reshape((num_matches,1)), 
+            np.absolute(size2.reshape((num_matches,1)) - size1.reshape((num_matches,1))), 
+            angle1.reshape((num_matches,1)), 
+            angle2.reshape((num_matches,1)),
+            angle2.reshape((num_matches,1)) - angle1.reshape((num_matches,1)),
+            np.absolute(angle2.reshape((num_matches,1)) - angle1.reshape((num_matches,1))).tolist()
         ),
         axis=1)
 
-    y = regr.predict_proba(X)[:,1]
-    return y
+    y = labels
+    # Fit regression model
+    if regr is None:
+        regr = GradientBoostingClassifier(max_depth=options['max_depth'], n_estimators=options['n_estimators'], subsample=1.0, random_state=rng)
+        regr.fit(X, y)
 
-def classify_feature_matches_nonparameterized(inliers_distribution, outliers_distribution, distances):
-    inlier_counts = inliers_distribution[0]
-    outlier_counts = outliers_distribution[0]
-    ratios = inliers_distribution[1]
-    indices = []
-    for d in distances:
-        indices.append(np.min(np.where(ratios > d)[0]) - 1)
-    match_likelihoods = inlier_counts[indices].astype(np.float)/(outlier_counts[indices].astype(np.float) + inlier_counts[indices].astype(np.float))
-    return match_likelihoods
-
+    y_ = regr.predict_proba(X)[:,1]
+    return fns, indices1, indices2, dists1, dists2, regr, y_
 
 def classify_boosted_dts_image_match(arg):
     fns, R11s, R12s, R13s, R21s, R22s, R23s, R31s, R32s, R33s, num_rmatches, num_matches, spatial_entropy_1_8x8, \
@@ -84,7 +183,6 @@ def classify_boosted_dts_image_match(arg):
         train, regr, options = arg
 
     classifier_type = options['classifier']
-    # feature_selection = options['feature_selection']
     epsilon = 0.00000001 * np.ones((len(labels),1))
     rng = np.random.RandomState(1)
 
@@ -129,91 +227,14 @@ def classify_boosted_dts_image_match(arg):
   
     y = labels
 
-  # Fit regression model
+    # Fit regression model
     if regr is None:
         regr = GradientBoostingClassifier(max_depth=options['max_depth'], n_estimators=options['n_estimators'], subsample=1.0, random_state=rng)
         regr.fit(X, y)
 
     # Predict
     y_ = regr.predict_proba(X)[:,1]
-    # print ("\tFinished Learning/Classifying Boosted Decision Tree")  
-    # if not train:
-    #     auc = calculate_accuracy(y_, labels, color,'solid' if not train else 'dashed')
-    # else:
-    #     auc = 0.0
     return fns, num_rmatches, regr, y_, labels
-
-# def classify_image_matches(arg):
-#     im1, im2, regr, R33s, rmatches, matches, \
-#     spatial_entropy_1_8x8, spatial_entropy_2_8x8, spatial_entropy_1_16x16, spatial_entropy_2_16x16, \
-#     photometric_histogram, polygon_area_percentage, \
-#     feature_matching_scores, feature_matching_rmatch_scores, \
-#     triplet_histogram, nbvs, timedelta, color_histograms = arg
-
-#     num_matches = 1
-#     epsilon = 0.00000001 * np.ones((num_matches,1))
-#     X = np.array([
-#         R33s,
-#         rmatches,
-#         matches,
-#         matches / (rmatches + epsilon),
-#         rmatches / (matches + epsilon),
-#         np.log(rmatches + epsilon),
-#         spatial_entropy_1_8x8,
-#         spatial_entropy_2_8x8,
-#         spatial_entropy_1_8x8/(spatial_entropy_2_8x8 + epsilon),
-#         spatial_entropy_2_8x8/(spatial_entropy_1_8x8 + epsilon),
-#         spatial_entropy_1_16x16,
-#         spatial_entropy_2_16x16,
-#         spatial_entropy_1_16x16/(spatial_entropy_2_16x16 + epsilon),
-#         spatial_entropy_2_16x16/(spatial_entropy_1_16x16 + epsilon),
-#         # NBVS (colmap score)
-#         # nbvs[0,0],
-#         # nbvs[0,1],
-#         # np.minimum(nbvs[0,0], nbvs[0,1]),
-#         # ((nbvs[0,0] + nbvs[0,1]) / 2.0),
-#         0,
-#         0,
-#         0,
-#         0,
-#         # Trace
-#         0,
-#         0,
-#         # LCCs
-#         0,
-#         0,
-#         0,
-#         0, 
-
-#         # Photometric Errors
-#         polygon_area_percentage,
-    
-#         # Feature matching scores
-#         feature_matching_scores,
-
-#         # Feature matching scores from robust matches (weighted ransac)
-#         0,
-#         0,
-#         feature_matching_rmatch_scores,
-
-#         # vocab tree scores
-#         0,
-#         0,        
-#         ]).reshape(1, -1)
-
-#     # Feature matching scores
-#     # X = np.concatenate((X,np.zeros((len(matches),1))), axis=1)
-#     # Feature matching scores from robust matches (weighted ransac)
-#     # X = np.concatenate((X,np.zeros((len(matches),3))), axis=1)
-
-#     X = np.concatenate((X,triplet_histogram.reshape(1,-1)), axis=1)
-#     X = np.concatenate((X,photometric_histogram.reshape(1,-1)), axis=1)
-#     X = np.concatenate((X,color_histograms.reshape(1,-1)), axis=1)
-
-#     y = regr.predict_proba(X)[:,1]
-
-#     # logger.info('\t\tFinished classifying image matches')
-#     return im1, im2, rmatches, y[0]
 
 def relative_pose(arg):
     im1, im2, p1, p2, cameras, exifs, rmatches, threshold = arg
@@ -790,8 +811,6 @@ def calculate_photometric_errors(ctx):
     logger.info('Using {} thread(s)'.format(processes))
     if processes == 1:
         for a, arg in enumerate(args):
-            # if a != 1 and a != 5 and a != 1914:
-            #     continue
             logger.info('Finished processing photometric errors: {} / {} : {} / {}'.format(a, len(args), arg[4], arg[5]))
             p_results.append(calculate_photometric_error_convex_hull(arg))
     else:
@@ -800,20 +819,11 @@ def calculate_photometric_errors(ctx):
 
     for r in p_results:
         im1, im2, polygon_area, polygon_area_percentage, total_triangles, histogram = r
-        # if im1 < im2:
-        #     a = im1; b = im2
-        # else:
-        #     a = im2; b = im1
-
         if polygon_area is None or polygon_area_percentage is None:
             continue
 
         element = {'polygon_area': polygon_area, 'polygon_area_percentage': polygon_area_percentage, \
           'total_triangles': total_triangles, 'histogram': histogram}
-        # if a not in results:
-        #     results[a] = {b: element }
-        # else:
-        #     results[a][b] = element
         if im1 not in results:
             results[im1] = {}
         results[im1][im2] = element
@@ -867,52 +877,6 @@ def calculate_nbvs(ctx):
                 'nbvs_im1': nbvs_im1, 'nbvs_im2': nbvs_im2
                 }
     data.save_nbvs(nbvs)
-
-# def calculate_image_matching_features(ctx, config, im1, im2, matches, rmatches, p1_, p2_, b1, b2):
-#     entropy_im1_8 = calculate_spatial_entropy(p1_, 8)
-#     entropy_im2_8 = calculate_spatial_entropy(p2_, 8)
-#     entropy_im1_16 = calculate_spatial_entropy(p1_, 16)
-#     entropy_im2_16 = calculate_spatial_entropy(p2_, 16)
-    
-#     threshold = config['robust_matching_threshold']
-#     T = pyopengv.relative_pose_ransac(b1, b2, "STEWENIUS", 1 - np.cos(threshold), 1000)
-#     R = np.matrix(T[0:3,0:3])
-    
-#     f1_fmt = utils.parse_filename(im1)
-#     f2_fmt = utils.parse_filename(im2)
-#     timedelta = abs(int(f2_fmt.strftime('%s')) - int(f1_fmt.strftime('%s')))
-
-#     color_image = True
-#     num_histogram_images = 4
-#     histogram_size = 32 * num_histogram_images
-#     if color_image:
-#         histogram_size = histogram_size * 3
-#     histograms_cache = {}
-#     histogram_cache_fn = 'histograms_cache_{}_{}_{}.json'.format(histogram_size, color_image, num_histogram_images)
-#     histograms = np.array([])
-#     if os.path.exists(histogram_cache_fn):
-#         with open(histogram_cache_fn,'r') as f:
-#             histograms_cache = json.load(f)
-#     fns_ = np.array([[os.path.join(ctx.data.data_path + '/images', im1), os.path.join(ctx.data.data_path + '/images', im2)]])
-#     color_histograms = utils.calculate_all_images_histograms(fns_, histogram_size, histogram_images=num_histogram_images, \
-#         color_image=color_image, histograms=histograms_cache, debug=False)
-#     flags = {'masked_tags': False, 'num_samples': 500, 'outlier_threshold_percentage': 0.7, 'debug': False, 'lab_error_threshold': 50, \
-#         'use_kmeans': False, 'sampling_method': 'sample_polygon_uniformly', 'draw_matches': False, 'draw_triangles': False, 'draw_points': False, \
-#         'processes': 1, 'draw_outliers': False, 'kmeans_num_clusters': int(len(rmatches)*0.2) }
-#     photometric_arg = [0, 1, None, ctx.data, im1, im2, rmatches[:, 0:2].astype(int), flags]
-#     _, _, _, polygon_area_percentage, _, photometric_histogram = utils.calculate_photometric_error_convex_hull(photometric_arg)
-#     triplet_histogram = utils.get_triplet_errors_percent(np.array([ctx.data.data_path]), fns_)
-#     nbvs = utils.get_nbvs(np.array([ctx.data.data_path]), fns_)
-
-#     if config.get('feature_matching_classifier', False):
-#         feature_matching_rmatch_scores = np.sum(rmatches[:,4])
-#         feature_matching_scores = np.sum(matches[:,4])
-#     else:
-#         feature_matching_rmatch_scores = np.array([0.0])
-#         feature_matching_scores = np.array([0.0])
-
-#     return R, entropy_im1_8, entropy_im2_8, entropy_im1_16, entropy_im2_16, photometric_histogram, polygon_area_percentage, \
-#         feature_matching_scores, feature_matching_rmatch_scores, triplet_histogram, nbvs, timedelta, color_histograms
 
 def triplet_arguments(fns, Rs):
     unique_filenames = sorted(list(set(fns[:,0]).union(set(fns[:,1]))))
@@ -987,9 +951,6 @@ def calculate_triplet_error_histogram(errors, im1, im2, output_dir, debug):
   histogram, bins = np.histogram(np.array(errors), bins=80, range=(0,25))
   epsilon = 0.000000001
   return (1.0 * histogram / (np.sum(histogram) + epsilon)).tolist()
-  # # print (histogram.tolist())
-  # # import sys; sys.exit(1)
-  # return histogram.tolist()
 
 def flatten_triplets(triplets):
   flattened_triplets = {}
@@ -1016,9 +977,6 @@ def calculate_triplet_pairwise_errors(arg):
   histograms_list = []
   stime = timer()
   for i, (im1,im2) in enumerate(fns):
-    # if im1 > im2:
-    #   im1, im2 = im2, im1
-    # print 'Test: {} - {}'.format(im1, im2)
     relevant_indices = np.where((t_fns[:,0] == im1) & (t_fns[:,1] == im2) | (t_fns[:,0] == im1) & (t_fns[:,2] == im2) | \
       (t_fns[:,1] == im1) & (t_fns[:,2] == im2))[0]
 
@@ -1027,7 +985,6 @@ def calculate_triplet_pairwise_errors(arg):
         histograms[im1] = {}
     histograms[im1][im2] = { 'im1': im1, 'im2': im2, 'histogram': histogram }
     histograms_list.append({ 'im1': im1, 'im2': im2, 'histogram': histogram })
-  # print ('\tFinished processing {} files    Time: {}'.format(len(fns), round(timer() - stime, 4)))
   return histograms, histograms_list
 
 def calculate_triplet_errors(ctx):
@@ -1278,9 +1235,7 @@ def compute_matches_using_gt_reconstruction(args):
         
         im_all_matches, _, _ = data.load_all_matches(im1)
 
-        # for im2 in ['2017-11-22_17-55-44_808.jpeg']:
         for im2 in im_all_matches.keys():
-        # for im2 in ['DSC_0900.JPG']:
             if im2 not in recon.shots.keys():
                 continue
 
@@ -1301,7 +1256,11 @@ def compute_matches_using_gt_reconstruction(args):
             else:
                 unthresholded_matches = unthresholded_match_symmetric(f1, i1, f2, i2, data.config)
 
-            relevant_indices = np.where((unthresholded_matches[:,2] <= lowes_ratio) & (unthresholded_matches[:,3] <= lowes_ratio))[0]
+            if data.config['matcher_type'] == 'FLANN':
+                # Flann returns squared L2 distances
+                relevant_indices = np.where((unthresholded_matches[:,2] <= lowes_ratio**2) & (unthresholded_matches[:,3] <= lowes_ratio**2))[0]
+            else:
+                relevant_indices = np.where((unthresholded_matches[:,2] <= lowes_ratio) & (unthresholded_matches[:,3] <= lowes_ratio))[0]
             unthresholded_matches = unthresholded_matches[relevant_indices,:]
 
             logger.debug('{} - {} has {} candidate unthresholded matches'.format(im1, im2, len(unthresholded_matches)))
@@ -1355,6 +1314,9 @@ def create_feature_matching_dataset(ctx):
         p.map(compute_matches_using_gt_reconstruction, args)
 
     data.save_feature_matching_dataset(lowes_threshold=0.8)
+    data.save_feature_matching_dataset(lowes_threshold=0.85)
+    data.save_feature_matching_dataset(lowes_threshold=0.9)
+    data.save_feature_matching_dataset(lowes_threshold=0.95)
 
 def create_image_matching_dataset(ctx):
     data = ctx.data

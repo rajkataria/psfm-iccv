@@ -322,6 +322,14 @@ class DataSet:
         """Return path of all matches directory"""
         return os.path.join(self.data_path, 'all_matches')
 
+    def __weighted_matches_path(self):
+        """Return path of all matches directory"""
+        return os.path.join(self.data_path, 'weighted_matches')
+
+    def __unthresholded_matches_path(self):
+        """Return path of all matches directory"""
+        return os.path.join(self.data_path, 'unthresholded_matches')
+
     def __pairwise_results_path(self):
         """Return path of all matches directory"""
         return os.path.join(self.data_path, 'pairwise_results')
@@ -329,6 +337,10 @@ class DataSet:
     def __classifier_features_path(self):
         """Return path of all matches directory"""
         return os.path.join(self.data_path, 'classifier_features')
+
+    def __feature_matching_results_path(self):
+        """Return path of all matches directory"""
+        return os.path.join(self.data_path, 'feature_matching_results')
     
     def __classifier_dataset_path(self):
         return os.path.join(self.data_path, 'classifier_dataset')
@@ -355,6 +367,14 @@ class DataSet:
     def __all_matches_file(self, image):
         """File for all matches for an image"""
         return os.path.join(self.__all_matches_path(), '{}_matches.pkl.gz'.format(image))
+
+    def __weighted_matches_file(self, image):
+        """File for all matches for an image"""
+        return os.path.join(self.__weighted_matches_path(), '{}_matches.pkl.gz'.format(image))
+
+    def __unthresholded_matches_file(self, image):
+        """File for all matches for an image"""
+        return os.path.join(self.__unthresholded_matches_path(), '{}_matches.pkl.gz'.format(image))
 
     def __matches_flags_file(self, image):
         """File for matches flags for an image"""
@@ -412,6 +432,10 @@ class DataSet:
         """File for flags indicating whether calibrated robust matching occured"""
         return os.path.join(self.__classifier_features_path(), 'image_matching_results.{}'.format(ext))
 
+    def __feature_matching_results_file(self, image, ext='pkl.gz'):
+        """File for flags indicating whether calibrated robust matching occured"""
+        return os.path.join(self.__feature_matching_results_path(), '{}_fmr.{}'.format(image, ext))
+
     def __unthresholded_matches_file(self, image):
         return os.path.join(self.__classifier_dataset_unthresholded_matches_path(), '{}_matches.pkl.gz'.format(image))
 
@@ -443,6 +467,11 @@ class DataSet:
 
     def load_matches(self, image):
         with gzip.open(self.__matches_file(image), 'rb') as fin:
+            matches = pickle.load(fin)
+        return matches
+
+    def load_weighted_matches(self, image):
+        with gzip.open(self.__weighted_matches_file(image), 'rb') as fin:
             matches = pickle.load(fin)
         return matches
 
@@ -486,6 +515,11 @@ class DataSet:
     def save_matches(self, image, matches):
         io.mkdir_p(self.__matches_path())
         with gzip.open(self.__matches_file(image), 'wb') as fout:
+            pickle.dump(matches, fout)
+
+    def save_weighted_matches(self, image, matches):
+        io.mkdir_p(self.__weighted_matches_path())
+        with gzip.open(self.__weighted_matches_file(image), 'wb') as fout:
             pickle.dump(matches, fout)
 
     def save_all_matches(self, image, matches, flags, robust_matches):
@@ -613,10 +647,42 @@ class DataSet:
         with open(self.__feature_image_matching_results_file('json'), 'w') as fout:
             json.dump(results, fout, sort_keys=True, indent=4, separators=(',', ': '))
 
+    def save_feature_matching_results(self, image, results):
+        io.mkdir_p(self.__feature_matching_results_path())
+        with gzip.open(self.__feature_matching_results_file(image, 'pkl.gz'), 'wb') as fout:
+            pickle.dump(results, fout)
+        with open(self.__feature_matching_results_file(image, 'json'), 'w') as fout:
+            json.dump(results, fout, sort_keys=True, indent=4, separators=(',', ': '))
+
     def load_image_matching_results(self):
         with gzip.open(self.__feature_image_matching_results_file(), 'rb') as fin:
             results = pickle.load(fin)
         return results
+
+    def load_feature_matching_results(self, image):
+        with gzip.open(self.__feature_matching_results_file(image), 'rb') as fin:
+            results = pickle.load(fin)
+        return results
+    
+    def load_groundtruth_image_matching_results(self):
+        fns, [R11s, R12s, R13s, R21s, R22s, R23s, R31s, R32s, R33s, num_rmatches, num_matches, spatial_entropy_1_8x8, \
+            spatial_entropy_2_8x8, spatial_entropy_1_16x16, spatial_entropy_2_16x16, pe_histogram, pe_polygon_area_percentage, \
+            nbvs_im1, nbvs_im2, te_histogram, ch_im1, ch_im2, vt_rank_percentage_im1_im2, vt_rank_percentage_im2_im1, num_gt_inliers, labels] \
+            = self.load_image_matching_dataset(robust_matches_threshold=15)
+
+        gt_results = {}
+        for idx, _ in enumerate(fns[:,0]):
+            im1 = fns[idx,0]
+            im2 = fns[idx,1]
+            if labels[idx] == 1:
+                if im1 not in gt_results:
+                    gt_results[im1] = {}
+                if im2 not in gt_results:
+                    gt_results[im2] = {}
+                gt_results[im1][im2] = {"im1": im1, "im2": im2, "score": 1.0, "rmatches": num_rmatches[idx]}
+                gt_results[im2][im1] = {"im1": im2, "im2": im1, "score": 1.0, "rmatches": num_rmatches[idx]}
+
+        return gt_results
 
     def save_unthresholded_matches(self, image, matches):
         io.mkdir_p(self.__classifier_dataset_unthresholded_matches_path())
@@ -687,7 +753,7 @@ class DataSet:
 
     def save_feature_matching_dataset(self, lowes_threshold):
         with open(self.__feature_matching_dataset_file(suffix=lowes_threshold), 'w') as fout:
-            fout.write('image 1,image 2, index 1, index 2, max lowe\'s ratio, max reprojection error, size 1, angle 1, size 2, angle 2, reproj error 1, reproj error 2, label\n')
+            fout.write('image 1,image 2, index 1, index 2, lowe\'s ratio 1, lowe\'s ratio 2, max reprojection error, size 1, angle 1, size 2, angle 2, reproj error 1, reproj error 2, label\n')
             for im1 in self.images():
                 if not self.unthresholded_matches_exists(im1):
                     continue
@@ -715,7 +781,8 @@ class DataSet:
                             str(im2) + ', ' + \
                             str(int(m[0])) + ', ' + \
                             str(int(m[1])) + ', ' + \
-                            str(round(max_lowes_ratio, 3)) + ', ' + \
+                            str(round(float(m[2]), 3)) + ', ' + \
+                            str(round(float(m[3]), 3)) + ', ' + \
                             str(round(max(float(features[0]), float(features[1])), 6)) + ', ' + \
                             str(float(features[4])) + ', ' + \
                             str(float(features[5])) + ', ' + \
@@ -941,6 +1008,9 @@ class DataSet:
     def __tracks_graph_file(self, filename=None):
         """Return path of tracks file"""
         return os.path.join(self.data_path, filename or 'tracks.csv')
+
+    def tracks_graph_exists(self, filename=None):
+        return os.path.isfile(self.__tracks_graph_file(filename))
 
     def load_tracks_graph(self, filename=None):
         """Return graph (networkx data structure) of tracks"""
