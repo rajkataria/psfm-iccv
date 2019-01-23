@@ -49,7 +49,15 @@ def classify_images(datasets, options={}):
         _, _, regr_bdt, scores, _ = classifier.classify_boosted_dts_image_match(arg)
         print ("\tFinished classifying data for {} using {}".format(t.split('/')[-1], options['classifier']))  
 
-        analysis_data = np.concatenate((fns_te, num_rmatches_te.reshape((len(labels_te),1)), scores.reshape((len(labels_te),1)), labels_te.reshape((len(labels_te),1))), axis=1)
+        analysis_data = np.concatenate(( \
+            fns_te, \
+            num_rmatches_te.reshape((len(labels_te),1)), \
+            vt_rank_percentage_im1_im2_te.reshape((len(labels_te),1)), \
+            vt_rank_percentage_im2_im1_te.reshape((len(labels_te),1)), \
+            scores.reshape((len(labels_te),1)), \
+            labels_te.reshape((len(labels_te),1))
+        ), axis=1)
+
         fn = os.path.join(data_folder, t.split('/')[-1]) + '.json'
         save_analysis_data(analysis_data, fn)
 
@@ -124,8 +132,10 @@ def analyze_datasets(datasets, options={}):
         
         fns = analysis_data[:,0:2]
         num_rmatches = analysis_data[:,2].astype(np.float)
-        scores = analysis_data[:,3].astype(np.float)
-        labels = analysis_data[:,4].astype(np.float)
+        vt_rank_percentage_im1_im2 = analysis_data[:,3].astype(np.float)
+        vt_rank_percentage_im2_im1 = analysis_data[:,4].astype(np.float)
+        scores = analysis_data[:,5].astype(np.float)
+        labels = analysis_data[:,6].astype(np.float)
 
         rmatches_precisions, rmatches_recalls = [], []
         scores_precisions, scores_recalls = [], []
@@ -139,12 +149,19 @@ def analyze_datasets(datasets, options={}):
         gt_rmatches_precision_wins, gt_rmatches_recall_wins = [], []
         rmatches_gt_precision_ties, rmatches_gt_recall_ties = [], []
 
+        vt_classifier_precision_wins, vt_classifier_recall_wins = [], []
+        classifier_vt_precision_wins, classifier_vt_recall_wins = [], []
+        vt_classifier_precision_ties, vt_classifier_recall_ties = [], []
+
+        vt_rank_mean = (vt_rank_percentage_im1_im2 + vt_rank_percentage_im2_im1) / 2.0
         ranks = [1, 2, 5, 10, 15, 20, 30, 40, 50]
         for k in ranks:
             raw_results_rmatches, mean_results_rmatches = get_precision_recall(fns, labels, criteria=num_rmatches, k=k)
+            raw_results_vt, mean_results_vt = get_precision_recall(fns, labels, criteria=vt_rank_mean, k=k)
             raw_results_scores, mean_results_scores = get_precision_recall(fns, labels, criteria=scores, k=k)
             raw_results_labels, mean_results_labels = get_precision_recall(fns, labels, criteria=labels, k=k)
             print ('\tTop {} - Dataset: {}  Criteria: {}  Mean Precision: {}  Mean Recall: {}'.format(k, dataset_name, 'rmatches', mean_results_rmatches[0], mean_results_rmatches[1]))
+            print ('\tTop {} - Dataset: {}  Criteria: {}  Mean Precision: {}  Mean Recall: {}'.format(k, dataset_name, 'vt', mean_results_vt[0], mean_results_vt[1]))
             print ('\tTop {} - Dataset: {}  Criteria: {}  Mean Precision: {}  Mean Recall: {}'.format(k, dataset_name, 'scores', mean_results_scores[0], mean_results_scores[1]))
             print ('\tTop {} - Dataset: {}  Criteria: {}  Mean Precision: {}  Mean Recall: {}'.format(k, dataset_name, 'labels', mean_results_labels[0], mean_results_labels[1]))
             
@@ -157,6 +174,12 @@ def analyze_datasets(datasets, options={}):
                 rmatches_gt_ties_p, rmatches_gt_ties_r, \
                 gt_rmatches_p_wins, gt_rmatches_r_wins = \
                 compare_metrics(raw_results_rmatches, raw_results_labels)
+
+            vt_classifier_p_wins, vt_classifier_r_wins, \
+                vt_classifier_ties_p, vt_classifier_ties_r, \
+                classifier_vt_p_wins, classifier_vt_r_wins = \
+                compare_metrics(raw_results_vt, raw_results_scores)
+
 
             rmatches_precisions.append(mean_results_rmatches[0])
             rmatches_recalls.append(mean_results_rmatches[1])
@@ -179,6 +202,13 @@ def analyze_datasets(datasets, options={}):
             rmatches_gt_precision_ties.append(rmatches_gt_ties_p)
             rmatches_gt_recall_ties.append(rmatches_gt_ties_r)
 
+            vt_classifier_precision_wins.append(vt_classifier_p_wins)
+            vt_classifier_recall_wins.append(vt_classifier_r_wins)
+            classifier_vt_precision_wins.append(classifier_vt_p_wins)
+            classifier_vt_recall_wins.append(classifier_vt_r_wins)
+            vt_classifier_precision_ties.append(vt_classifier_ties_p)
+            vt_classifier_recall_ties.append(vt_classifier_ties_r)
+
 
         plt.figure(1)
         plt.subplot(2, math.ceil(len(datasets)/2.0), i + 1)
@@ -186,15 +216,18 @@ def analyze_datasets(datasets, options={}):
         plt.xlabel('k')
         plt.title('Dataset: {}'.format(dataset_name), fontsize=18)
         plt.plot(ranks, rmatches_classifier_precision_wins, '--', linewidth=2)
-        plt.plot(ranks, rmatches_classifier_recall_wins, dashes=[30, 5, 10, 5])
+        #plt.plot(ranks, rmatches_classifier_recall_wins, dashes=[30, 5, 10, 5])
         plt.plot(ranks, classifier_rmatches_precision_wins, '--', linewidth=2)
-        plt.plot(ranks, classifier_rmatches_recall_wins, dashes=[30, 5, 10, 5])
+        #plt.plot(ranks, classifier_rmatches_recall_wins, dashes=[30, 5, 10, 5])
         plt.plot(ranks, rmatches_classifier_precision_ties, '--', linewidth=2)
-        plt.plot(ranks, rmatches_classifier_recall_ties, dashes=[30, 5, 10, 5])
+        #plt.plot(ranks, rmatches_classifier_recall_ties, dashes=[30, 5, 10, 5])
         plt.legend([
-            'rmatches precision winner', 'rmatches recall winner', \
-            'classifier precision winner', 'classifier recall winner', \
-            'precision ties', 'recall ties'
+            'rmatches precision winner', \
+            #'rmatches recall winner', \
+            'classifier precision winner', \
+            #'classifier recall winner', \
+            'precision ties', \
+            #'recall ties'
             ], 
             loc='lower left',
             shadow=True,
@@ -207,24 +240,49 @@ def analyze_datasets(datasets, options={}):
         plt.xlabel('k')
         plt.title('Dataset: {}'.format(dataset_name), fontsize=18)
         plt.plot(ranks, rmatches_gt_precision_wins, '--', linewidth=2)
-        plt.plot(ranks, rmatches_gt_recall_wins, dashes=[30, 5, 10, 5])
+        #plt.plot(ranks, rmatches_gt_recall_wins, dashes=[30, 5, 10, 5])
         plt.plot(ranks, gt_rmatches_precision_wins, '--', linewidth=2)
-        plt.plot(ranks, gt_rmatches_recall_wins, dashes=[30, 5, 10, 5])
+        #plt.plot(ranks, gt_rmatches_recall_wins, dashes=[30, 5, 10, 5])
         plt.plot(ranks, rmatches_gt_precision_ties, '--', linewidth=2)
-        plt.plot(ranks, rmatches_gt_recall_ties, dashes=[30, 5, 10, 5])
+        #plt.plot(ranks, rmatches_gt_recall_ties, dashes=[30, 5, 10, 5])
         plt.legend([
-            'rmatches precision winner', 'rmatches recall winner', \
-            'gt precision winner', 'gt recall winner', \
-            'precision ties', 'recall ties'
+            'rmatches precision winner', \
+            #'rmatches recall winner', \
+            'gt precision winner', \
+            #'gt recall winner', \
+            'precision ties', \
+            #'recall ties'
             ], 
             loc='lower left',
             shadow=True,
             fontsize=10
             )
 
-
         plt.figure(3)
+        plt.subplot(2, math.ceil(len(datasets)/2.0), i + 1)
+        plt.ylabel('Count')
+        plt.xlabel('k')
+        plt.title('Dataset: {}'.format(dataset_name), fontsize=18)
+        plt.plot(ranks, vt_classifier_precision_wins, '--', linewidth=2)
+        # plt.plot(ranks, vt_classifier_recall_wins, dashes=[30, 5, 10, 5])
+        plt.plot(ranks, classifier_vt_precision_wins, '--', linewidth=2)
+        # plt.plot(ranks, classifier_vt_recall_wins, dashes=[30, 5, 10, 5])
+        plt.plot(ranks, vt_classifier_precision_ties, '--', linewidth=2)
+        # plt.plot(ranks, vt_classifier_recall_ties, dashes=[30, 5, 10, 5])
+        plt.legend([
+            'vt precision winner', \
+            #'vt recall winner', \
+            'classifier precision winner', \
+            #'classifier recall winner', \
+            'precision ties', \
+            #'recall ties'
+            ], 
+            loc='lower left',
+            shadow=True,
+            fontsize=10
+            )
 
+        plt.figure(4)
         plt.subplot(2, math.ceil(len(datasets)/2.0), i + 1)
         plt.ylabel('Precision')
         plt.xlabel('Recall')
@@ -255,6 +313,11 @@ def analyze_datasets(datasets, options={}):
     plt.savefig(os.path.join(data_folder, 'rmatches_gt_pr_winners.png'))
 
     plt.figure(3)
+    fig = plt.gcf()
+    fig.set_size_inches(37, 21)
+    plt.savefig(os.path.join(data_folder, 'vt_classifier_pr_winners.png'))
+
+    plt.figure(4)
     fig = plt.gcf()
     fig.set_size_inches(37, 21)
     plt.savefig(os.path.join(data_folder, 'MeanPerImagePR.png'))
