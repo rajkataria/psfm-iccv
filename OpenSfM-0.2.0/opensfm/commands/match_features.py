@@ -10,6 +10,7 @@ from opensfm import geo
 from opensfm import io
 from opensfm import log
 from opensfm import matching
+from opensfm import classifier
 from opensfm.context import parallel_map
 
 
@@ -215,9 +216,6 @@ def match_candidates_from_vocab_tree(images, exifs, data):
     """Compute candidate matching pairs from vocab tree rankings"""
     relevant_ranks = data.config['relevant_ranks']
     debug = False
-    # gps_neighbors = data.config['matching_gps_neighbors']
-    # time_neighbors = data.config['matching_time_neighbors']
-    # order_neighbors = data.config['matching_order_neighbors']
 
     if not data.reference_lla_exists():
         data.invent_reference_lla()
@@ -247,29 +245,6 @@ def match_candidates_from_vocab_tree(images, exifs, data):
         for im1,im2 in pairs:
             if im1 == key or im2 == key:
                 print '{}-{}'.format(im1,im2)
-    # print json.dumps(pairs, sort_keys=True, indent=4, separators=(',', ': '))
-    
-    # if not all(map(has_gps_info, exifs.values())):
-    #     if gps_neighbors != 0:
-    #         logger.warn("Not all images have GPS info. "
-    #                     "Disabling matching_gps_neighbors.")
-    #     gps_neighbors = 0
-    #     max_distance = 0
-
-    # images.sort()
-
-    # if max_distance == gps_neighbors == time_neighbors == order_neighbors == 0:
-    #     # All pair selection strategies deactivated so we match all pairs
-    #     d = set()
-    #     t = set()
-    #     o = set()
-    #     pairs = combinations(images, 2)
-    # else:
-    #     d = match_candidates_by_distance(images, exifs, reference,
-    #                                      gps_neighbors, max_distance)
-    #     t = match_candidates_by_time(images, exifs, time_neighbors)
-    #     o = match_candidates_by_order(images, exifs, order_neighbors)
-    #     pairs = d | t | o
 
     res = {im: [] for im in images}
     for im1, im2 in pairs:
@@ -321,6 +296,7 @@ def match(args):
     im1_F = {}
     im1_valid_inliers = {}
     im1_calibration_flag = {}
+    im1_unthresholded_matches = {}
 
     for im2 in candidates:
         # preemptive matching
@@ -353,12 +329,20 @@ def match(args):
             i1 = None
             i2 = None
 
-        matches = matching.match_symmetric(f1, i1, f2, i2, config)
+        matches_all = classifier.unthresholded_match_symmetric(f1, i1, f2, i2, config)
+        if config['matcher_type'] == 'FLANN':
+            # Flann returns squared L2 distances
+            ri = np.where((matches_all[:,2] <= config['lowes_ratio']**2) & (matches_all[:,3] <= config['lowes_ratio']**2))[0]
+        else:
+            ri = np.where((matches_all[:,2] <= config['lowes_ratio']) & (matches_all[:,3] <= config['lowes_ratio']))[0]
+        matches = matches_all[ri,:]
+        
         logger.debug('{} - {} has {} candidate matches'.format(
             im1, im2, len(matches)))
         if len(matches) < robust_matching_min_match:
             im1_matches[im2] = []
             im1_all_matches[im2] = matches
+            im1_unthresholded_matches[im2] = matches_all
             im1_all_robust_matches[im2] = []
             im1_valid_rmatches[im2] = 0
             continue
@@ -372,6 +356,7 @@ def match(args):
                                          config)
 
         im1_all_matches[im2] = matches
+        im1_unthresholded_matches[im2] = matches_all
         im1_all_robust_matches[im2] = rmatches
         im1_valid_rmatches[im2] = 1
         im1_T[im2] = T.tolist()
@@ -390,6 +375,7 @@ def match(args):
         logger.debug("Full matching {0} / {1}, time: {2}s".format(
             len(rmatches), len(matches), timer() - t))
     ctx.data.save_matches(im1, im1_matches)
+    ctx.data.save_unthresholded_matches(im1, im1_unthresholded_matches)
     ctx.data.save_all_matches(im1, im1_all_matches, im1_valid_rmatches, im1_all_robust_matches)
     ctx.data.save_pairwise_results(im1, im1_T, im1_F, im1_valid_inliers, im1_calibration_flag)
 

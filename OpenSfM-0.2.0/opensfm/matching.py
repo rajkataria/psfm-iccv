@@ -97,8 +97,8 @@ def robust_match_fundamental(p1, p2, matches, config):
     if len(matches) < 8:
         return np.array([]), np.array([]), np.zeros((3,3)), 0
 
-    p1 = p1[matches[:, 0]][:, :2].copy()
-    p2 = p2[matches[:, 1]][:, :2].copy()
+    p1 = p1[matches[:, 0].astype(np.int)][:, :2].copy()
+    p2 = p2[matches[:, 1].astype(np.int)][:, :2].copy()
 
     FM_RANSAC = cv2.FM_RANSAC if context.OPENCV3 else cv2.cv.CV_FM_RANSAC
     threshold = config['robust_matching_threshold']
@@ -175,8 +175,15 @@ def create_tracks_graph(features, colors, matches, config):
     logger.debug('Merging features onto tracks')
     uf = UnionFind()
     for im1, im2 in matches:
-        for f1, f2 in matches[im1, im2]:
-            uf.union((im1, f1), (im2, f2))
+        if len(matches[im1, im2]) > 0 and matches[im1, im2].shape[1] == 5:
+            for f1, f2, _, _, _ in matches[im1, im2]:
+                uf.union((im1, int(f1)), (im2, int(f2)))
+        elif len(matches[im1, im2]) > 0 and matches[im1, im2].shape[1] == 4:
+            for f1, f2, _, _ in matches[im1, im2]:
+                uf.union((im1, int(f1)), (im2, int(f2)))
+        else:
+            for f1, f2 in matches[im1, im2]:
+                uf.union((im1, int(f1)), (im2, int(f2)))
 
     sets = {}
     for i in uf:

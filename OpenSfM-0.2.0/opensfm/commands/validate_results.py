@@ -66,32 +66,60 @@ class Command:
             'reconstruct'
         ]
 
-        graph = data.load_tracks_graph('tracks.csv')
-        graph_thresholded_matches = data.load_tracks_graph('tracks-thresholded-matches.csv')
-        graph_all_matches = data.load_tracks_graph('tracks-all-matches.csv')
+        if data.tracks_graph_exists('tracks.csv'):
+            graph_ = data.load_tracks_graph('tracks.csv')
+        if data.tracks_graph_exists('tracks-thresholded-matches.csv'):
+            graph_thresholded_matches = data.load_tracks_graph('tracks-thresholded-matches.csv')
+        if data.tracks_graph_exists('tracks-all-matches.csv'):
+            graph_all_matches = data.load_tracks_graph('tracks-all-matches.csv')
+        if data.tracks_graph_exists('tracks-thresholded-weighted-matches.csv'):
+            graph_thresholded_weighted_matches = data.load_tracks_graph('tracks-thresholded-weighted-matches.csv')
+        if data.tracks_graph_exists('tracks-all-weighted-matches.csv'):
+            graph_all_weighted_matches = data.load_tracks_graph('tracks-all-weighted-matches.csv')
+        if data.tracks_graph_exists('tracks-gt-matches.csv'):
+            graph_gt_matches = data.load_tracks_graph('tracks-gt-matches.csv')
+
+        # Get results for baselines
         if data.reconstruction_exists('reconstruction.json'):
             logger.info('Computing reconstruction results for baseline...')
             stats_label = 'baseline'
             reconstruction_baseline = data.load_reconstruction('reconstruction.json')[0]
-            relevant_reconstructions.append([graph, reconstruction_baseline, baseline_command_keys, stats_label])
+            relevant_reconstructions.append([graph_, reconstruction_baseline, baseline_command_keys, stats_label])
 
         if data.reconstruction_exists('reconstruction_colmap.json'):
             logger.info('Computing reconstruction results for colmap...')
             stats_label = 'colmap'
             reconstruction_colmap = data.load_reconstruction('reconstruction_colmap.json')[0]
-            relevant_reconstructions.append([graph, reconstruction_colmap, {}, stats_label])
+            relevant_reconstructions.append([graph_, reconstruction_colmap, {}, stats_label])
 
-        if data.reconstruction_exists('reconstruction-classifier-weighted.json'):
-            logger.info('Computing reconstruction results for image matching classifier with weighted resectioning reconstruction...')
-            stats_label = 'classifier-weighted'
-            reconstruction_classifier_weighted = data.load_reconstruction('reconstruction-classifier-weighted.json')[0]
-            relevant_reconstructions.append([graph_all_matches, reconstruction_classifier_weighted, classifier_command_keys, stats_label])
+        for imc in [True, False]:
+            for wr in [True, False]:
+                for gm in [True, False]:
+                    for wfm in [True, False]:
+                        for imt in [True, False]:
+                            reconstruction_fn = 'reconstruction-imc-{}-wr-{}-gm-{}-wfm-{}-imt-{}.json'.format(imc, wr, gm, wfm, imt)
+                            if data.reconstruction_exists(reconstruction_fn):
+                                logger.info('Computing reconstruction results - imc-{}-wr-{}-gm-{}-wfm-{}-imt-{}.json'.format(imc, wr, gm, wfm, imt))
+                                if imc is False and wr is False and gm is False and wfm is False and imt is False:
+                                    stats_label = 'baseline'
+                                else:
+                                    stats_label = 'imc-{}-wr-{}-gm-{}-wfm-{}-imt-{}'.format(imc, wr, gm, wfm, imt)
+                                reconstruction_ = data.load_reconstruction(reconstruction_fn)[0]
 
-        if data.reconstruction_exists('reconstruction-classifier.json'):
-            logger.info('Computing reconstruction results for image matching classifier reconstruction...')
-            stats_label = 'classifier'
-            reconstruction_classifier = data.load_reconstruction('reconstruction-classifier.json')[0]
-            relevant_reconstructions.append([graph_thresholded_matches, reconstruction_classifier, classifier_command_keys, stats_label])
+                                if gm is True:
+                                    graph = data.load_tracks_graph('tracks-gt-matches.csv')
+                                elif imc is True and wfm is True and imt is True:
+                                    graph = graph_thresholded_weighted_matches
+                                elif imc is True and wfm is True:
+                                    graph = graph_all_weighted_matches
+                                elif imc is True and imt is True:
+                                    graph = graph_thresholded_matches
+                                elif imc is True:
+                                    graph = graph_all_matches
+                                else:
+                                    graph = graph_
+
+                                relevant_reconstructions.append([graph, reconstruction_, classifier_command_keys, stats_label])
 
         for datum in relevant_reconstructions:
             g, r, k, l = datum
@@ -105,6 +133,7 @@ class Command:
         else:
             relevant_reconstructions = []
 
+            # Get results for baselines
             if data.reconstruction_exists('reconstruction.json'):
                 logger.info('Computing ATE for baseline...')
                 stats_label = 'baseline'
@@ -121,21 +150,24 @@ class Command:
                 self.intersect_reconstructions(data, reconstruction_colmap_gt, reconstruction_colmap)
                 relevant_reconstructions.append([reconstruction_colmap_gt, reconstruction_colmap, stats_label])
 
-            if data.reconstruction_exists('reconstruction-classifier-weighted.json'):
-                logger.info('Computing ATE for image matching classifier with weighted resectioning reconstruction...')
-                stats_label = 'classifier-weighted'
-                reconstruction_classifier_weighted_gt = data.load_reconstruction('reconstruction_gt.json')[0]
-                reconstruction_classifier_weighted = data.load_reconstruction('reconstruction-classifier-weighted.json')[0]
-                self.intersect_reconstructions(data, reconstruction_classifier_weighted_gt, reconstruction_classifier_weighted)
-                relevant_reconstructions.append([reconstruction_classifier_weighted_gt, reconstruction_classifier_weighted, stats_label])
+            for imc in [True, False]:
+                for wr in [True, False]:
+                    for gm in [True, False]:
+                        for wfm in [True, False]:
+                            for imt in [True, False]:
+                                reconstruction_fn = 'reconstruction-imc-{}-wr-{}-gm-{}-wfm-{}-imt-{}.json'.format(imc, wr, gm, wfm, imt)
+                                if data.reconstruction_exists(reconstruction_fn):
+                                    logger.info('Computing reconstruction results - imc-{}-wr-{}-gm-{}-wfm-{}-imt-{}.json'.format(imc, wr, gm, wfm, imt))
+                                    if imc is False and wr is False and gm is False and wfm is False and imt is False:
+                                        stats_label = 'baseline'
+                                    else:
+                                        stats_label = 'imc-{}-wr-{}-gm-{}-wfm-{}-imt-{}'.format(imc, wr, gm, wfm, imt)
 
-            if data.reconstruction_exists('reconstruction-classifier.json'):
-                logger.info('Computing ATE for image matching classifier reconstruction...')
-                stats_label = 'classifier'
-                reconstruction_classifier_gt = data.load_reconstruction('reconstruction_gt.json')[0]
-                reconstruction_classifier = data.load_reconstruction('reconstruction-classifier.json')[0]
-                self.intersect_reconstructions(data, reconstruction_classifier_gt, reconstruction_classifier)
-                relevant_reconstructions.append([reconstruction_classifier_gt, reconstruction_classifier, stats_label])
+                                    reconstruction_gt = data.load_reconstruction('reconstruction_gt.json')[0]
+                                    reconstruction_ = data.load_reconstruction(reconstruction_fn)[0]
+                                    self.intersect_reconstructions(data, reconstruction_gt, reconstruction_)
+
+                                    relevant_reconstructions.append([reconstruction_gt, reconstruction_, stats_label])
 
             for datum in relevant_reconstructions:
                 r_gt, r, label = datum
@@ -183,7 +215,6 @@ class Command:
                 remove_shots.append(s)
         for s in remove_shots:
             del reconstruction_gt.shots[s]
-                # del reconstruction_gt[0].shots[s]
 
     def calculate_reconstruction_results(self, data, graph, reconstruction, options, command_keys):
         registered = 0
@@ -194,7 +225,6 @@ class Command:
         cameras = 0
         times = {}
 
-        # graph = data.load_tracks_graph()
         tracks, images = matching.tracks_and_images(graph)
         cameras = len(data.images())
         for s in reconstruction.shots:
@@ -202,8 +232,6 @@ class Command:
                 continue
             pts_triangulated = set(reconstruction.points.keys()).intersection(set(graph[s].keys()))
             if len(pts_triangulated) >= options['min_triangulated']:
-                # if options['debug']:
-                    # print 'Image: {}   Tracks: {}   Points Triangulated: {}'.format(s, len(graph[s].keys()), len(pts_triangulated))
                 registered += 1
 
         for pid in reconstruction.points:

@@ -144,14 +144,19 @@ class Command:
         for r in p_results:
             fns, num_rmatches, _, score, _ = r
             im1, im2 = fns
-            if im1 not in results:
-                results[im1] = {}
 
             if num_rmatches < image_matching_classifier_thresholds[0]:
                 score = [0.0]
             elif num_rmatches > image_matching_classifier_thresholds[-1]:
                 score = [1.0]
+
+            if im1 not in results:
+                results[im1] = {}
+            if im2 not in results:
+                results[im2] = {}
+
             results[im1][im2] = {'im1': im1, 'im2': im2, 'score': score[0], 'num_rmatches': num_rmatches[0]}
+            results[im2][im1] = {'im1': im2, 'im2': im1, 'score': score[0], 'num_rmatches': num_rmatches[0]}
             num_pairs = num_pairs + 1
 
         # print results

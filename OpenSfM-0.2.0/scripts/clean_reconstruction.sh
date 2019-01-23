@@ -16,14 +16,13 @@ rm -R $dataset/profile.log
 rm -R $dataset/reconstruction_colmap.json
 #rm -R $dataset/reconstruction_gt.json
 rm -R $dataset/reconstruction.json
+rm -R $dataset/reconstruction-*.json
 rm -R $dataset/reference_lla.json
 rm -R $dataset/reports
 rm -R $dataset/results
 rm -R $dataset/sift
 #rm -R $dataset/sparse_converted
-rm -R $dataset/tracks-all-matches.csv
-rm -R $dataset/tracks.csv
-rm -R $dataset/tracks-thresholded-matches.csv
+rm -R $dataset/tracks*.csv
 rm -R $dataset/vocab_out
 rm -R $dataset/vt_image_list.txt
 rm -R $dataset/vt_sift_list.txt
