@@ -78,6 +78,7 @@ int main( int argc, char** argv )
   //derive correspondences based on random point-cloud
   bearingVectors_t bearingVectors1;
   bearingVectors_t bearingVectors2;
+  weights_t weights;
   std::vector<int> camCorrespondences1;
   std::vector<int> camCorrespondences2;
   Eigen::MatrixXd gt(3,numberPoints);
@@ -99,6 +100,7 @@ int main( int argc, char** argv )
   relative_pose::NoncentralRelativeAdapter adapter(
       bearingVectors1,
       bearingVectors2,
+      weights,
       camCorrespondences1,
       camCorrespondences2,
       camOffsets,

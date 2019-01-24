@@ -80,6 +80,7 @@ int main( int argc, char** argv )
   //derive correspondences based on random point-cloud
   bearingVectors_t bearingVectors1;
   bearingVectors_t bearingVectors2;
+  weights_t weights;
   std::vector<int> camCorrespondences1; //unused in the central case
   std::vector<int> camCorrespondences2; //unused in the central case
   Eigen::MatrixXd gt(3,numberPoints);
@@ -104,6 +105,7 @@ int main( int argc, char** argv )
   relative_pose::CentralRelativeAdapter adapter(
       bearingVectors1,
       bearingVectors2,
+      weights,
       rotation);
 
   //Create a RelativePoseSac problem and Ransac

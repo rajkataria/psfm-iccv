@@ -69,6 +69,7 @@ int main( int argc, char** argv )
   //derive correspondences based on random point-cloud
   bearingVectors_t bearingVectors;
   points_t points;
+  weights_t weights;
   std::vector<int> camCorrespondences; //unused in the central case!
   Eigen::MatrixXd gt(3,numberPoints);
   generateRandom2D3DCorrespondences(
@@ -83,6 +84,7 @@ int main( int argc, char** argv )
   absolute_pose::CentralAbsoluteAdapter adapter(
       bearingVectors,
       points,
+      weights,
       rotation );
 
   //timer

@@ -77,6 +77,7 @@ int main( int argc, char** argv )
   //derive correspondences based on random point-cloud
   std::vector<std::shared_ptr<bearingVectors_t> > multiBearingVectors1;
   std::vector<std::shared_ptr<bearingVectors_t> > multiBearingVectors2;
+  std::vector<std::shared_ptr<weights_t> > multiWeights;
   std::vector<std::shared_ptr<Eigen::MatrixXd> > gt;
   generateMulti2D2DCorrespondences(
       position1, rotation1, position2, rotation2, camOffsets, camRotations,
@@ -95,6 +96,7 @@ int main( int argc, char** argv )
   relative_pose::NoncentralRelativeMultiAdapter adapter(
       multiBearingVectors1,
       multiBearingVectors2,
+      multiWeights,
       camOffsets,
       camRotations);
 

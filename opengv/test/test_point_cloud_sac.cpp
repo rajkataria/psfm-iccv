@@ -72,6 +72,7 @@ int main( int argc, char** argv )
   //derive the correspondences based on random point-cloud
   points_t points1;
   points_t points2;
+  weights_t weights;
   Eigen::MatrixXd gt(3,numberPoints);
   generateRandom3D3DCorrespondences(
       position1, rotation1, position2, rotation2,
@@ -87,7 +88,7 @@ int main( int argc, char** argv )
 
   //create the point-cloud adapter
   point_cloud::PointCloudAdapter adapter(
-      points1, points2, position, rotation);
+      points1, points2, weights, position, rotation);
 
   //Create a PointCloudSacProblem and Ransac
   sac::Ransac<

@@ -59,7 +59,7 @@ int main( int argc, char** argv )
   //set experiment parameters
   double noise = 0.0;
   double outlierFraction = 0.1;
-  size_t numberPoints = 100;
+  size_t numberPoints = 289;
 
   //create a random viewpoint pose
   translation_t position = generateRandomTranslation(2.0);
@@ -73,6 +73,10 @@ int main( int argc, char** argv )
   //derive correspondences based on random point-cloud
   bearingVectors_t bearingVectors;
   points_t points;
+  weights_t weights;
+  for (int i=0; i < numberPoints; i++) {
+    weights.push_back(1.0);
+  }
   std::vector<int> camCorrespondences; //unused in the central case!
   Eigen::MatrixXd gt(3,numberPoints);
   generateRandom2D3DCorrespondences(
@@ -87,6 +91,7 @@ int main( int argc, char** argv )
   absolute_pose::CentralAbsoluteAdapter adapter(
       bearingVectors,
       points,
+      weights,
       rotation);
 
   //Create an AbsolutePoseSac problem and Ransac
@@ -105,7 +110,7 @@ int main( int argc, char** argv )
   struct timeval tic;
   struct timeval toc;
   gettimeofday( &tic, 0 );
-  ransac.computeModel();
+  ransac.computeModel(3);
   gettimeofday( &toc, 0 );
   double ransac_time = TIMETODOUBLE(timeval_minus(toc,tic));
 

@@ -73,6 +73,7 @@ int main( int argc, char** argv )
   //derive correspondences based on random point-cloud
   bearingVectors_t bearingVectors1;
   bearingVectors_t bearingVectors2;
+  weights_t weights;
   std::vector<int> camCorrespondences1;
   std::vector<int> camCorrespondences2;
   Eigen::MatrixXd gt(3,numberPoints);
@@ -94,6 +95,7 @@ int main( int argc, char** argv )
   relative_pose::NoncentralRelativeAdapter adapter(
       bearingVectors1,
       bearingVectors2,
+      weights,
       camCorrespondences1,
       camCorrespondences2,
       camOffsets,
@@ -172,7 +174,7 @@ int main( int argc, char** argv )
 
   //print results
   std::cout << "results from 6pt algorithm:" << std::endl;
-  for( size_t i = 0; i < sixpt_rotations.size(); i++ )
+  for( int i = 0; i < sixpt_rotations.size(); i++ )
     std::cout << sixpt_rotations[i] << std::endl << std::endl;
   std::cout << "result from ge using 8 points:" << std::endl;
   std::cout << ge_rotation << std::endl << std::endl;
