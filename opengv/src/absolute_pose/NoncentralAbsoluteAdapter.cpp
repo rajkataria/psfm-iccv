@@ -35,12 +35,14 @@ opengv::absolute_pose::NoncentralAbsoluteAdapter::NoncentralAbsoluteAdapter(
     const bearingVectors_t & bearingVectors,
     const camCorrespondences_t & camCorrespondences,
     const points_t & points,
+    const weights_t & weights,
     const translations_t & camOffsets,
     const rotations_t & camRotations ) :
     AbsoluteAdapterBase(),
     _bearingVectors(bearingVectors),
     _camCorrespondences(camCorrespondences),
     _points(points),
+    _weights(weights),
     _camOffsets(camOffsets),
     _camRotations(camRotations)
 {}
@@ -49,6 +51,7 @@ opengv::absolute_pose::NoncentralAbsoluteAdapter::NoncentralAbsoluteAdapter(
     const bearingVectors_t & bearingVectors,
     const camCorrespondences_t & camCorrespondences,
     const points_t & points,
+    const weights_t & weights,
     const translations_t & camOffsets,
     const rotations_t & camRotations,
     const rotation_t & R ) :
@@ -56,6 +59,7 @@ opengv::absolute_pose::NoncentralAbsoluteAdapter::NoncentralAbsoluteAdapter(
     _bearingVectors(bearingVectors),
     _camCorrespondences(camCorrespondences),
     _points(points),
+    _weights(weights),
     _camOffsets(camOffsets),
     _camRotations(camRotations)
 {}
@@ -64,6 +68,7 @@ opengv::absolute_pose::NoncentralAbsoluteAdapter::NoncentralAbsoluteAdapter(
     const bearingVectors_t & bearingVectors,
     const camCorrespondences_t & camCorrespondences,
     const points_t & points,
+    const weights_t & weights,
     const translations_t & camOffsets,
     const rotations_t & camRotations,
     const translation_t & t,
@@ -72,6 +77,7 @@ opengv::absolute_pose::NoncentralAbsoluteAdapter::NoncentralAbsoluteAdapter(
     _bearingVectors(bearingVectors),
     _camCorrespondences(camCorrespondences),
     _points(points),
+    _weights(weights),
     _camOffsets(camOffsets),
     _camRotations(camRotations)
 {}
@@ -92,6 +98,13 @@ opengv::absolute_pose::NoncentralAbsoluteAdapter::
     getWeight( size_t index ) const
 {
   return 1.0;
+}
+
+std::vector<double>
+opengv::absolute_pose::NoncentralAbsoluteAdapter::
+    getWeightVector() const
+{
+  return _weights;
 }
 
 opengv::point_t

@@ -113,6 +113,9 @@ public:
    */
   virtual double getWeight(
       size_t pairIndex, size_t correspondenceIndex ) const = 0;
+
+  virtual opengv::weights_t getWeightVector(
+      size_t pairIndex ) const = 0;
   /**
    * \brief Retrieve the position of the cameras of a camera-pair seen from the
    *        origin of the viewpoints (assumed to be the same in both
@@ -193,6 +196,12 @@ public:
   {
     return getWeight(
         multiPairIndex(index), multiCorrespondenceIndex(index) );
+  }
+
+  virtual opengv::weights_t getWeightVector() const
+  {
+    return getWeightVector(
+        multiPairIndex(0) );
   }
   /** See parent-class (no need to overload) */
   virtual translation_t getCamOffset1( size_t index ) const

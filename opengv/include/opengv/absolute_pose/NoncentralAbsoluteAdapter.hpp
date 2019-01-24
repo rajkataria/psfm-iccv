@@ -80,6 +80,7 @@ public:
       const bearingVectors_t & bearingVectors,
       const camCorrespondences_t & camCorrespondences,
       const points_t & points,
+      const weights_t & weights,
       const translations_t & camOffsets,
       const rotations_t & camRotations );
   /**
@@ -89,6 +90,7 @@ public:
       const bearingVectors_t & bearingVectors,
       const camCorrespondences_t & camCorrespondences,
       const points_t & points,
+      const weights_t & weights,
       const translations_t & camOffsets,
       const rotations_t & camRotations,
       const rotation_t & R );
@@ -99,6 +101,7 @@ public:
       const bearingVectors_t & bearingVectors,
       const camCorrespondences_t & camCorrespondences,
       const points_t & points,
+      const weights_t & weights,
       const translations_t & camOffsets,
       const rotations_t & camRotations,
       const translation_t & t,
@@ -114,6 +117,8 @@ public:
   virtual opengv::bearingVector_t getBearingVector( size_t index ) const;
   /** See parent-class */
   virtual double getWeight( size_t index ) const;
+  virtual std::vector<double> getWeightVector() const;
+
   /** See parent-class */
   virtual opengv::translation_t getCamOffset( size_t index ) const;
   /** See parent-class */
@@ -133,7 +138,7 @@ protected:
   const camCorrespondences_t & _camCorrespondences;
   /** Reference to the points expressed in the world-frame. */
   const points_t & _points;
-
+  const weights_t & _weights;
   /** Reference to positions of the different cameras seen from the
    *  viewpoint.
    */

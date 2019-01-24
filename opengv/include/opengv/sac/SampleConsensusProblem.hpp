@@ -107,6 +107,7 @@ public:
    * \brief Sub-function for getting samples for hypothesis generation.
    * \param[out] sample The indices of the samples we attempt to use.
    */
+  int findIndex( std::vector<double> w, double sample );
   void drawIndexSample( std::vector<int> & sample );
 
   /**
@@ -138,6 +139,8 @@ public:
       const std::vector<int> & inliers,
       const model_t & model_coefficients,
       model_t & optimized_coefficients ) = 0;
+
+  virtual std::vector<double> getWeights() = 0;
 
   /**
    * \brief Compute the distances of all samples whith respect to given model
@@ -184,9 +187,10 @@ public:
    *                      determining the inliers and outliers.
    * \return The resultant number of inliers
    */
-  virtual int countWithinDistance(
+  virtual std::vector<double> countWithinDistance(
       const model_t &model_coefficients,
-      const double threshold );
+      const double threshold
+      );
 
   /**
    * \brief Set the indices_ variable (see member-description).

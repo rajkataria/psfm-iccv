@@ -34,10 +34,12 @@
 opengv::relative_pose::NoncentralRelativeMultiAdapter::NoncentralRelativeMultiAdapter(
     std::vector<std::shared_ptr<bearingVectors_t> > bearingVectors1,
     std::vector<std::shared_ptr<bearingVectors_t> > bearingVectors2,
+    std::vector<std::shared_ptr<weights_t> > weights,
     const translations_t & camOffsets,
     const rotations_t & camRotations ) :
     _bearingVectors1(bearingVectors1),
     _bearingVectors2(bearingVectors2),
+    _weights(weights),
     _camOffsets(camOffsets),
     _camRotations(camRotations)
 {
@@ -90,6 +92,13 @@ opengv::relative_pose::NoncentralRelativeMultiAdapter::
     getWeight( size_t pairIndex, size_t correspondenceIndex ) const
 {
   return 1.0;
+}
+
+opengv::weights_t
+opengv::relative_pose::NoncentralRelativeMultiAdapter::
+    getWeightVector( size_t frameIndex ) const
+{
+  return (*_weights[frameIndex]);
 }
 
 opengv::translation_t

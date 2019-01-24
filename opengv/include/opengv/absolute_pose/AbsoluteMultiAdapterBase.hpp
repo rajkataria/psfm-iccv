@@ -119,6 +119,9 @@ public:
    */
   virtual double getWeight(
       size_t frameIndex, size_t correspondenceIndex ) const = 0;
+
+  virtual opengv::weights_t getWeightVector(
+      size_t frameIndex ) const = 0;
   /**
    * \brief Retrieve the position of a camera seen from the viewpoint origin.
    * \param[in] frameIndex Index of the frame.
@@ -201,6 +204,13 @@ public:
     return getWeight(
         multiFrameIndex(index), multiCorrespondenceIndex(index) );
   }
+
+  virtual opengv::weights_t getWeightVector() const
+  {
+    return getWeightVector(
+        multiFrameIndex(0) );
+  }
+
   /** See parent-class (no need to overload) */
   virtual translation_t getCamOffset( size_t index ) const
   { return getMultiCamOffset( multiFrameIndex(index) ); }

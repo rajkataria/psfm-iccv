@@ -31,7 +31,6 @@
 
 #include <opengv/math/roots.hpp>
 #include <complex>
-#include <math.h>
 
 std::vector<double>
 opengv::math::o3_roots( const std::vector<double> & p )

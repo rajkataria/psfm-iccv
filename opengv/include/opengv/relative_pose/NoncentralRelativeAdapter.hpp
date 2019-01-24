@@ -79,6 +79,7 @@ public:
   NoncentralRelativeAdapter(
       const bearingVectors_t & bearingVectors1,
       const bearingVectors_t & bearingVectors2,
+      const weights_t & weights,
       const camCorrespondences_t & camCorrespondences1,
       const camCorrespondences_t & camCorrespondences2,
       const translations_t & camOffsets,
@@ -89,6 +90,7 @@ public:
   NoncentralRelativeAdapter(
       const bearingVectors_t & bearingVectors1,
       const bearingVectors_t & bearingVectors2,
+      const weights_t & weights,
       const camCorrespondences_t & camCorrespondences1,
       const camCorrespondences_t & camCorrespondences2,
       const translations_t & camOffsets,
@@ -100,6 +102,7 @@ public:
   NoncentralRelativeAdapter(
       const bearingVectors_t & bearingVectors1,
       const bearingVectors_t & bearingVectors2,
+      const weights_t & weights,
       const camCorrespondences_t & camCorrespondences1,
       const camCorrespondences_t & camCorrespondences2,
       const translations_t & camOffsets,
@@ -119,6 +122,7 @@ public:
   virtual bearingVector_t getBearingVector2( size_t index ) const;
   /** See parent-class */
   virtual double getWeight( size_t index ) const;
+  virtual std::vector<double> getWeightVector() const;
   /** See parent-class */
   virtual translation_t getCamOffset1( size_t index ) const;
   /** See parent-class */
@@ -139,6 +143,7 @@ protected:
    *  (expressed in their individual cameras)
    */
   const bearingVectors_t & _bearingVectors2;
+  const weights_t & _weights;
   /** Reference to an array of camera-indices for the bearing vectors in
    *  viewpoint 1. Length equals to number of bearing-vectors in viewpoint 1,
    *  and elements are indices of cameras in the _camOffsets and _camRotations

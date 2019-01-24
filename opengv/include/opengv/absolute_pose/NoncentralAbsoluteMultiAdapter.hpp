@@ -77,6 +77,7 @@ public:
   NoncentralAbsoluteMultiAdapter(
       std::vector<std::shared_ptr<bearingVectors_t> > bearingVectors,
       std::vector<std::shared_ptr<points_t> > points,
+      std::vector<std::shared_ptr<weights_t> > weights,
       const translations_t & camOffsets,
       const rotations_t & camRotations );
   /**
@@ -94,6 +95,7 @@ public:
       size_t frameIndex, size_t correspondenceIndex ) const;
   /** See parent-class */
   virtual double getWeight( size_t frameIndex, size_t correspondenceIndex ) const;
+  virtual weights_t getWeightVector( size_t frameIndex ) const;
   /** See parent-class */
   virtual translation_t getMultiCamOffset( size_t frameIndex ) const;
   /** See parent-class */
@@ -123,6 +125,7 @@ protected:
   /** References to multiple sets of points (the ones from each camera).
    */
   std::vector<std::shared_ptr<points_t> > _points;
+  std::vector<std::shared_ptr<weights_t> > _weights;
 
   /** Reference to positions of the different cameras seen from the
    *  viewpoint.

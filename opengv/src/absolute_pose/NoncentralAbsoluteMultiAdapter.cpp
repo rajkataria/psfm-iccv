@@ -34,10 +34,12 @@
 opengv::absolute_pose::NoncentralAbsoluteMultiAdapter::NoncentralAbsoluteMultiAdapter(
     std::vector<std::shared_ptr<bearingVectors_t> > bearingVectors,
     std::vector<std::shared_ptr<points_t> > points,
+    std::vector<std::shared_ptr<weights_t> > weights,
     const translations_t & camOffsets,
     const rotations_t & camRotations ) :
     _bearingVectors(bearingVectors),
     _points(points),
+    _weights(weights),
     _camOffsets(camOffsets),
     _camRotations(camRotations)
 {
@@ -88,6 +90,13 @@ opengv::absolute_pose::NoncentralAbsoluteMultiAdapter::
     getWeight( size_t frameIndex, size_t correspondenceIndex ) const
 {
   return 1.0;
+}
+
+opengv::weights_t
+opengv::absolute_pose::NoncentralAbsoluteMultiAdapter::
+    getWeightVector( size_t frameIndex ) const
+{
+  return (*_weights[frameIndex]);
 }
 
 opengv::translation_t

@@ -137,6 +137,7 @@ public:
       const model_t & model,
       model_t & optimized_model);
 
+  virtual std::vector<double> getWeights();
   /**
    * \brief See parent-class.
    */

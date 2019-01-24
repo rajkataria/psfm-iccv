@@ -33,29 +33,35 @@
 
 opengv::relative_pose::CentralRelativeAdapter::CentralRelativeAdapter(
     const bearingVectors_t & bearingVectors1,
-    const bearingVectors_t & bearingVectors2 ) :
+    const bearingVectors_t & bearingVectors2,
+    const weights_t & weights ) :
     RelativeAdapterBase(),
     _bearingVectors1(bearingVectors1),
-    _bearingVectors2(bearingVectors2)
+    _bearingVectors2(bearingVectors2),
+    _weights(weights)
 {}
 
 opengv::relative_pose::CentralRelativeAdapter::CentralRelativeAdapter(
     const bearingVectors_t & bearingVectors1,
     const bearingVectors_t & bearingVectors2,
+    const weights_t & weights,
     const rotation_t & R12 ) :
     RelativeAdapterBase(R12),
     _bearingVectors1(bearingVectors1),
-    _bearingVectors2(bearingVectors2)
+    _bearingVectors2(bearingVectors2),
+    _weights(weights)
 {}
 
 opengv::relative_pose::CentralRelativeAdapter::CentralRelativeAdapter(
     const bearingVectors_t & bearingVectors1,
     const bearingVectors_t & bearingVectors2,
+    const weights_t & weights,
     const translation_t & t12,
     const rotation_t & R12 ) :
     RelativeAdapterBase(t12,R12),
     _bearingVectors1(bearingVectors1),
-    _bearingVectors2(bearingVectors2)
+    _bearingVectors2(bearingVectors2),
+    _weights(weights)
 {}
 
 opengv::relative_pose::CentralRelativeAdapter::~CentralRelativeAdapter()
@@ -82,6 +88,13 @@ opengv::relative_pose::CentralRelativeAdapter::
     getWeight( size_t index ) const
 {
   return 1.0;
+}
+
+std::vector<double>
+opengv::relative_pose::CentralRelativeAdapter::
+    getWeightVector() const
+{
+  return _weights;
 }
 
 opengv::translation_t

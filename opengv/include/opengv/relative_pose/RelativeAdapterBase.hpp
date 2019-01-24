@@ -116,6 +116,8 @@ public:
    * \return The corresponding weight.
    */
   virtual double getWeight( size_t index ) const = 0;
+
+  virtual std::vector<double> getWeightVector() const = 0;
   /**
    * \brief Retrieve the position of a camera of a correspondence in viewpoint
    *        1 seen from the origin of the viewpoint.

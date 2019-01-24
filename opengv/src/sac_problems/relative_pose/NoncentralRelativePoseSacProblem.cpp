@@ -280,6 +280,13 @@ opengv::sac_problems::
       opengv::relative_pose::optimize_nonlinear(_adapter,inliers);
 }
 
+std::vector<double> 
+opengv::sac_problems::
+    relative_pose::NoncentralRelativePoseSacProblem::getWeights()
+{
+  return _adapter.getWeightVector();
+}
+
 int
 opengv::sac_problems::
     relative_pose::NoncentralRelativePoseSacProblem::getSampleSize() const

@@ -34,29 +34,35 @@
 
 opengv::absolute_pose::CentralAbsoluteAdapter::CentralAbsoluteAdapter(
     const bearingVectors_t & bearingVectors,
-    const points_t & points ) :
+    const points_t & points,
+    const weights_t & weights ) :
     AbsoluteAdapterBase(),
     _bearingVectors(bearingVectors),
-    _points(points)
+    _points(points),
+    _weights(weights)
 {}
 
 opengv::absolute_pose::CentralAbsoluteAdapter::CentralAbsoluteAdapter(
     const bearingVectors_t & bearingVectors,
     const points_t & points,
+    const weights_t & weights,
     const rotation_t & R ) :
     AbsoluteAdapterBase(R),
     _bearingVectors(bearingVectors),
-    _points(points)
+    _points(points),
+    _weights(weights)
 {}
 
 opengv::absolute_pose::CentralAbsoluteAdapter::CentralAbsoluteAdapter(
     const bearingVectors_t & bearingVectors,
     const points_t & points,
+    const weights_t & weights,
     const translation_t & t,
     const rotation_t & R ) :
     AbsoluteAdapterBase(t,R),
     _bearingVectors(bearingVectors),
-    _points(points)
+    _points(points),
+    _weights(weights)
 {}
 
 opengv::absolute_pose::CentralAbsoluteAdapter::~CentralAbsoluteAdapter()
@@ -75,6 +81,13 @@ opengv::absolute_pose::CentralAbsoluteAdapter::
     getWeight( size_t index ) const
 {
   return 1.0;
+}
+
+std::vector<double>
+opengv::absolute_pose::CentralAbsoluteAdapter::
+    getWeightVector() const
+{
+  return _weights;
 }
 
 opengv::point_t
