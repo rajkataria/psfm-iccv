@@ -63,6 +63,7 @@ opengv::sac::Ransac<PROBLEM_T>::computeModel(
   // supress infinite loops by just allowing 10 x maximum allowed iterations for
   // invalid model parameters!
   const unsigned max_skip = max_iterations_ * 10;
+
   // Iterate
   while( iterations_ < k && skipped_count < max_skip )
   {
@@ -90,7 +91,7 @@ opengv::sac::Ransac<PROBLEM_T>::computeModel(
     //  continue;
 
      std::vector<double> model_stats = sac_model_->countWithinDistance(
-        model_coefficients, threshold_);//, weights_ );
+        model_coefficients, threshold_);
     n_inliers_count = (int)model_stats[0];
     n_inliers_score = model_stats[1];
     weight_scores = model_stats[2];
