@@ -31,6 +31,7 @@
 
 #include <opengv/sac_problems/absolute_pose/AbsolutePoseSacProblem.hpp>
 #include <opengv/absolute_pose/methods.hpp>
+#include <cstdio>
 
 bool
 opengv::sac_problems::
@@ -208,6 +209,13 @@ opengv::sac_problems::
   _adapter.sett(model.col(3));
   _adapter.setR(model.block<3,3>(0,0));
   optimized_model = opengv::absolute_pose::optimize_nonlinear(_adapter,inliers);
+}
+
+std::vector<double> 
+opengv::sac_problems::
+    absolute_pose::AbsolutePoseSacProblem::getWeights()
+{
+  return _adapter.getWeightVector();
 }
 
 int

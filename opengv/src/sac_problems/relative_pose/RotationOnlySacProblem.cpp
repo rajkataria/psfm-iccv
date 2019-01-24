@@ -78,6 +78,13 @@ opengv::sac_problems::
   optimized_model = opengv::relative_pose::rotationOnly(_adapter,inliers);
 }
 
+std::vector<double> 
+opengv::sac_problems::
+    relative_pose::RotationOnlySacProblem::getWeights()
+{
+  return _adapter.getWeightVector();
+}
+
 int
 opengv::sac_problems::
     relative_pose::RotationOnlySacProblem::getSampleSize() const

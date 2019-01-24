@@ -73,6 +73,7 @@ int main( int argc, char** argv )
   //derive correspondences based on random point-cloud
   std::vector<std::shared_ptr<points_t> > multiPoints;
   std::vector<std::shared_ptr<bearingVectors_t> > multiBearingVectors;
+  std::vector<std::shared_ptr<weights_t> > multiWeights;
   std::vector< std::shared_ptr<Eigen::MatrixXd> > gt;
   generateMulti2D3DCorrespondences(
       position, rotation, camOffsets, camRotations,
@@ -87,6 +88,7 @@ int main( int argc, char** argv )
   absolute_pose::NoncentralAbsoluteMultiAdapter adapter(
       multiBearingVectors,
       multiPoints,
+      multiWeights,
       camOffsets,
       camRotations );
 

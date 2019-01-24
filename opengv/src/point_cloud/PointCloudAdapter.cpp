@@ -33,29 +33,35 @@
 
 opengv::point_cloud::PointCloudAdapter::PointCloudAdapter(
     const points_t & points1,
-    const points_t & points2 ) :
+    const points_t & points2,
+    const weights_t & weights ) :
     PointCloudAdapterBase(),
     _points1(points1),
-    _points2(points2)
+    _points2(points2),
+    _weights(weights)
 {}
 
 opengv::point_cloud::PointCloudAdapter::PointCloudAdapter(
     const points_t & points1,
     const points_t & points2,
+    const weights_t & weights,
     const rotation_t & R12 ) :
     PointCloudAdapterBase(R12),
     _points1(points1),
-    _points2(points2)
+    _points2(points2),
+    _weights(weights)
 {}
 
 opengv::point_cloud::PointCloudAdapter::PointCloudAdapter(
     const points_t & points1,
     const points_t & points2,
+    const weights_t & weights,
     const translation_t & t12,
     const rotation_t & R12 ) :
     PointCloudAdapterBase(t12,R12),
     _points1(points1),
-    _points2(points2)
+    _points2(points2),
+    _weights(weights)
 {}
 
 opengv::point_cloud::PointCloudAdapter::~PointCloudAdapter()
@@ -82,6 +88,13 @@ opengv::point_cloud::PointCloudAdapter::
     getWeight( size_t index ) const
 {
   return 1.0;
+}
+
+opengv::weights_t
+opengv::point_cloud::PointCloudAdapter::
+    getWeightVector() const
+{
+  return _weights;
 }
 
 size_t

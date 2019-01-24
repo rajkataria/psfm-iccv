@@ -61,26 +61,60 @@ bool opengv::sac::SampleConsensusProblem<M>::isSampleGood(
 }
 
 template<typename M>
+int
+opengv::sac::SampleConsensusProblem<M>::findIndex(
+    std::vector<double> w, double sample
+  )
+{
+  for (unsigned int i = 0; i < w.size(); ++i)
+  {
+    if (w[i] >= sample)
+    {
+      return i;
+    }
+  }
+  return -1;
+}
+
+template<typename M>
 void
 opengv::sac::SampleConsensusProblem<M>::drawIndexSample(
     std::vector<int> & sample)
 {
+  std::vector<double> weights = getWeights();
   size_t sample_size = sample.size();
   size_t index_size = shuffled_indices_.size();
+  bool flag = false;
+  
+  std::vector<double> weights_cum_sum;
+  weights_cum_sum.resize(weights.size());
+  weights_cum_sum[0] = weights[0];
+
+  for( unsigned int j = 1; j < weights.size(); ++j)
+  {
+    weights_cum_sum[j] = weights_cum_sum[j-1] + weights[j];
+  }
+  double weights_sum = weights_cum_sum[weights.size() - 1];
+
   for( unsigned int i = 0; i < sample_size; ++i )
   {
-    // The 1/(RAND_MAX+1.0) trick is when the random numbers are not uniformly
-    // distributed and for small modulo elements, that does not matter
-    // (and nowadays, random number generators are good)
-    //std::swap (shuffled_indices_[i], shuffled_indices_[i + (rand () % (index_size - i))]);
-    std::swap(
-        shuffled_indices_[i],
-        shuffled_indices_[i + (rnd() % (index_size - i))] );
+    flag = false;
+    double rand_double = (double)rnd() / RAND_MAX;
+    int sample_index = findIndex(weights_cum_sum, rand_double * weights_sum);
+    for (unsigned j = 0; j < i; ++j)
+    {
+      if (sample[j] == sample_index)
+      {
+        flag = true;
+        break;
+      }
+    }
+    if (!flag) {
+      sample[i] = sample_index;
+    } else {
+      i--;
+    }
   }
-  std::copy(
-      shuffled_indices_.begin(),
-      shuffled_indices_.begin() + sample_size,
-      sample.begin() );
 }
 
 
@@ -184,20 +218,30 @@ opengv::sac::SampleConsensusProblem<M>::selectWithinDistance(
 }
 
 template<typename M>
-int
+std::vector<double>
 opengv::sac::SampleConsensusProblem<M>::countWithinDistance(
     const model_t & model_coefficients, const double threshold)
 {
   std::vector<double> dist;
   dist.reserve(indices_->size());
   getDistancesToModel( model_coefficients, dist );
+  std::vector<double> weights = getWeights();
 
-  int count = 0;
+  double count = 0.0;
+  double score = std::numeric_limits<double>::epsilon();
+  double weight_scores = std::numeric_limits<double>::epsilon();
+
   for( size_t i = 0; i < dist.size(); ++i )
   {
-    if( dist[i] < threshold )
-      ++count;
+    if( dist[i] < threshold ) {
+      count = count + 1;
+      score = score + weights[i];
+    }
+    weight_scores = weight_scores + weights[i];
   }
-
-  return count;
+  std::vector<double> model_stats;
+  model_stats.push_back(count);
+  model_stats.push_back(score);
+  model_stats.push_back(weight_scores);
+  return model_stats;
 }

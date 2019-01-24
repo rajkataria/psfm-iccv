@@ -71,6 +71,13 @@ opengv::sac_problems::
   optimized_model = opengv::point_cloud::threept_arun(_adapter,inliers);
 }
 
+std::vector<double> 
+opengv::sac_problems::
+    point_cloud::PointCloudSacProblem::getWeights()
+{
+  return _adapter.getWeightVector();
+}
+
 int
 opengv::sac_problems::
     point_cloud::PointCloudSacProblem::getSampleSize() const

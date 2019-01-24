@@ -160,6 +160,13 @@ opengv::sac_problems::
   }
 }
 
+std::vector<double> 
+opengv::sac_problems::
+    relative_pose::EigensolverSacProblem::getWeights()
+{
+  return _adapter.getWeightVector();
+}
+
 int
 opengv::sac_problems::
     relative_pose::EigensolverSacProblem::getSampleSize() const

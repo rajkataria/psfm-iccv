@@ -73,13 +73,16 @@ public:
    */
   CentralAbsoluteAdapter(
       const bearingVectors_t & bearingVectors,
-      const points_t & points );
+      const points_t & points,
+      const weights_t & weights
+       );
   /**
    * \brief Constructor. See protected class-members to understand parameters
    */
   CentralAbsoluteAdapter(
       const bearingVectors_t & bearingVectors,
       const points_t & points,
+      const weights_t & weights,
       const rotation_t & R );
   /**
    * \brief Constructor. See protected class-members to understand parameters
@@ -87,6 +90,7 @@ public:
   CentralAbsoluteAdapter(
       const bearingVectors_t & bearingVectors,
       const points_t & points,
+      const weights_t & weights,
       const translation_t & t,
       const rotation_t & R );
   /**
@@ -100,6 +104,7 @@ public:
   virtual opengv::bearingVector_t getBearingVector( size_t index ) const;
   /** See parent-class */
   virtual double getWeight( size_t index ) const;
+  virtual std::vector<double> getWeightVector() const;
   /** See parent-class. Returns zero for this adapter. */
   virtual opengv::translation_t getCamOffset( size_t index ) const;
   /** See parent-class Returns identity for this adapter. */
@@ -112,6 +117,7 @@ public:
 protected:
   /** Reference to the bearing-vectors expressed in the camera-frame */
   const bearingVectors_t & _bearingVectors;
+  const weights_t & _weights;
   /** Reference to the points expressed in the world-frame. */
   const points_t & _points;
 };

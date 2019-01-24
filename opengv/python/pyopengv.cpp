@@ -28,6 +28,23 @@ opengv::bearingVector_t bearingVectorFromArray(
   return v;
 }
 
+double weightFromArray(
+    const pyarray_t &array,
+    size_t index )
+{
+  return array.get(index, 0);
+}
+
+opengv::weights_t weightsFromArray(
+    const pyarray_t &array )
+{
+  std::vector<double> w;
+  for (int i=0; i < array.shape(0); i++) {
+    w.push_back(array.get(i, 0));
+  }
+  return w;
+}
+
 opengv::point_t pointFromArray(
     const pyarray_d &array,
     size_t index )
@@ -122,17 +139,21 @@ public:
 
   CentralAbsoluteAdapter(
       pyarray_d &bearingVectors,
-      pyarray_d &points )
+      pyarray_d &points,
+      pyarray_d &weights )
     : _bearingVectors(bearingVectors)
     , _points(points)
+    , _weights(weights)
   {}
 
   CentralAbsoluteAdapter(
       pyarray_d &bearingVectors,
       pyarray_d &points,
+      pyarray_d &weights,
       pyarray_d &R )
     : _bearingVectors(bearingVectors)
     , _points(points)
+    , _weights(weights)
   {
     for (int i = 0; i < 3; ++i) {
       for (int j = 0; j < 3; ++j) {
@@ -144,10 +165,12 @@ public:
   CentralAbsoluteAdapter(
       pyarray_d &bearingVectors,
       pyarray_d &points,
+      pyarray_d &weights,
       pyarray_d &t,
       pyarray_d &R )
     : _bearingVectors(bearingVectors)
     , _points(points)
+    , _weights(weights)
   {
     for (int i = 0; i < 3; ++i) {
       _t(i) = *t.data(i);
@@ -168,7 +191,11 @@ public:
   }
 
   virtual double getWeight( size_t index ) const {
-    return 1.0;
+    return weightFromArray(_weights, index);
+  }
+
+  virtual std::vector<double> getWeightVector() const {
+    return weightsFromArray(_weights);
   }
 
   virtual opengv::translation_t getCamOffset( size_t index ) const {
@@ -190,65 +217,67 @@ public:
 protected:
   pyarray_d _bearingVectors;
   pyarray_d _points;
+  pyarray_t _weights;
 };
 
 
 
-py::object p2p( pyarray_d &v, pyarray_d &p, pyarray_d &R )
+py::object p2p( pyarray_d &v, pyarray_d &p, pyarray_d &w, pyarray_d &R )
 {
-  CentralAbsoluteAdapter adapter(v, p, R);
+  CentralAbsoluteAdapter adapter(v, p, w, R);
   return arrayFromTranslation(
     opengv::absolute_pose::p2p(adapter, 0, 1));
 }
 
-py::object p3p_kneip( pyarray_d &v, pyarray_d &p )
+py::object p3p_kneip( pyarray_d &v, pyarray_d &p, pyarray_d &w )
 {
-  CentralAbsoluteAdapter adapter(v, p);
+  CentralAbsoluteAdapter adapter(v, p, w);
   return listFromTransformations(
     opengv::absolute_pose::p3p_kneip(adapter, 0, 1, 2));
 }
 
-py::object p3p_gao( pyarray_d &v, pyarray_d &p )
+py::object p3p_gao( pyarray_d &v, pyarray_d &p, pyarray_d &w )
 {
-  CentralAbsoluteAdapter adapter(v, p);
+  CentralAbsoluteAdapter adapter(v, p, w);
   return listFromTransformations(
     opengv::absolute_pose::p3p_gao(adapter, 0, 1, 2));
 }
 
-py::object gp3p( pyarray_d &v, pyarray_d &p )
+py::object gp3p( pyarray_d &v, pyarray_d &p, pyarray_d &w )
 {
-  CentralAbsoluteAdapter adapter(v, p);
+  CentralAbsoluteAdapter adapter(v, p, w);
   return listFromTransformations(
     opengv::absolute_pose::gp3p(adapter, 0, 1, 2));
 }
 
-py::object epnp( pyarray_d &v, pyarray_d &p )
+py::object epnp( pyarray_d &v, pyarray_d &p, pyarray_d &w )
 {
-  CentralAbsoluteAdapter adapter(v, p);
+  CentralAbsoluteAdapter adapter(v, p, w);
   return arrayFromTransformation(
     opengv::absolute_pose::epnp(adapter));
 }
 
-py::object gpnp( pyarray_d &v, pyarray_d &p )
+py::object gpnp( pyarray_d &v, pyarray_d &p, pyarray_d &w )
 {
-  CentralAbsoluteAdapter adapter(v, p);
+  CentralAbsoluteAdapter adapter(v, p, w);
   return arrayFromTransformation(
     opengv::absolute_pose::gpnp(adapter));
 }
 
-py::object upnp( pyarray_d &v, pyarray_d &p )
+py::object upnp( pyarray_d &v, pyarray_d &p, pyarray_d &w )
 {
-  CentralAbsoluteAdapter adapter(v, p);
+  CentralAbsoluteAdapter adapter(v, p, w);
   return listFromTransformations(
     opengv::absolute_pose::upnp(adapter));
 }
 
 py::object optimize_nonlinear( pyarray_d &v,
                                pyarray_d &p,
+                               pyarray_d &w,
                                pyarray_d &t,
                                pyarray_d &R )
 {
-  CentralAbsoluteAdapter adapter(v, p, t, R);
+  CentralAbsoluteAdapter adapter(v, p, w, t, R);
   return arrayFromTransformation(
     opengv::absolute_pose::optimize_nonlinear(adapter));
 }
@@ -256,6 +285,7 @@ py::object optimize_nonlinear( pyarray_d &v,
 py::object ransac(
     pyarray_d &v,
     pyarray_d &p,
+    pyarray_d &w,
     std::string algo_name,
     double threshold,
     int max_iterations,
@@ -263,7 +293,7 @@ py::object ransac(
 {
   using namespace opengv::sac_problems::absolute_pose;
 
-  CentralAbsoluteAdapter adapter(v, p);
+  CentralAbsoluteAdapter adapter(v, p, w);
 
   // Create a ransac problem
   AbsolutePoseSacProblem::algorithm_t algorithm = AbsolutePoseSacProblem::KNEIP;
@@ -344,17 +374,21 @@ public:
 
   CentralRelativeAdapter(
       pyarray_d &bearingVectors1,
-      pyarray_d &bearingVectors2 )
+      pyarray_d &bearingVectors2,
+      pyarray_d &weights )
     : _bearingVectors1(bearingVectors1)
     , _bearingVectors2(bearingVectors2)
+    , _weights(weights)
   {}
 
   CentralRelativeAdapter(
       pyarray_d &bearingVectors1,
       pyarray_d &bearingVectors2,
+      pyarray_d &weights,
       pyarray_d &R12 )
     : _bearingVectors1(bearingVectors1)
     , _bearingVectors2(bearingVectors2)
+    , _weights(weights)
   {
     for (int i = 0; i < 3; ++i) {
       for (int j = 0; j < 3; ++j) {
@@ -366,10 +400,12 @@ public:
   CentralRelativeAdapter(
       pyarray_d &bearingVectors1,
       pyarray_d &bearingVectors2,
+      pyarray_d &weights,
       pyarray_d &t12,
       pyarray_d &R12 )
     : _bearingVectors1(bearingVectors1)
     , _bearingVectors2(bearingVectors2)
+    , _weights(weights)
   {
     for (int i = 0; i < 3; ++i) {
       _t12(i) = *t12.data(i);
@@ -392,7 +428,11 @@ public:
   }
 
   virtual double getWeight( size_t index ) const {
-    return 1.0;
+    return weightFromArray(_weights, index);
+  }
+
+  virtual std::vector<double> getWeightVector() const {
+    return weightsFromArray(_weights);
   }
 
   virtual opengv::translation_t getCamOffset1( size_t index ) const {
@@ -418,78 +458,80 @@ public:
 protected:
   pyarray_d _bearingVectors1;
   pyarray_d _bearingVectors2;
+  pyarray_d _weights;
 };
 
 
-py::object twopt( pyarray_d &b1, pyarray_d &b2, pyarray_d &R )
+py::object twopt( pyarray_d &b1, pyarray_d &b2, pyarray_d &w, pyarray_d &R )
 {
-  CentralRelativeAdapter adapter(b1, b2, R);
+  CentralRelativeAdapter adapter(b1, b2, w, R);
   return arrayFromTranslation(
     opengv::relative_pose::twopt(adapter, true, 0, 1));
 }
 
-py::object twopt_rotationOnly( pyarray_d &b1, pyarray_d &b2 )
+py::object twopt_rotationOnly( pyarray_d &b1, pyarray_d &b2, pyarray_d &w )
 {
-  CentralRelativeAdapter adapter(b1, b2);
+  CentralRelativeAdapter adapter(b1, b2, w);
   return arrayFromRotation(
     opengv::relative_pose::twopt_rotationOnly(adapter, 0, 1));
 }
 
-py::object rotationOnly( pyarray_d &b1, pyarray_d &b2 )
+py::object rotationOnly( pyarray_d &b1, pyarray_d &b2, pyarray_d &w )
 {
-  CentralRelativeAdapter adapter(b1, b2);
+  CentralRelativeAdapter adapter(b1, b2, w);
   return arrayFromRotation(
     opengv::relative_pose::rotationOnly(adapter));
 }
 
-py::object fivept_nister( pyarray_d &b1, pyarray_d &b2 )
+py::object fivept_nister( pyarray_d &b1, pyarray_d &b2, pyarray_d &w )
 {
-  CentralRelativeAdapter adapter(b1, b2);
+  CentralRelativeAdapter adapter(b1, b2, w);
   return listFromEssentials(
     opengv::relative_pose::fivept_nister(adapter));
 }
 
-py::object fivept_kneip( pyarray_d &b1, pyarray_d &b2 )
+py::object fivept_kneip( pyarray_d &b1, pyarray_d &b2, pyarray_d &w )
 {
-  CentralRelativeAdapter adapter(b1, b2);
+  CentralRelativeAdapter adapter(b1, b2, w);
   return listFromRotations(
     opengv::relative_pose::fivept_kneip(adapter, getNindices(5)));
 }
 
-py::object sevenpt( pyarray_d &b1, pyarray_d &b2 )
+py::object sevenpt( pyarray_d &b1, pyarray_d &b2, pyarray_d &w )
 {
-  CentralRelativeAdapter adapter(b1, b2);
+  CentralRelativeAdapter adapter(b1, b2, w);
   return listFromEssentials(
     opengv::relative_pose::sevenpt(adapter));
 }
 
-py::object eightpt( pyarray_d &b1, pyarray_d &b2 )
+py::object eightpt( pyarray_d &b1, pyarray_d &b2, pyarray_d &w )
 {
-  CentralRelativeAdapter adapter(b1, b2);
+  CentralRelativeAdapter adapter(b1, b2, w);
   return arrayFromEssential(
     opengv::relative_pose::eightpt(adapter));
 }
 
-py::object eigensolver( pyarray_d &b1, pyarray_d &b2, pyarray_d &R )
+py::object eigensolver( pyarray_d &b1, pyarray_d &b2, pyarray_d &w, pyarray_d &R )
 {
-  CentralRelativeAdapter adapter(b1, b2, R);
+  CentralRelativeAdapter adapter(b1, b2, w, R);
   return arrayFromRotation(
     opengv::relative_pose::eigensolver(adapter));
 }
 
-py::object sixpt( pyarray_d &b1, pyarray_d &b2 )
+py::object sixpt( pyarray_d &b1, pyarray_d &b2, pyarray_d &w )
 {
-  CentralRelativeAdapter adapter(b1, b2);
+  CentralRelativeAdapter adapter(b1, b2, w);
   return listFromRotations(
     opengv::relative_pose::sixpt(adapter));
 }
 
 py::object optimize_nonlinear( pyarray_d &b1,
                                pyarray_d &b2,
+                               pyarray_d &w,
                                pyarray_d &t12,
                                pyarray_d &R12 )
 {
-  CentralRelativeAdapter adapter(b1, b2, t12, R12);
+  CentralRelativeAdapter adapter(b1, b2, w, t12, R12);
   return arrayFromTransformation(
     opengv::relative_pose::optimize_nonlinear(adapter));
 }
@@ -497,6 +539,7 @@ py::object optimize_nonlinear( pyarray_d &b1,
 py::object ransac(
     pyarray_d &b1,
     pyarray_d &b2,
+    pyarray_d &w,
     std::string algo_name,
     double threshold,
     int max_iterations,
@@ -504,7 +547,7 @@ py::object ransac(
 {
   using namespace opengv::sac_problems::relative_pose;
 
-  CentralRelativeAdapter adapter(b1, b2);
+  CentralRelativeAdapter adapter(b1, b2, w);
 
   // Create a ransac problem
   CentralRelativePoseSacProblem::algorithm_t algorithm = CentralRelativePoseSacProblem::NISTER;
@@ -569,13 +612,14 @@ py::object lmeds(
 py::object ransac_rotationOnly(
     pyarray_d &b1,
     pyarray_d &b2,
+    pyarray_d &w,
     double threshold,
     int max_iterations,
     double probability )
 {
   using namespace opengv::sac_problems::relative_pose;
 
-  CentralRelativeAdapter adapter(b1, b2);
+  CentralRelativeAdapter adapter(b1, b2, w);
 
   std::shared_ptr<RotationOnlySacProblem>
       relposeproblem_ptr(
@@ -632,7 +676,7 @@ py::object triangulate( pyarray_d &b1,
                         pyarray_d &t12,
                         pyarray_d &R12 )
 {
-  pyopengv::relative_pose::CentralRelativeAdapter adapter(b1, b2, t12, R12);
+  pyopengv::relative_pose::CentralRelativeAdapter adapter(b1, b2, w, t12, R12);
 
   opengv::points_t points;
   for (size_t i = 0; i < adapter.getNumberCorrespondences(); ++i)
@@ -648,7 +692,7 @@ py::object triangulate2( pyarray_d &b1,
                          pyarray_d &t12,
                          pyarray_d &R12 )
 {
-  pyopengv::relative_pose::CentralRelativeAdapter adapter(b1, b2, t12, R12);
+  pyopengv::relative_pose::CentralRelativeAdapter adapter(b1, b2, w, t12, R12);
 
   opengv::points_t points;
   for (size_t i = 0; i < adapter.getNumberCorrespondences(); ++i)

@@ -122,6 +122,10 @@ typedef std::vector< complexEssential_t, Eigen::aligned_allocator< complexEssent
 typedef Eigen::Vector3d
     point_t;
 
+/** A vector of weights for a match/point */
+typedef std::vector<double>
+    weights_t;
+
 /** An array of 3D-points */
 typedef std::vector<point_t, Eigen::aligned_allocator<point_t> >
     points_t;

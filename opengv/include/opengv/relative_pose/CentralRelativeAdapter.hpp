@@ -73,13 +73,15 @@ public:
    */
   CentralRelativeAdapter(
       const bearingVectors_t & bearingVectors1,
-      const bearingVectors_t & bearingVectors2 );
+      const bearingVectors_t & bearingVectors2,
+      const weights_t & weights );
   /**
    * \brief Constructor. See protected class-members to understand parameters
    */
   CentralRelativeAdapter(
       const bearingVectors_t & bearingVectors1,
       const bearingVectors_t & bearingVectors2,
+      const weights_t & weights,
       const rotation_t & R12 );
   /**
    * \brief Constructor. See protected class-members to understand parameters
@@ -87,6 +89,7 @@ public:
   CentralRelativeAdapter(
       const bearingVectors_t & bearingVectors1,
       const bearingVectors_t & bearingVectors2,
+      const weights_t & weights,
       const translation_t & t12,
       const rotation_t & R12 );
   /**
@@ -102,6 +105,7 @@ public:
   virtual bearingVector_t getBearingVector2( size_t index ) const;
   /** See parent-class */
   virtual double getWeight( size_t index ) const;
+  virtual std::vector<double> getWeightVector() const;
   /** See parent-class. Returns zero for this adapter. */
   virtual translation_t getCamOffset1( size_t index ) const;
   /** See parent-class. Returns identity for this adapter. */
@@ -118,6 +122,8 @@ protected:
   const bearingVectors_t & _bearingVectors1;
   /** Reference to bearing-vectors expressed in viewpoint 2. */
   const bearingVectors_t & _bearingVectors2;
+
+  const weights_t & _weights;
 };
 
 }

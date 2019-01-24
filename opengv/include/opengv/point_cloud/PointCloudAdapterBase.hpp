@@ -120,6 +120,8 @@ public:
    */
   virtual double getWeight( size_t index ) const = 0;
 
+  virtual std::vector<double> getWeightVector() const = 0;
+
   //Access of priors or known values
   
   /**

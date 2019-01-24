@@ -34,6 +34,7 @@
 opengv::relative_pose::NoncentralRelativeAdapter::NoncentralRelativeAdapter(
     const bearingVectors_t & bearingVectors1,
     const bearingVectors_t & bearingVectors2,
+    const weights_t & weights,
     const camCorrespondences_t & camCorrespondences1,
     const camCorrespondences_t & camCorrespondences2,
     const translations_t & camOffsets,
@@ -41,6 +42,7 @@ opengv::relative_pose::NoncentralRelativeAdapter::NoncentralRelativeAdapter(
     RelativeAdapterBase(),
     _bearingVectors1(bearingVectors1),
     _bearingVectors2(bearingVectors2),
+    _weights(weights),
     _camCorrespondences1(camCorrespondences1),
     _camCorrespondences2(camCorrespondences2),
     _camOffsets(camOffsets),
@@ -50,6 +52,7 @@ opengv::relative_pose::NoncentralRelativeAdapter::NoncentralRelativeAdapter(
 opengv::relative_pose::NoncentralRelativeAdapter::NoncentralRelativeAdapter(
     const bearingVectors_t & bearingVectors1,
     const bearingVectors_t & bearingVectors2,
+    const weights_t & weights,
     const camCorrespondences_t & camCorrespondences1,
     const camCorrespondences_t & camCorrespondences2,
     const translations_t & camOffsets,
@@ -58,6 +61,7 @@ opengv::relative_pose::NoncentralRelativeAdapter::NoncentralRelativeAdapter(
     RelativeAdapterBase(R12),
     _bearingVectors1(bearingVectors1),
     _bearingVectors2(bearingVectors2),
+    _weights(weights),
     _camCorrespondences1(camCorrespondences1),
     _camCorrespondences2(camCorrespondences2),
     _camOffsets(camOffsets),
@@ -67,6 +71,7 @@ opengv::relative_pose::NoncentralRelativeAdapter::NoncentralRelativeAdapter(
 opengv::relative_pose::NoncentralRelativeAdapter::NoncentralRelativeAdapter(
     const bearingVectors_t & bearingVectors1,
     const bearingVectors_t & bearingVectors2,
+    const weights_t & weights,
     const camCorrespondences_t & camCorrespondences1,
     const camCorrespondences_t & camCorrespondences2,
     const translations_t & camOffsets,
@@ -76,6 +81,7 @@ opengv::relative_pose::NoncentralRelativeAdapter::NoncentralRelativeAdapter(
     RelativeAdapterBase(t12,R12),
     _bearingVectors1(bearingVectors1),
     _bearingVectors2(bearingVectors2),
+    _weights(weights),
     _camCorrespondences1(camCorrespondences1),
     _camCorrespondences2(camCorrespondences2),
     _camOffsets(camOffsets),
@@ -106,6 +112,13 @@ opengv::relative_pose::NoncentralRelativeAdapter::
     getWeight( size_t index ) const
 {
   return 1.0;
+}
+
+std::vector<double>
+opengv::relative_pose::NoncentralRelativeAdapter::
+    getWeightVector() const
+{
+  return _weights;
 }
 
 opengv::translation_t

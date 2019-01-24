@@ -72,13 +72,15 @@ public:
    */
   PointCloudAdapter(
       const points_t & points1,
-      const points_t & points2 );
+      const points_t & points2,
+      const weights_t & weights);
   /**
    * \brief Constructor. See protected class-members to understand parameters
    */
   PointCloudAdapter(
       const points_t & points1,
       const points_t & points2,
+      const weights_t & weights,
       const rotation_t & R12 );
   /**
    * \brief Constructor. See protected class-members to understand parameters
@@ -86,6 +88,7 @@ public:
   PointCloudAdapter(
       const points_t & points1,
       const points_t & points2,
+      const weights_t & weights,
       const translation_t & t12,
       const rotation_t & R12 );
   /**
@@ -101,6 +104,7 @@ public:
   virtual opengv::point_t getPoint2( size_t index ) const;
   /** See parent-class */
   virtual double getWeight( size_t index ) const;
+  virtual opengv::weights_t getWeightVector( ) const;
   /** See parent-class */
   virtual size_t getNumberCorrespondences() const;
 
@@ -109,6 +113,7 @@ private:
   const points_t & _points1;
   /** Reference to the 3D-points in frame 2 */
   const points_t & _points2;
+  const weights_t & _weights;
 };
 
 }

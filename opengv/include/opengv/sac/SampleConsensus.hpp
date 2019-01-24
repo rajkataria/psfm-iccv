@@ -78,7 +78,8 @@ public:
   SampleConsensus(
       int maxIterations = 1000,
       double threshold = 1.0,
-      double probability = 0.99 );
+      double probability = 0.99
+      );
   /**
    * \brief Destructor
    */
@@ -97,6 +98,8 @@ public:
   
   /** the maximum number of iterations */
   int max_iterations_;
+  /** the weights */
+  std::vector<double> weights_;
   /** the current number of iterations */
   int iterations_;
   /** the threshold for classifying inliers */

@@ -50,12 +50,15 @@ opengv::sac::Ransac<PROBLEM_T>::computeModel(
 
   iterations_ = 0;
   int n_best_inliers_count = -INT_MAX;
+  int n_best_inliers_score = -INT_MAX;
   double k = 1.0;
 
   std::vector<int> selection;
   model_t model_coefficients;
 
   int n_inliers_count = 0;
+  double n_inliers_score = 0.0;
+  double weight_scores = 0.0;
   unsigned skipped_count = 0;
   // supress infinite loops by just allowing 10 x maximum allowed iterations for
   // invalid model parameters!
@@ -87,12 +90,16 @@ opengv::sac::Ransac<PROBLEM_T>::computeModel(
     //if(inliers.empty() && k > 1.0)
     //  continue;
 
-    n_inliers_count = sac_model_->countWithinDistance(
-        model_coefficients, threshold_ );
+     std::vector<double> model_stats = sac_model_->countWithinDistance(
+        model_coefficients, threshold_);
+    n_inliers_count = (int)model_stats[0];
+    n_inliers_score = model_stats[1];
+    weight_scores = model_stats[2];
 
     // Better match ?
-    if(n_inliers_count > n_best_inliers_count)
+    if(n_inliers_score > n_best_inliers_score)
     {
+      n_best_inliers_score = n_inliers_score;
       n_best_inliers_count = n_inliers_count;
 
       // Save the current model/inlier/coefficients selection as being the best so far
@@ -100,8 +107,7 @@ opengv::sac::Ransac<PROBLEM_T>::computeModel(
       model_coefficients_ = model_coefficients;
 
       // Compute the k parameter (k=log(z)/log(1-w^n))
-      double w = static_cast<double> (n_best_inliers_count) /
-          static_cast<double> (sac_model_->getIndices()->size());
+      double w = static_cast<double> (n_best_inliers_score) / weight_scores;
       double p_no_outliers = 1.0 - pow(w, static_cast<double> (selection.size()));
       p_no_outliers =
           (std::max) (std::numeric_limits<double>::epsilon(), p_no_outliers);
