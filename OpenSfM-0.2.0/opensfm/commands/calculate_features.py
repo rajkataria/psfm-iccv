@@ -34,6 +34,11 @@ class Command:
         ctx.cameras = ctx.data.load_camera_models()
         ctx.exifs = exifs
         
+        # DELETE THE NEXT 3 LINES (SEQ IS BEING CALCULATED LATER)
+        # classifier.calculate_triplet_errors(ctx)
+        # classifier.calculate_sequence_ranks(ctx)
+        # import sys; sys.exit(1)
+
         s_transformations = timer()
         _, num_pairs = classifier.calculate_transformations(ctx)
         e_transformations = timer()
@@ -45,6 +50,10 @@ class Command:
         s_triplets = timer()
         classifier.calculate_triplet_errors(ctx)
         e_triplets = timer()
+
+        s_seq = timer()
+        classifier.calculate_sequence_ranks(ctx)
+        e_seq = timer()
 
         s_spatial_entropies = timer()
         classifier.calculate_spatial_entropies(ctx)

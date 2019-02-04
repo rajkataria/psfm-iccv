@@ -108,6 +108,7 @@ class Command:
                 #     train=False, regr=None, options={}
                 #     ):
                 args.append([ \
+                    data.data_path,
                     np.array([im1, im2]), \
                     R[0][0], R[0][1], R[0][2], R[1][0], R[1][1], R[1][2], R[2][0], R[2][1], R[2][2], \
                     np.array([len(rmatches)]), np.array([len(matches)]), \
