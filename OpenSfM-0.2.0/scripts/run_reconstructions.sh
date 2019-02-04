@@ -39,7 +39,7 @@ sed -i 's/use_gt_matches: true/use_gt_matches: false/g' $dataset/config.yaml
 sed -i 's/use_image_matching_classifier: false/use_image_matching_classifier: true/g' $dataset/config.yaml
 sed -i 's/use_weighted_resectioning: true/use_weighted_resectioning: false/g' $dataset/config.yaml
 sed -i 's/use_weighted_feature_matches: true/use_weighted_feature_matches: false/g' $dataset/config.yaml
-sed -i 's/use_image_matching_thresholding: true/use_image_matching_thresholding: true/g' $dataset/config.yaml
+sed -i 's/use_image_matching_thresholding: false/use_image_matching_thresholding: true/g' $dataset/config.yaml
 echo "************************************************************************************************************"
 echo "************************************************************************************************************"
 echo "Classifier configurations:"
@@ -115,7 +115,7 @@ sed -i 's/use_gt_matches: true/use_gt_matches: false/g' $dataset/config.yaml
 sed -i 's/use_image_matching_classifier: false/use_image_matching_classifier: true/g' $dataset/config.yaml
 sed -i 's/use_weighted_resectioning: true/use_weighted_resectioning: false/g' $dataset/config.yaml
 sed -i 's/use_weighted_feature_matches: false/use_weighted_feature_matches: true/g' $dataset/config.yaml
-sed -i 's/use_image_matching_thresholding: true/use_image_matching_thresholding: true/g' $dataset/config.yaml
+sed -i 's/use_image_matching_thresholding: false/use_image_matching_thresholding: true/g' $dataset/config.yaml
 echo "************************************************************************************************************"
 echo "************************************************************************************************************"
 echo "Classifier configurations:"

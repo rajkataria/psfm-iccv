@@ -1,5 +1,6 @@
 import cv2
 import glob
+import json
 import logging
 import math
 import numpy as np
@@ -7,6 +8,7 @@ import os
 import pickle
 import pyopengv
 import random
+import re
 
 from opensfm import features, multiview
 from opensfm import context
@@ -177,7 +179,7 @@ def classify_boosted_dts_feature_match(arg):
     return fns, indices1, indices2, dists1, dists2, regr, y_
 
 def classify_boosted_dts_image_match(arg):
-    fns, R11s, R12s, R13s, R21s, R22s, R23s, R31s, R32s, R33s, num_rmatches, num_matches, spatial_entropy_1_8x8, \
+    dsets, fns, R11s, R12s, R13s, R21s, R22s, R23s, R31s, R32s, R33s, num_rmatches, num_matches, spatial_entropy_1_8x8, \
         spatial_entropy_2_8x8, spatial_entropy_1_16x16, spatial_entropy_2_16x16, pe_histogram, pe_polygon_area_percentage, \
         nbvs_im1, nbvs_im2, te_histogram, ch_im1, ch_im2, vt_rank_percentage_im1_im2, vt_rank_percentage_im2_im1, labels, \
         train, regr, options = arg
@@ -224,7 +226,7 @@ def classify_boosted_dts_image_match(arg):
         np.log(((vt_rank_percentage_im1_im2 + vt_rank_percentage_im2_im1) / 2.0).reshape((len(labels),1)) + epsilon),
         ),
     axis=1)
-  
+    
     y = labels
 
     # Fit regression model
@@ -942,15 +944,15 @@ def calculate_rotation_triplet_errors(arg):
       R11 = R12 * R23 * R13.T
       error = np.arccos((np.trace(R11) - 1.0)/2.0)
       if np.isnan(error):
-        error = 0
+        error = -1.0
 
       results[fn2][fn3] = {'error': error, 'R11': R11.tolist(), 'triplet': '{}--{}--{}'.format(fn1,fn2,fn3)}
   return fn1, results
 
 def calculate_triplet_error_histogram(errors, im1, im2, output_dir, debug):
-  histogram, bins = np.histogram(np.array(errors), bins=80, range=(0,25))
+  histogram, bins = np.histogram(np.array(errors), bins=80, range=(-2.0,78))
   epsilon = 0.000000001
-  return (1.0 * histogram / (np.sum(histogram) + epsilon)).tolist()
+  return histogram.tolist(), np.round((1.0 * histogram / (np.sum(histogram) + epsilon)), 2).tolist(), bins.tolist()
 
 def flatten_triplets(triplets):
   flattened_triplets = {}
@@ -980,11 +982,11 @@ def calculate_triplet_pairwise_errors(arg):
     relevant_indices = np.where((t_fns[:,0] == im1) & (t_fns[:,1] == im2) | (t_fns[:,0] == im1) & (t_fns[:,2] == im2) | \
       (t_fns[:,1] == im1) & (t_fns[:,2] == im2))[0]
 
-    histogram = calculate_triplet_error_histogram(t_errors[relevant_indices], im1, im2, output_dir, debug=debug)
+    histogram_counts, histogram, bins = calculate_triplet_error_histogram(t_errors[relevant_indices], im1, im2, output_dir, debug=debug)
     if im1 not in histograms:
         histograms[im1] = {}
-    histograms[im1][im2] = { 'im1': im1, 'im2': im2, 'histogram': histogram }
-    histograms_list.append({ 'im1': im1, 'im2': im2, 'histogram': histogram })
+    histograms[im1][im2] = { 'im1': im1, 'im2': im2, 'histogram': histogram, 'histogram-counts': histogram_counts, 'bins': bins }
+    histograms_list.append({ 'im1': im1, 'im2': im2, 'histogram': histogram, 'histogram-counts': histogram_counts, 'bins': bins })
   return histograms, histograms_list
 
 def calculate_triplet_errors(ctx):
@@ -1053,6 +1055,43 @@ def calculate_triplet_errors(ctx):
             triplet_pairwise_results[k].update(histograms[k])
     data.save_triplet_pairwise_errors(triplet_pairwise_results)
 
+def calculate_sequence_ranks(ctx):
+    data = ctx.data
+    images = sorted(data.images())
+    sequence_distances = {}
+    sequence_ranks = {}
+    seq_fn_list = {}
+    seq_dist_list = {}
+    for i,im1 in enumerate(images):
+        if im1 not in sequence_distances:
+            sequence_distances[im1] = {}
+            sequence_ranks[im1] = {}
+            seq_fn_list[im1] = []
+            seq_dist_list[im1] = []
+        im1_t = int(''.join(re.findall(r'\d+', im1)))
+        for j,im2 in enumerate(images):
+            if j == i:
+                continue
+            im2_t = int(''.join(re.findall(r'\d+', im2)))
+
+            distance = math.fabs(im1_t - im2_t)
+            sequence_distances[im1][im2] = distance
+            seq_fn_list[im1].append(im2)
+            seq_dist_list[im1].append(distance)
+
+
+        sorted_dist_indices = np.array(seq_dist_list[im1]).argsort()#.argsort()
+        seq_fn_list[im1] = np.array(seq_fn_list[im1])[sorted_dist_indices]
+        seq_dist_list[im1] = np.array(seq_dist_list[im1])[sorted_dist_indices]
+
+        # add ranks
+        for j,im2 in enumerate(seq_fn_list[im1]):
+            sequence_ranks[im1][im2] = j
+    
+    data.save_sequence_ranks(sequence_ranks)
+
+    return sequence_ranks
+    
 ##############################################################################################
 ##############################################################################################
 # These functions are pretty much the same as what's in opensfm but have "additional"        #
@@ -1314,9 +1353,9 @@ def create_feature_matching_dataset(ctx):
         p.map(compute_matches_using_gt_reconstruction, args)
 
     data.save_feature_matching_dataset(lowes_threshold=0.8)
-    data.save_feature_matching_dataset(lowes_threshold=0.85)
-    data.save_feature_matching_dataset(lowes_threshold=0.9)
-    data.save_feature_matching_dataset(lowes_threshold=0.95)
+    # data.save_feature_matching_dataset(lowes_threshold=0.85)
+    # data.save_feature_matching_dataset(lowes_threshold=0.9)
+    # data.save_feature_matching_dataset(lowes_threshold=0.95)
 
 def create_image_matching_dataset(ctx):
     data = ctx.data
@@ -1331,3 +1370,118 @@ def create_image_matching_dataset(ctx):
         return
 
     data.save_image_matching_dataset(robust_matches_threshold=15)
+
+def rmatches_adapter(data, options={}):
+    im_all_rmatches = {}
+    im_num_rmatches = {}
+
+    for img in data.images():
+        _, _, rmatches = data.load_all_matches(img)
+        im_all_rmatches[img] = rmatches
+
+    for im1 in im_all_rmatches:
+        if im1 not in im_num_rmatches:
+            im_num_rmatches[im1] = {}
+        for im2 in im_all_rmatches[im1]:
+            im_num_rmatches[im1][im2] = len(im_all_rmatches[im1][im2])
+
+    return im_num_rmatches
+
+def vocab_tree_adapter(data, options={}):
+    vtranks, vtscores = data.load_vocab_ranks_and_scores()
+    vt_rank_scores_mean = {}
+    vt_rank_scores_min = {}
+    vt_rank_scores_max = {}
+    # total_images = len(vt_ranks.keys())
+
+    for im1 in vtranks:
+        if im1 not in vt_rank_scores_mean:
+            vt_rank_scores_mean[im1] = {}
+            vt_rank_scores_min[im1] = {}
+            vt_rank_scores_max[im1] = {}
+
+        for im2 in vtranks[im1]:
+            vt_rank_scores_mean[im1][im2] = 0.5 * vtranks[im1][im2] + 0.5*vtranks[im2][im1]
+            vt_rank_scores_min[im1][im2] = min(vtranks[im1][im2], vtranks[im2][im1])
+            vt_rank_scores_max[im1][im2] = max(vtranks[im1][im2], vtranks[im2][im1])
+
+    return vt_rank_scores_mean, vt_rank_scores_min, vt_rank_scores_max
+
+def sequence_rank_adapter(data, options={}):
+    sequence_ranks = data.load_sequence_ranks()
+    sequence_rank_scores_mean = {}
+    sequence_rank_scores_min = {}
+    sequence_rank_scores_max = {}
+    total_images = len(sequence_ranks.keys())
+
+    for im1 in sequence_ranks:
+        if im1 not in sequence_rank_scores_mean:
+            sequence_rank_scores_mean[im1] = {}
+            sequence_rank_scores_min[im1] = {}
+            sequence_rank_scores_max[im1] = {}
+
+        for im2 in sequence_ranks[im1]:
+            sequence_rank_scores_mean[im1][im2] = \
+                0.5 * (total_images - sequence_ranks[im1][im2]) / total_images + \
+                0.5 * (total_images - sequence_ranks[im2][im1]) / total_images
+            sequence_rank_scores_min[im1][im2] = min(\
+                (total_images - sequence_ranks[im1][im2]) / total_images,
+                (total_images - sequence_ranks[im2][im1]) / total_images
+                )
+            sequence_rank_scores_max[im1][im2] = max(\
+                (total_images - sequence_ranks[im1][im2]) / total_images,
+                (total_images - sequence_ranks[im2][im1]) / total_images
+                )
+
+    return sequence_rank_scores_mean, sequence_rank_scores_min, sequence_rank_scores_max
+
+def triplet_errors_adapter(data, options={}):
+    triplet_errors = data.load_triplet_pairwise_errors()
+    triplet_scores = {}
+
+    for im1 in triplet_errors:
+        if im1 not in triplet_scores:
+            triplet_scores[im1] = {}
+        for im2 in triplet_errors[im1]:
+            # cum_error = \
+            #     np.sum( \
+            #         np.array(triplet_errors[im1][im2]['histogram-counts'][2:10]) * \
+            #         np.power(0.5 + np.array(triplet_errors[im1][im2]['bins'][2:10]), 1) \
+            #     ) + \
+            #     np.sum( \
+            #         np.array(triplet_errors[im1][im2]['histogram-counts'][10:]) * \
+            #         np.power(0.5 + np.array(triplet_errors[im1][im2]['bins'][10:-1]), 2) \
+            #     )
+
+            cum_error = \
+                np.sum( \
+                    np.array(triplet_errors[im1][im2]['histogram-counts'][2:]) * \
+                    np.power(0.5 + np.array(triplet_errors[im1][im2]['bins'][2:-1]), 1) \
+                )
+
+            # cum_error = \
+            #     np.sum( \
+            #         np.array(triplet_errors[im1][im2]['histogram-counts'][2:]) * \
+            #         np.power(2.0, 0.5 * np.array(triplet_errors[im1][im2]['bins'][2:-1])) \
+            #     )
+
+            triplet_scores[im1][im2] = 1.0 / (cum_error + 1.0)
+
+            if im1 == 'DSC_1140.JPG':
+                if im1 in options['scores_gt'] and im2 in options['scores_gt'][im1]:
+                    gts = options['scores_gt'][im1][im2]
+                else:
+                    gts = 0.0
+                print '{}-{} : {}  {}'.format(im1, im2, cum_error, gts)
+
+    return triplet_scores
+
+def groundtruth_image_matching_results_adapter(data):
+    gt_results = data.load_groundtruth_image_matching_results()
+    scores_gt = {}
+    for im1 in gt_results:
+        if im1 not in scores_gt:
+            scores_gt[im1] = {}
+        for im2 in gt_results[im1]:
+            scores_gt[im1][im2] = gt_results[im1][im2]['score']
+    return scores_gt

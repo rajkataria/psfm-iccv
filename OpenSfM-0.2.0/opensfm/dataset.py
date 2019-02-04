@@ -412,6 +412,9 @@ class DataSet:
         """File for flags indicating whether calibrated robust matching occured"""
         return os.path.join(self.__classifier_features_path(), 'triplet_pairwise_errors.{}'.format(ext))
 
+    def __feature_sequence_ranks_file(self, ext='pkl.gz'):
+        return os.path.join(self.__classifier_features_path(), 'sequence_ranks.{}'.format(ext))
+
     def __feature_spatial_entropies_file(self, ext='pkl.gz'):
         """File for flags indicating whether calibrated robust matching occured"""
         return os.path.join(self.__classifier_features_path(), 'spatial_entropies.{}'.format(ext))
@@ -457,6 +460,10 @@ class DataSet:
     def __ate_results_file(self, ext='pkl.gz'):
         """File for flags indicating whether calibrated robust matching occured"""
         return os.path.join(self.__results_path(), 'ate_results.{}'.format(ext))
+
+    def __match_graph_results_file(self, ext='pkl.gz'):
+        """File for flags indicating whether calibrated robust matching occured"""
+        return os.path.join(self.__results_path(), 'match_graph_results.{}'.format(ext))
 
     def __reconstruction_results_file(self, ext='pkl.gz'):
         """File for flags indicating whether calibrated robust matching occured"""
@@ -579,6 +586,18 @@ class DataSet:
         with gzip.open(self.__feature_triplet_pairwise_errors_file(), 'rb') as fin:
             triplet_pairwise_errors = pickle.load(fin)
         return triplet_pairwise_errors
+
+    def save_sequence_ranks(self, sequence_ranks):
+        io.mkdir_p(self.__classifier_features_path())
+        with gzip.open(self.__feature_sequence_ranks_file('pkl.gz'), 'wb') as fout:
+            pickle.dump(sequence_ranks, fout)
+        with open(self.__feature_sequence_ranks_file('json'), 'w') as fout:
+            json.dump(sequence_ranks, fout, sort_keys=True, indent=4, separators=(',', ': '))
+
+    def load_sequence_ranks(self):
+        with gzip.open(self.__feature_sequence_ranks_file(), 'rb') as fin:
+            sequence_ranks = pickle.load(fin)
+        return sequence_ranks
 
     def save_spatial_entropies(self, spatial_entropies):
         io.mkdir_p(self.__classifier_features_path())
@@ -757,13 +776,19 @@ class DataSet:
             for im1 in self.images():
                 if not self.unthresholded_matches_exists(im1):
                     continue
-                im1_unthresholded_matches = self.load_unthresholded_matches(im1)
-                im1_unthresholded_inliers = self.load_unthresholded_inliers(im1)
-                im1_unthresholded_outliers = self.load_unthresholded_outliers(im1)
-                im1_unthresholded_features = self.load_unthresholded_features(im1)
+
+                try:
+                    im1_unthresholded_matches = self.load_unthresholded_matches(im1)
+                    im1_unthresholded_inliers = self.load_unthresholded_inliers(im1)
+                    im1_unthresholded_outliers = self.load_unthresholded_outliers(im1)
+                    im1_unthresholded_features = self.load_unthresholded_features(im1)
+                except:
+                    continue
 
                 for im2 in im1_unthresholded_matches:
                     for i,m in enumerate(im1_unthresholded_matches[im2]):
+                        if im2 not in im1_unthresholded_features:
+                            continue
                         features = im1_unthresholded_features[im2][i]
                         if m in im1_unthresholded_inliers[im2]:
                             label = 1
@@ -984,6 +1009,13 @@ class DataSet:
         with gzip.open(self.__ate_results_file('pkl.gz'), 'wb') as fout:
             pickle.dump(results, fout)
         with open(self.__ate_results_file('json'), 'w') as fout:
+            json.dump(results, fout, sort_keys=True, indent=4, separators=(',', ': '))
+
+    def save_match_graph_results(self, results):
+        io.mkdir_p(self.__results_path())
+        with gzip.open(self.__match_graph_results_file('pkl.gz'), 'wb') as fout:
+            pickle.dump(results, fout)
+        with open(self.__match_graph_results_file('json'), 'w') as fout:
             json.dump(results, fout, sort_keys=True, indent=4, separators=(',', ': '))
 
     def save_reconstruction_results(self, results):

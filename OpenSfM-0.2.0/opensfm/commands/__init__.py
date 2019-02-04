@@ -7,6 +7,7 @@ from . import match_features
 from . import match_fm_classifier_features
 from . import calculate_features
 from . import classify_images
+from . import formulate_graphs
 from . import create_tracks
 from . import create_tracks_classifier
 from . import reconstruct
@@ -32,6 +33,7 @@ opensfm_commands = [
     calculate_features,
     classify_features,
     classify_images,
+    formulate_graphs,
     create_tracks,
     create_tracks_classifier,
     reconstruct,

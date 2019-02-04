@@ -21,6 +21,9 @@ def get_results(root_directory, experiments):
             with open(ate_results_fn, 'r') as fin:
                 data = json.load(fin)
                 for exp in experiments:
+                    if exp not in data:
+                        print ('\tDataset: "{}" missing results for experiment: "{}"'.format(d.split('/')[-2], exp))
+                        continue
                     sequence_name = data[exp]['trajectory']
                     r_key = '{}---{}'.format(dataset_name, sequence_name)
                     if r_key not in results:
@@ -41,6 +44,9 @@ def get_results(root_directory, experiments):
             with open(reconstruction_results_fn, 'r') as fin:
                 data = json.load(fin)
                 for exp in experiments:
+                    if exp not in data:
+                        print ('\tDataset: "{}" missing results for experiment: "{}"'.format(d.split('/')[-2], exp))
+                        continue
                     sequence_name = data[exp]['dataset']
                     r_key = '{}---{}'.format(dataset_name, sequence_name)
                     if r_key not in results:
@@ -104,14 +110,22 @@ def main(argv):
     parser_options = parser.parse_args()
 
     experiments = {
-        'baseline': {'key': 0, 'desc': 'OpenSfM baseline'},
-        'colmap': {'key': 1, 'desc': 'Colmap baseline'},
-        'imc-True-wr-False-gm-False-wfm-False-imt-False': {'key': 2, 'desc': ''},
-        'imc-True-wr-False-gm-False-wfm-True-imt-False': {'key': 3, 'desc': ''},
-        'imc-True-wr-False-gm-True-wfm-False-imt-False': {'key': 4, 'desc': ''},
-        'imc-True-wr-True-gm-False-wfm-False-imt-False': {'key': 5, 'desc': ''},
-        'imc-True-wr-True-gm-False-wfm-True-imt-False': {'key': 6, 'desc': ''},
-        'imc-True-wr-True-gm-True-wfm-False-imt-False': {'key': 7, 'desc': ''}
+        'baseline': \
+            {'key': 0, 'desc': 'OpenSfM baseline'},
+        'colmap': \
+            {'key': 1, 'desc': 'Colmap baseline'},
+        'imc-True-wr-False-gm-False-wfm-False-imt-False': \
+            {'key': 2, 'desc': 'Image matching classifier and NO thresholding on image matching scores'},
+        'imc-True-wr-False-gm-False-wfm-True-imt-False': \
+            {'key': 3, 'desc': 'Feature and image matching classifiers (with weighted Ransac) and NO thresholding on image matching scores'},
+        'imc-True-wr-False-gm-True-wfm-False-imt-False': \
+            {'key': 4, 'desc': 'Ground-truth image matching scores'},
+        'imc-True-wr-True-gm-False-wfm-False-imt-False': \
+            {'key': 5, 'desc': 'Image matching classifier and NO thresholding on image matching scores with weighted resectioning (uses image and feature matching scores)'},
+        'imc-True-wr-True-gm-False-wfm-True-imt-False': \
+            {'key': 6, 'desc': 'Feature and image matching classifiers (with weighted Ransac) and NO thresholding image matching scores with weighted resectioning (uses image and feature matching scores)'},
+        'imc-True-wr-True-gm-True-wfm-False-imt-False': \
+            {'key': 7, 'desc': 'Ground-truth image matching scores with weighted resectioning (uses image and feature matching scores)'}
     }
     metadata, results = get_results(parser_options.root_directory, experiments)
     output_csv(metadata, experiments, results)

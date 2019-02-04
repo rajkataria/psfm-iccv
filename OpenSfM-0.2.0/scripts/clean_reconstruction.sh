@@ -1,6 +1,7 @@
 dataset=$1
 
 rm -R $dataset/all_matches
+rm -R $dataset/weighted_matches
 rm -R $dataset/camera_models.json
 rm -R $dataset/classifier_dataset
 rm -R $dataset/classifier_features
@@ -8,6 +9,7 @@ rm -R $dataset/config.yaml
 #rm -R $dataset/dslr_calibration_undistorted
 rm -R $dataset/exif
 rm -R $dataset/features
+rm -R $dataset/feature_matching_results
 #rm -R $dataset/images
 rm -R $dataset/matches
 rm -R $dataset/output.log
