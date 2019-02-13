@@ -704,37 +704,11 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
             if 'TE' not in exp:
                 te_histogram = np.zeros(te_histogram.shape)
                 te_histogram_te_clone = np.zeros(te_histogram_te_clone.shape)
-            else:
-                te_histogram = te_histogram.copy()
-                for i in xrange(0,len(te_histogram)):
-                    mu, sigma = scipy.stats.norm.fit(te_histogram[i,:])
-                    te_histogram[i,:] = np.zeros((len(te_histogram[i,:]),))
-                    te_histogram[i,0] = mu
-                    te_histogram[i,1] = sigma
-                for i in xrange(0,len(te_histogram_te_clone)):
-                    mu, sigma = scipy.stats.norm.fit(te_histogram_te_clone[i,:])
-                    te_histogram_te_clone[i,:] = np.zeros((len(te_histogram_te_clone[i,:]),))
-                    te_histogram_te_clone[i,0] = mu
-                    te_histogram_te_clone[i,1] = sigma
-                
             if 'PE' not in exp:
                 pe_histogram = np.zeros(pe_histogram.shape)
                 pe_polygon_area_percentage = np.zeros(pe_polygon_area_percentage.shape)
                 pe_histogram_te_clone = np.zeros(pe_histogram_te_clone.shape)
                 pe_polygon_area_percentage_te_clone = np.zeros(pe_polygon_area_percentage_te_clone.shape)
-            else:
-                pe_histogram = pe_histogram.copy()
-                for i in xrange(0,len(pe_histogram)):
-                    mu, sigma = scipy.stats.norm.fit(pe_histogram[i,:])
-                    pe_histogram[i,:] = np.zeros((len(pe_histogram[i,:]),))
-                    pe_histogram[i,0] = mu
-                    pe_histogram[i,1] = sigma
-                for i in xrange(0,len(pe_histogram_te_clone)):
-                    mu, sigma = scipy.stats.norm.fit(pe_histogram_te_clone[i,:])
-                    pe_histogram_te_clone[i,:] = np.zeros((len(pe_histogram_te_clone[i,:]),))
-                    pe_histogram_te_clone[i,0] = mu
-                    pe_histogram_te_clone[i,1] = sigma
-                    
             if 'HIST' not in exp:
                 ch_im1 = np.zeros(ch_im1.shape)
                 ch_im2 = np.zeros(ch_im2.shape)
@@ -973,7 +947,7 @@ def main(argv):
         'wd': 0.0001,
         'epochs': 10000,
         'start_epoch': 0,
-        'resume': None,
+        'resume': True,
         'lr_decay': 0.01,
         'nn_log_dir': 'data/nn-image-matching-classifiers-results/logs',
         'gcn_log_dir': 'data/nn-image-matching-classifiers-results/logs',

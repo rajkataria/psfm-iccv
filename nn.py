@@ -1170,7 +1170,7 @@ def inference(data_loader, model, epoch, run_dir, logger, opts, mode=None, optim
             round(accuracy, 2), round(cum_loss,2))
         # do checkpointing
         if (epoch + 1) % 3 == 0:
-            torch.save({'epoch': epoch + 1, 'state_dict': model.state_dict()},
+            torch.save({'epoch': epoch + 1, 'state_dict': model.state_dict(), 'optimizer': optimizer.state_dict()},
                '{}/checkpoint_{}.pth'.format(run_dir, epoch))
     else:
         logger.log_value('TEST-ACCURACY', accuracy)
@@ -1313,7 +1313,7 @@ def classify_nn_image_match_inference(arg):
 
     return None, None, None, scores, None
 
-def classify_nn_image_match_initialization(train_loader, test_loader, opts):
+def classify_nn_image_match_initialization(train_loader, test_loader, run_dir, opts):
     # instantiate model and initialize weights
     kwargs = {}
     model = NN(opts, **kwargs)
@@ -1323,14 +1323,15 @@ def classify_nn_image_match_initialization(train_loader, test_loader, opts):
 
     # optionally resume from a checkpoint
     if opts['resume']:
-        if os.path.isfile(opts['resume']):
-              print('=> loading checkpoint {}'.format(opts['resume']))
-              checkpoint = torch.load(opts['resume'])
+        checkpoint_files = sorted(glob.glob(run_dir + '/*.pth'),key=os.path.getmtime)
+        if len(checkpoint_files) > 0 and os.path.isfile(checkpoint_files[-1]):
+              print('=> loading checkpoint {}'.format(checkpoint_files[-1]))
+              checkpoint = torch.load(checkpoint_files[-1])
               opts['start_epoch'] = checkpoint['epoch']
-              checkpoint = torch.load(opts['resume'])
               model.load_state_dict(checkpoint['state_dict'])
+              optimizer.load_state_dict(checkpoint['optimizer'])
         else:
-            print('=> no checkpoint found at {}'.format(opts['resume']))
+            print('=> no checkpoint found')
 
     start = opts['start_epoch']
     end = start + opts['epochs']
@@ -1369,8 +1370,27 @@ def classify_nn_image_match_initialization(train_loader, test_loader, opts):
     return model, training_scores
 
 def classify_nn_image_match_training(arg, arg_te):
-    kwargs = {'num_workers': 3, 'pin_memory': True}
     opts = arg[-1]
+    kwargs = {'num_workers': opts['num_workers'], 'pin_memory': True}
+
+    run_dir = os.path.join(opts['nn_log_dir'], \
+        'run-opt-{}-bs-{}-lr-{}-exp-{}-loss-{}-image-feats-{}-triplet-sampling-{}-sample-inclass-{}-min-images-{}-max-images-{}-use-all-data-{}-use-small-weights-{}-model-{}'.format(\
+            opts['optimizer'], \
+            opts['batch_size'], \
+            opts['lr'], \
+            opts['experiment'], \
+            opts['loss'], \
+            opts['use_image_features'], \
+            opts['triplet-sampling-strategy'], \
+            opts['sample-inclass'], \
+            opts['image_match_classifier_min_match'], \
+            opts['image_match_classifier_max_match'], \
+            opts['use_all_training_data'], \
+            opts['use_small_weights'], \
+            'MLP'
+        )
+    )
+    matching_classifiers.mkdir_p(run_dir)
 
     transform = tv.transforms.Compose([
         tv.transforms.Resize((224, 224)),
@@ -1407,5 +1427,5 @@ def classify_nn_image_match_training(arg, arg_te):
     print '#'*110
 
 
-    model, training_scores = classify_nn_image_match_initialization(train_loader, test_loader, opts)
+    model, training_scores = classify_nn_image_match_initialization(train_loader, test_loader, run_dir, opts)
     return None, None, model, training_scores, None

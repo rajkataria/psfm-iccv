@@ -47,20 +47,6 @@ def classify_images(datasets, options={}):
         labels_te[labels_te < 0] = 0
 
         trained_classifier = matching_classifiers.load_classifier(options['image_match_classifier_file'])
-        # Temp fix
-        te_histogram_te = te_histogram_te.copy()
-        for i in xrange(0,len(te_histogram_te)):
-            mu, sigma = scipy.stats.norm.fit(te_histogram_te[i,:])
-            te_histogram_te[i,:] = np.zeros((len(te_histogram_te[i,:]),))
-            te_histogram_te[i,0] = mu
-            te_histogram_te[i,1] = sigma
-        pe_histogram_te = pe_histogram_te.copy()
-        for i in xrange(0,len(pe_histogram_te)):
-            mu, sigma = scipy.stats.norm.fit(pe_histogram_te[i,:])
-            pe_histogram_te[i,:] = np.zeros((len(pe_histogram_te[i,:]),))
-            pe_histogram_te[i,0] = mu
-            pe_histogram_te[i,1] = sigma
-
         arg = [ \
             dsets_te, fns_te, R11s_te, R12s_te, R13s_te, R21s_te, R22s_te, R23s_te, R31s_te, R32s_te, R33s_te, num_rmatches_te, num_matches_te, spatial_entropy_1_8x8_te, \
             spatial_entropy_2_8x8_te, spatial_entropy_1_16x16_te, spatial_entropy_2_16x16_te, pe_histogram_te, pe_polygon_area_percentage_te, \

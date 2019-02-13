@@ -9,6 +9,7 @@ import gzip
 import cv2
 import numpy as np
 import networkx as nx
+import scipy
 import six
 
 from opensfm import io
@@ -890,17 +891,32 @@ class DataSet:
                 im_all_matches, _, im_all_rmatches = self.load_all_matches(im1)
                 im_unthresholded_inliers = self.load_unthresholded_inliers(im1)
                 for im2 in transformations[im1]:
+                    te_histogram = np.array(triplet_pairwise_errors[im1][im2]['histogram-cumsum'])
+                    mu, sigma = scipy.stats.norm.fit(te_histogram)
+                    te_histogram = np.zeros((len(te_histogram),))
+                    te_histogram[0] = mu
+                    te_histogram[1] = sigma
+
+                    pe_histogram = np.array(photometric_errors[im1][im2]['histogram-cumsum'])
+                    mu, sigma = scipy.stats.norm.fit(pe_histogram)
+                    pe_histogram = np.zeros((len(pe_histogram),))
+                    pe_histogram[0] = mu
+                    pe_histogram[1] = sigma
+
                     R = np.around(np.array(transformations[im1][im2]['rotation']), decimals=2)
                     se = spatial_entropies[im1][im2]
-                    pe_histogram = ','.join(map(str, np.around(np.array(photometric_errors[im1][im2]['histogram-cumsum']), decimals=2)))
+                    # pe_histogram = ','.join(map(str, np.around(np.array(photometric_errors[im1][im2]['histogram-cumsum']), decimals=2)))
+                    pe_histogram = ','.join(map(str, np.around(pe_histogram, decimals=2)))
                     pe_polygon_area_percentage = photometric_errors[im1][im2]['polygon_area_percentage']
                     nbvs_im1 = nbvs[im1][im2]['nbvs_im1']
                     nbvs_im2 = nbvs[im1][im2]['nbvs_im2']
-                    te_histogram = ','.join(map(str, np.around(np.array(triplet_pairwise_errors[im1][im2]['histogram-cumsum']), decimals=2)))
+                    te_histogram = ','.join(map(str, np.around(te_histogram, decimals=2)))
                     ch_im1 = ','.join(map(str, np.around(np.array(color_histograms[im1]['histogram']), decimals=2)))
                     ch_im2 = ','.join(map(str, np.around(np.array(color_histograms[im2]['histogram']), decimals=2)))
                     vt_rank_percentage_im1_im2 = 100.0 * vt_ranks[im1][im2] / len(self.images())
                     vt_rank_percentage_im2_im1 = 100.0 * vt_ranks[im2][im1] / len(self.images())
+
+
 
                     if im2 not in im_unthresholded_inliers or \
                         im_unthresholded_inliers[im2] is None:
