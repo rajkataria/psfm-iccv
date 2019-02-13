@@ -181,7 +181,8 @@ def classify_boosted_dts_feature_match(arg):
 def classify_boosted_dts_image_match(arg):
     dsets, fns, R11s, R12s, R13s, R21s, R22s, R23s, R31s, R32s, R33s, num_rmatches, num_matches, spatial_entropy_1_8x8, \
         spatial_entropy_2_8x8, spatial_entropy_1_16x16, spatial_entropy_2_16x16, pe_histogram, pe_polygon_area_percentage, \
-        nbvs_im1, nbvs_im2, te_histogram, ch_im1, ch_im2, vt_rank_percentage_im1_im2, vt_rank_percentage_im2_im1, labels, \
+        nbvs_im1, nbvs_im2, te_histogram, ch_im1, ch_im2, vt_rank_percentage_im1_im2, vt_rank_percentage_im2_im1, \
+        sq_rank_scores_mean, sq_rank_scores_min, sq_rank_scores_max, sq_distance_scores, labels, \
         train, regr, options = arg
 
     classifier_type = options['classifier']
@@ -224,6 +225,10 @@ def classify_boosted_dts_image_match(arg):
         np.log(np.maximum(vt_rank_percentage_im1_im2, vt_rank_percentage_im2_im1).reshape((len(labels),-1)) + epsilon),
         np.log(np.minimum(vt_rank_percentage_im1_im2, vt_rank_percentage_im2_im1).reshape((len(labels),-1)) + epsilon),
         np.log(((vt_rank_percentage_im1_im2 + vt_rank_percentage_im2_im1) / 2.0).reshape((len(labels),1)) + epsilon),
+        sq_rank_scores_mean.reshape((len(labels),-1)), 
+        sq_rank_scores_min.reshape((len(labels),-1)),
+        sq_rank_scores_max.reshape((len(labels),-1)),
+        sq_distance_scores.reshape((len(labels),-1)),
         ),
     axis=1)
     
@@ -241,8 +246,8 @@ def classify_boosted_dts_image_match(arg):
 def relative_pose(arg):
     im1, im2, p1, p2, cameras, exifs, rmatches, threshold = arg
 
-    p1_ = p1[rmatches[:, 0].astype(int)]
-    p2_ = p2[rmatches[:, 1].astype(int)]
+    p1_ = p1[rmatches[:, 0].astype(int)][:, :2].copy()
+    p2_ = p2[rmatches[:, 1].astype(int)][:, :2].copy()
     camera1 = cameras[exifs[im1]['camera']]
     camera2 = cameras[exifs[im2]['camera']]
     b1 = camera1.pixel_bearings(p1_)
@@ -545,19 +550,24 @@ def warp_image(Ms, triangle_pts_img1, triangle_pts_img2, img1, img2, im1, im2, p
   cv2.imwrite(os.path.join(patchdataset,'photometric-data/photometric-warped-image-{}-{}.png'.format(os.path.basename(im1), os.path.basename(im2))), img2_o_final)
 
 def calculate_photometric_error_histogram(errors, im1, im2, patchdataset, debug):
-  histogram, bins = np.histogram(np.array(errors), bins=51, range=(0,250))
-  if debug:
-    width = 0.9 * (bins[1] - bins[0])
-    center = (bins[:-1] + bins[1:]) / 2
+    histogram, bins = np.histogram(np.array(errors), bins=51, range=(0,250))
+    epsilon = 0.000000001
+    if debug:
+        width = 0.9 * (bins[1] - bins[0])
+        center = (bins[:-1] + bins[1:]) / 2
 
-    plt.bar(center, histogram, align='center', width=width)
-    plt.xlabel('L2 Error (LAB)', fontsize=16)
-    plt.ylabel('Error count', fontsize=16)
+        plt.bar(center, histogram, align='center', width=width)
+        plt.xlabel('L2 Error (LAB)', fontsize=16)
+        plt.ylabel('Error count', fontsize=16)
 
-    fig = plt.gcf()
-    fig.set_size_inches(18.5, 10.5)
-    plt.savefig(os.path.join(patchdataset,'photometric-data/photometric-histogram-{}-{}.png'.format(os.path.basename(im1), os.path.basename(im2))))
-  return histogram
+        fig = plt.gcf()
+        fig.set_size_inches(18.5, 10.5)
+        plt.savefig(os.path.join(patchdataset,'photometric-data/photometric-histogram-{}-{}.png'.format(os.path.basename(im1), os.path.basename(im2))))
+  # return histogram
+    return histogram.tolist(), \
+        np.cumsum(np.round((1.0 * histogram / (np.sum(histogram) + epsilon)), 2)).tolist(), \
+        np.round((1.0 * histogram / (np.sum(histogram) + epsilon)), 2).tolist(), \
+        bins.tolist()
 
 def calculate_convex_hull(img1_o, denormalized_p1_points, img2_o, denormalized_p2_points, debug):
   try:
@@ -648,7 +658,7 @@ def tesselate_matches(im1, im2, matches, p1, p2, patchdataset, flags, ii, jj):
 
   hull_img1, hull_img2 = calculate_convex_hull(img1_o, denormalized_p1_points, img2_o, denormalized_p2_points, debug)
   if hull_img1 is None or hull_img2 is None:
-    return None, None, 0, np.array([])
+    return None, None, 0, np.array([]), np.array([]), np.array([]), np.array([])
 
   if sample_matches:
     indices = cluster_matches(denormalized_p1_points, k=num_clusters)
@@ -670,7 +680,7 @@ def tesselate_matches(im1, im2, matches, p1, p2, patchdataset, flags, ii, jj):
     #     print tesselation_vertices_im1
     triangles_img1 = Delaunay(tesselation_vertices_im1, qhull_options='Pp Qt')
   except:
-    return None, None, 0, np.array([])
+    return None, None, 0, np.array([]), np.array([]), np.array([]), np.array([])
 
   if flags['sampling_method'] == 'sample_polygon_uniformly':
     t_start_sampling = timer()
@@ -765,9 +775,10 @@ def tesselate_matches(im1, im2, matches, p1, p2, patchdataset, flags, ii, jj):
 
   if debug:
     warp_image(Ms, triangle_pts_img1, triangle_pts_img2, img1_w, img2_w, im1, im2, patchdataset, flags, colors)
-  histogram = calculate_photometric_error_histogram(all_errors, im1, im2, patchdataset, debug)
+  # histogram = calculate_photometric_error_histogram(all_errors, im1, im2, patchdataset, debug)
+  histogram_counts, histogram_cumsum, histogram, bins = calculate_photometric_error_histogram(all_errors, im1, im2, patchdataset, debug)
   # logger.info('Finished processing files: {}({}) / {}({})'.format(im1, ii, im2, jj))
-  return polygon_area, polygon_area_percentage, len(triangles_img1.simplices), histogram
+  return polygon_area, polygon_area_percentage, len(triangles_img1.simplices), histogram_counts, histogram_cumsum, histogram, bins
 
 def calculate_photometric_error_convex_hull(arg):
   ii, jj, patchdataset, data, im1, im2, matches, flags = arg
@@ -779,9 +790,10 @@ def calculate_photometric_error_convex_hull(arg):
     p1, f1, c1 = data.load_features(im1)
     p2, f2, c2 = data.load_features(im2)
   
-  polygon_area, polygon_area_percentage, total_triangles, histogram = tesselate_matches(os.path.join(data.data_path,'images',im1), \
+  polygon_area, polygon_area_percentage, total_triangles, histogram_counts, histogram_cumsum, histogram, bins = \
+    tesselate_matches(os.path.join(data.data_path,'images',im1), \
       os.path.join(data.data_path,'images',im2), matches, p1, p2, patchdataset, flags, ii, jj)
-  return im1, im2, polygon_area, polygon_area_percentage, total_triangles, histogram.tolist()
+  return im1, im2, polygon_area, polygon_area_percentage, total_triangles, histogram_counts, histogram_cumsum, histogram, bins
 
 def calculate_photometric_errors(ctx):
     data = ctx.data
@@ -820,12 +832,13 @@ def calculate_photometric_errors(ctx):
         p.close()
 
     for r in p_results:
-        im1, im2, polygon_area, polygon_area_percentage, total_triangles, histogram = r
+        im1, im2, polygon_area, polygon_area_percentage, total_triangles, histogram_counts, histogram_cumsum, histogram, bins = r
         if polygon_area is None or polygon_area_percentage is None:
             continue
 
         element = {'polygon_area': polygon_area, 'polygon_area_percentage': polygon_area_percentage, \
-          'total_triangles': total_triangles, 'histogram': histogram}
+          'total_triangles': total_triangles, 'histogram': histogram, 'histogram-cumsum': histogram_cumsum, \
+          'histogram-counts': histogram_counts, 'bins': bins}
         if im1 not in results:
             results[im1] = {}
         results[im1][im2] = element
@@ -946,13 +959,16 @@ def calculate_rotation_triplet_errors(arg):
       if np.isnan(error):
         error = -1.0
 
-      results[fn2][fn3] = {'error': error, 'R11': R11.tolist(), 'triplet': '{}--{}--{}'.format(fn1,fn2,fn3)}
+      results[fn2][fn3] = {'error': math.fabs(error), 'R11': R11.tolist(), 'triplet': '{}--{}--{}'.format(fn1,fn2,fn3)}
   return fn1, results
 
 def calculate_triplet_error_histogram(errors, im1, im2, output_dir, debug):
-  histogram, bins = np.histogram(np.array(errors), bins=80, range=(-2.0,78))
-  epsilon = 0.000000001
-  return histogram.tolist(), np.round((1.0 * histogram / (np.sum(histogram) + epsilon)), 2).tolist(), bins.tolist()
+    histogram, bins = np.histogram(np.array(errors), bins=80, range=(0.0,np.pi/4.0))
+    epsilon = 0.000000001
+    return histogram.tolist(), \
+        np.cumsum(np.round((1.0 * histogram / (np.sum(histogram) + epsilon)), 2)).tolist(), \
+        np.round((1.0 * histogram / (np.sum(histogram) + epsilon)), 2).tolist(), \
+        bins.tolist()
 
 def flatten_triplets(triplets):
   flattened_triplets = {}
@@ -982,11 +998,11 @@ def calculate_triplet_pairwise_errors(arg):
     relevant_indices = np.where((t_fns[:,0] == im1) & (t_fns[:,1] == im2) | (t_fns[:,0] == im1) & (t_fns[:,2] == im2) | \
       (t_fns[:,1] == im1) & (t_fns[:,2] == im2))[0]
 
-    histogram_counts, histogram, bins = calculate_triplet_error_histogram(t_errors[relevant_indices], im1, im2, output_dir, debug=debug)
+    histogram_counts, histogram_cumsum, histogram, bins = calculate_triplet_error_histogram(t_errors[relevant_indices], im1, im2, output_dir, debug=debug)
     if im1 not in histograms:
         histograms[im1] = {}
-    histograms[im1][im2] = { 'im1': im1, 'im2': im2, 'histogram': histogram, 'histogram-counts': histogram_counts, 'bins': bins }
-    histograms_list.append({ 'im1': im1, 'im2': im2, 'histogram': histogram, 'histogram-counts': histogram_counts, 'bins': bins })
+    histograms[im1][im2] = { 'im1': im1, 'im2': im2, 'histogram': histogram, 'histogram-cumsum': histogram_cumsum, 'histogram-counts': histogram_counts, 'bins': bins }
+    histograms_list.append({ 'im1': im1, 'im2': im2, 'histogram': histogram, 'histogram-cumsum': histogram_cumsum, 'histogram-counts': histogram_counts, 'bins': bins })
   return histograms, histograms_list
 
 def calculate_triplet_errors(ctx):
@@ -1086,7 +1102,7 @@ def calculate_sequence_ranks(ctx):
 
         # add ranks
         for j,im2 in enumerate(seq_fn_list[im1]):
-            sequence_ranks[im1][im2] = j
+            sequence_ranks[im1][im2] = {'rank': j, 'distance': seq_dist_list[im1][j]}
     
     data.save_sequence_ranks(sequence_ranks)
 
@@ -1392,6 +1408,10 @@ def vocab_tree_adapter(data, options={}):
     vt_rank_scores_mean = {}
     vt_rank_scores_min = {}
     vt_rank_scores_max = {}
+    vt_scores_mean = {}
+    vt_scores_min = {}
+    vt_scores_max = {}
+    
     # total_images = len(vt_ranks.keys())
 
     for im1 in vtranks:
@@ -1399,41 +1419,20 @@ def vocab_tree_adapter(data, options={}):
             vt_rank_scores_mean[im1] = {}
             vt_rank_scores_min[im1] = {}
             vt_rank_scores_max[im1] = {}
+            vt_scores_mean[im1] = {}
+            vt_scores_min[im1] = {}
+            vt_scores_max[im1] = {}
 
         for im2 in vtranks[im1]:
             vt_rank_scores_mean[im1][im2] = 0.5 * vtranks[im1][im2] + 0.5*vtranks[im2][im1]
             vt_rank_scores_min[im1][im2] = min(vtranks[im1][im2], vtranks[im2][im1])
             vt_rank_scores_max[im1][im2] = max(vtranks[im1][im2], vtranks[im2][im1])
 
-    return vt_rank_scores_mean, vt_rank_scores_min, vt_rank_scores_max
+            vt_scores_mean[im1][im2] = 0.5 * vtscores[im1][im2] + 0.5*vtscores[im2][im1]
+            vt_scores_min[im1][im2] = min(vtscores[im1][im2], vtscores[im2][im1])
+            vt_scores_max[im1][im2] = max(vtscores[im1][im2], vtscores[im2][im1])
 
-def sequence_rank_adapter(data, options={}):
-    sequence_ranks = data.load_sequence_ranks()
-    sequence_rank_scores_mean = {}
-    sequence_rank_scores_min = {}
-    sequence_rank_scores_max = {}
-    total_images = len(sequence_ranks.keys())
-
-    for im1 in sequence_ranks:
-        if im1 not in sequence_rank_scores_mean:
-            sequence_rank_scores_mean[im1] = {}
-            sequence_rank_scores_min[im1] = {}
-            sequence_rank_scores_max[im1] = {}
-
-        for im2 in sequence_ranks[im1]:
-            sequence_rank_scores_mean[im1][im2] = \
-                0.5 * (total_images - sequence_ranks[im1][im2]) / total_images + \
-                0.5 * (total_images - sequence_ranks[im2][im1]) / total_images
-            sequence_rank_scores_min[im1][im2] = min(\
-                (total_images - sequence_ranks[im1][im2]) / total_images,
-                (total_images - sequence_ranks[im2][im1]) / total_images
-                )
-            sequence_rank_scores_max[im1][im2] = max(\
-                (total_images - sequence_ranks[im1][im2]) / total_images,
-                (total_images - sequence_ranks[im2][im1]) / total_images
-                )
-
-    return sequence_rank_scores_mean, sequence_rank_scores_min, sequence_rank_scores_max
+    return vt_rank_scores_mean, vt_rank_scores_min, vt_rank_scores_max, vt_scores_mean, vt_scores_min, vt_scores_max
 
 def triplet_errors_adapter(data, options={}):
     triplet_errors = data.load_triplet_pairwise_errors()
@@ -1453,11 +1452,11 @@ def triplet_errors_adapter(data, options={}):
             #         np.power(0.5 + np.array(triplet_errors[im1][im2]['bins'][10:-1]), 2) \
             #     )
 
-            cum_error = \
-                np.sum( \
-                    np.array(triplet_errors[im1][im2]['histogram-counts'][2:]) * \
-                    np.power(0.5 + np.array(triplet_errors[im1][im2]['bins'][2:-1]), 1) \
-                )
+            # cum_error = \
+            #     np.sum( \
+            #         np.array(triplet_errors[im1][im2]['histogram-cumsum'][2:]) * \
+            #         np.power(0.5 + np.array(triplet_errors[im1][im2]['bins'][2:-1]), 1) \
+            #     )
 
             # cum_error = \
             #     np.sum( \
@@ -1465,14 +1464,26 @@ def triplet_errors_adapter(data, options={}):
             #         np.power(2.0, 0.5 * np.array(triplet_errors[im1][im2]['bins'][2:-1])) \
             #     )
 
-            triplet_scores[im1][im2] = 1.0 / (cum_error + 1.0)
+            hist_counts = np.array(triplet_errors[im1][im2]['histogram-counts'][0:])
+            hist_bins = np.array(triplet_errors[im1][im2]['bins'][0:-1])
+            hist_cumsum = np.array(triplet_errors[im1][im2]['histogram-cumsum'][0:])
+            cum_error = np.sum( hist_cumsum[0:] )
+            # cum_error = np.sum( hist_counts * hist_bins )
+            triplet_scores[im1][im2] = cum_error
+            # triplet_scores[im1][im2] = 1.0 / (cum_error + 1.0)
 
-            if im1 == 'DSC_1140.JPG':
-                if im1 in options['scores_gt'] and im2 in options['scores_gt'][im1]:
-                    gts = options['scores_gt'][im1][im2]
-                else:
-                    gts = 0.0
-                print '{}-{} : {}  {}'.format(im1, im2, cum_error, gts)
+            # if im1 == 'DSC_1140.JPG':# and im2 == 'DSC_1159.JPG':
+            # if im1 == 'DSC_1153.JPG' and im2 == 'DSC_1157.JPG':
+            #     if im1 in options['scores_gt'] and im2 in options['scores_gt'][im1]:
+            #         gts = options['scores_gt'][im1][im2]
+            #     else:
+            #         gts = 0.0
+            #     print '{}-{} : {}  {}'.format(im1, im2, cum_error, gts)
+
+            #     print np.array(triplet_errors[im1][im2]['histogram-cumsum'][0:])
+            #     print np.array(triplet_errors[im1][im2]['histogram-counts'][0:])
+            #     print np.array(triplet_errors[im1][im2]['bins'][0:])
+            #     import sys;sys.exit(1)
 
     return triplet_scores
 

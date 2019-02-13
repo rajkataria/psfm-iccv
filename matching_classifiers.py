@@ -32,9 +32,12 @@ from sklearn import linear_model
 from sklearn.svm import SVR, SVC
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from sklearn.externals import joblib
+from sklearn.mixture import GaussianMixture
 from sklearn.feature_selection import SelectFromModel
+from timeit import default_timer as timer
 # from nn import classify_nn_image_match_training, classify_nn_image_match_inference
 import nn
+import gcn
 
 from argparse import ArgumentParser
 
@@ -85,9 +88,9 @@ def calculate_per_image_mean_auc(dsets, fns, y, y_gt):
 
         unique_dset_fns = sorted(list(set(np.concatenate((dset_fns[:,0], dset_fns[:,1])).tolist())))
         for f in unique_dset_fns:
-            ri = np.where((dset_fns == f) | (dset_fns == f))[0]
-            f_y = dset_y[ri]
-            f_y_gt = dset_y_gt[ri]
+            ri_ = np.where((dset_fns[:,0] == f) | (dset_fns[:,1] == f))[0]
+            f_y = dset_y[ri_]
+            f_y_gt = dset_y_gt[ri_]
 
             f_precision, f_recall, f_threshs = sklearn.metrics.precision_recall_curve(f_y_gt, f_y)
             f_auc = sklearn.metrics.average_precision_score(f_y_gt, f_y)
@@ -123,6 +126,53 @@ def calculate_per_image_mean_auc(dsets, fns, y, y_gt):
     auc_overall_mean = np.sum(a_precision_recall_auc[:,2]) / len(a_precision_recall_auc)
 
     return a_dsets, a_fns, a_precision_recall_auc, auc_dset_means, auc_overall_mean
+
+def calculate_per_image_precision_top_k(dsets, fns, y, y_gt):
+    a_dsets, a_fns, a_precision_scores = [], [], []
+    for dset in sorted(list(set(dsets))):
+        ri = np.where(dsets == dset)[0]
+        dset_fns = fns[ri]
+        dset_y = y[ri]
+        dset_y_gt = y_gt[ri]
+
+        unique_dset_fns = sorted(list(set(np.concatenate((dset_fns[:,0], dset_fns[:,1])).tolist())))
+        for f in unique_dset_fns:
+            ri_ = np.where((dset_fns[:,0] == f) | (dset_fns[:,1] == f))[0]
+            ri_match = np.where(dset_y_gt[ri_] >= 1.0)[0]
+            f_y = dset_y[ri_]
+            f_y_gt = dset_y_gt[ri_]
+
+            order = np.argsort(-f_y)
+            k = len(ri_match)
+            if k == 0:
+                continue
+            # print f_y_gt[order][:k].astype(np.int).astype(np.bool)
+            # print f_y_gt[order][:k].astype(np.int)
+            # print f_y[order][:k]
+            # precision_score = sklearn.metrics.precision_score(f_y_gt[order][:k].astype(np.int), f_y[order][:k])
+            precision_score = 1.0 * np.sum(f_y_gt[order][:k].astype(np.int)) / k
+            # f_auc = sklearn.metrics.average_precision_score(f_y_gt, f_y)
+
+            a_dsets.append(dset)
+            a_fns.append(f)
+            
+            # if np.isnan(f_auc):
+            #     f_auc = 0.0
+            a_precision_scores.append(precision_score)
+    a_dsets = np.array(a_dsets)
+    a_fns = np.array(a_fns)
+    a_precision_scores = np.array(a_precision_scores)
+
+    dset_mean_precisions = []
+    auc_cum = 0.0
+    for i, d in enumerate(list(set(a_dsets))):
+        ri = np.where(a_dsets == d)[0]
+        dset_mean_precisions.append([d, np.mean(a_precision_scores[ri][:])])
+
+    overall_mean_precision = np.sum(a_precision_scores) / len(a_precision_scores)
+
+    return a_dsets, a_fns, a_precision_scores, dset_mean_precisions, overall_mean_precision
+
 # def get_precision_recall(fns, labels, criteria, k, debug=False):
 #     raw_results = []
 #     aggregated_results = [0.0, 0.0]
@@ -275,20 +325,31 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
     #################################################################################################################################    
     for i,t in enumerate(training_datasets):
         data = dataset.DataSet(t)
+        # _fns, [_R11s, _R12s, _R13s, _R21s, _R22s, _R23s, _R31s, _R32s, _R33s, _num_rmatches, _num_matches, _spatial_entropy_1_8x8, \
+        #     _spatial_entropy_2_8x8, _spatial_entropy_1_16x16, _spatial_entropy_2_16x16, _pe_histogram, _pe_polygon_area_percentage, \
+        #     _nbvs_im1, _nbvs_im2, _te_histogram, _ch_im1, _ch_im2, _vt_rank_percentage_im1_im2, _vt_rank_percentage_im2_im1, \
+        #     _sq_rank_scores_mean, _sq_rank_scores_min, _sq_rank_scores_max, _sq_distance_scores, _num_gt_inliers, _labels] \
+        #     = data.load_image_matching_dataset(robust_matches_threshold=15, rmatches_min_threshold=options['image_match_classifier_min_match'], \
+        #         rmatches_max_threshold=options['image_match_classifier_max_match'])
+        training_min_threshold = 0 if options['use_all_training_data'] else options['image_match_classifier_min_match']
+
+        training_max_threshold = 10000 if options['use_all_training_data'] else options['image_match_classifier_max_match']
         _fns, [_R11s, _R12s, _R13s, _R21s, _R22s, _R23s, _R31s, _R32s, _R33s, _num_rmatches, _num_matches, _spatial_entropy_1_8x8, \
             _spatial_entropy_2_8x8, _spatial_entropy_1_16x16, _spatial_entropy_2_16x16, _pe_histogram, _pe_polygon_area_percentage, \
-            _nbvs_im1, _nbvs_im2, _te_histogram, _ch_im1, _ch_im2, _vt_rank_percentage_im1_im2, _vt_rank_percentage_im2_im1, _num_gt_inliers, _labels] \
-            = data.load_image_matching_dataset(robust_matches_threshold=15, rmatches_min_threshold=options['image_match_classifier_min_match'], \
-                rmatches_max_threshold=options['image_match_classifier_max_match'])
+            _nbvs_im1, _nbvs_im2, _te_histogram, _ch_im1, _ch_im2, _vt_rank_percentage_im1_im2, _vt_rank_percentage_im2_im1, \
+            _sq_rank_scores_mean, _sq_rank_scores_min, _sq_rank_scores_max, _sq_distance_scores, _num_gt_inliers, _labels] \
+            = data.load_image_matching_dataset(robust_matches_threshold=15, rmatches_min_threshold=training_min_threshold, \
+                rmatches_max_threshold=training_max_threshold)
 
         if i == 0:
             fns_tr, R11s_tr, R12s_tr, R13s_tr, R21s_tr, R22s_tr, R23s_tr, R31s_tr, R32s_tr, R33s_tr, num_rmatches_tr, num_matches_tr, spatial_entropy_1_8x8_tr, \
                 spatial_entropy_2_8x8_tr, spatial_entropy_1_16x16_tr, spatial_entropy_2_16x16_tr, pe_histogram_tr, pe_polygon_area_percentage_tr, \
                 nbvs_im1_tr, nbvs_im2_tr, te_histogram_tr, ch_im1_tr, ch_im2_tr, vt_rank_percentage_im1_im2_tr, vt_rank_percentage_im2_im1_tr, \
-                num_gt_inliers_tr, labels_tr \
+                sq_rank_scores_mean_tr, sq_rank_scores_min_tr, sq_rank_scores_max_tr, sq_distance_scores_tr, num_gt_inliers_tr, labels_tr \
                 = _fns, _R11s, _R12s, _R13s, _R21s, _R22s, _R23s, _R31s, _R32s, _R33s, _num_rmatches, _num_matches, _spatial_entropy_1_8x8, \
                 _spatial_entropy_2_8x8, _spatial_entropy_1_16x16, _spatial_entropy_2_16x16, _pe_histogram, _pe_polygon_area_percentage, \
-                _nbvs_im1, _nbvs_im2, _te_histogram, _ch_im1, _ch_im2, _vt_rank_percentage_im1_im2, _vt_rank_percentage_im2_im1, _num_gt_inliers,_labels
+                _nbvs_im1, _nbvs_im2, _te_histogram, _ch_im1, _ch_im2, _vt_rank_percentage_im1_im2, _vt_rank_percentage_im2_im1, \
+                _sq_rank_scores_mean, _sq_rank_scores_min, _sq_rank_scores_max, _sq_distance_scores, _num_gt_inliers,_labels
             dsets_tr = np.tile(t, (len(labels_tr),))
         else:
             fns_tr = np.concatenate((fns_tr, _fns), axis=0)
@@ -316,12 +377,16 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
             ch_im2_tr = np.concatenate((ch_im2_tr, _ch_im2), axis=0)
             vt_rank_percentage_im1_im2_tr = np.concatenate((vt_rank_percentage_im1_im2_tr, _vt_rank_percentage_im1_im2), axis=0)
             vt_rank_percentage_im2_im1_tr = np.concatenate((vt_rank_percentage_im2_im1_tr, _vt_rank_percentage_im2_im1), axis=0)
+            sq_rank_scores_mean_tr = np.concatenate((sq_rank_scores_mean_tr, _sq_rank_scores_mean), axis=0)
+            sq_rank_scores_min_tr = np.concatenate((sq_rank_scores_min_tr, _sq_rank_scores_min), axis=0)
+            sq_rank_scores_max_tr = np.concatenate((sq_rank_scores_max_tr, _sq_rank_scores_max), axis=0)
+            sq_distance_scores_tr = np.concatenate((sq_distance_scores_tr, _sq_distance_scores), axis=0)
             num_gt_inliers_tr = np.concatenate((num_gt_inliers_tr, _num_gt_inliers), axis=0)
             labels_tr = np.concatenate((labels_tr, _labels), axis=0)
             dsets_tr = np.concatenate((dsets_tr, np.tile(t, (len(_labels),))), axis=0)
 
     labels_tr[labels_tr < 0] = 0
-    print ('Training datasets loaded - Tuples: {}'.format(len(labels_tr)))
+    print ('\tTraining datasets loaded - Tuples: {}'.format(len(labels_tr)))
 
     #################################################################################################################################
     #################################################################################################################################
@@ -332,7 +397,8 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
         data = dataset.DataSet(t)
         _fns, [_R11s, _R12s, _R13s, _R21s, _R22s, _R23s, _R31s, _R32s, _R33s, _num_rmatches, _num_matches, _spatial_entropy_1_8x8, \
             _spatial_entropy_2_8x8, _spatial_entropy_1_16x16, _spatial_entropy_2_16x16, _pe_histogram, _pe_polygon_area_percentage, \
-            _nbvs_im1, _nbvs_im2, _te_histogram, _ch_im1, _ch_im2, _vt_rank_percentage_im1_im2, _vt_rank_percentage_im2_im1, _num_gt_inliers, _labels] \
+            _nbvs_im1, _nbvs_im2, _te_histogram, _ch_im1, _ch_im2, _vt_rank_percentage_im1_im2, _vt_rank_percentage_im2_im1, \
+            _sq_rank_scores_mean, _sq_rank_scores_min, _sq_rank_scores_max, _sq_distance_scores, _num_gt_inliers, _labels] \
             = data.load_image_matching_dataset(robust_matches_threshold=15, rmatches_min_threshold=options['image_match_classifier_min_match'], \
                 rmatches_max_threshold=options['image_match_classifier_max_match'])
 
@@ -340,10 +406,11 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
             fns_te, R11s_te, R12s_te, R13s_te, R21s_te, R22s_te, R23s_te, R31s_te, R32s_te, R33s_te, num_rmatches_te, num_matches_te, spatial_entropy_1_8x8_te, \
                 spatial_entropy_2_8x8_te, spatial_entropy_1_16x16_te, spatial_entropy_2_16x16_te, pe_histogram_te, pe_polygon_area_percentage_te, \
                 nbvs_im1_te, nbvs_im2_te, te_histogram_te, ch_im1_te, ch_im2_te, vt_rank_percentage_im1_im2_te, vt_rank_percentage_im2_im1_te, \
-                num_gt_inliers_te, labels_te \
+                sq_rank_scores_mean_te, sq_rank_scores_min_te, sq_rank_scores_max_te, sq_distance_scores_te, num_gt_inliers_te, labels_te \
                 = _fns, _R11s, _R12s, _R13s, _R21s, _R22s, _R23s, _R31s, _R32s, _R33s, _num_rmatches, _num_matches, _spatial_entropy_1_8x8, \
                 _spatial_entropy_2_8x8, _spatial_entropy_1_16x16, _spatial_entropy_2_16x16, _pe_histogram, _pe_polygon_area_percentage, \
-                _nbvs_im1, _nbvs_im2, _te_histogram, _ch_im1, _ch_im2, _vt_rank_percentage_im1_im2, _vt_rank_percentage_im2_im1, _num_gt_inliers, _labels
+                _nbvs_im1, _nbvs_im2, _te_histogram, _ch_im1, _ch_im2, _vt_rank_percentage_im1_im2, _vt_rank_percentage_im2_im1, \
+                _sq_rank_scores_mean, _sq_rank_scores_min, _sq_rank_scores_max, _sq_distance_scores, _num_gt_inliers, _labels
             dsets_te = np.tile(t, (len(labels_te),))
         else:
             fns_te = np.concatenate((fns_te, _fns), axis=0)
@@ -371,11 +438,15 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
             ch_im2_te = np.concatenate((ch_im2_te, _ch_im2), axis=0)
             vt_rank_percentage_im1_im2_te = np.concatenate((vt_rank_percentage_im1_im2_te, _vt_rank_percentage_im1_im2), axis=0)
             vt_rank_percentage_im2_im1_te = np.concatenate((vt_rank_percentage_im2_im1_te, _vt_rank_percentage_im2_im1), axis=0)
+            sq_rank_scores_mean_te = np.concatenate((sq_rank_scores_mean_te, _sq_rank_scores_mean), axis=0)
+            sq_rank_scores_min_te = np.concatenate((sq_rank_scores_min_te, _sq_rank_scores_min), axis=0)
+            sq_rank_scores_max_te = np.concatenate((sq_rank_scores_max_te, _sq_rank_scores_max), axis=0)
+            sq_distance_scores_te = np.concatenate((sq_distance_scores_te, _sq_distance_scores), axis=0)
             num_gt_inliers_te = np.concatenate((num_gt_inliers_te, _num_gt_inliers), axis=0)
             labels_te = np.concatenate((labels_te, _labels), axis=0)
             dsets_te = np.concatenate((dsets_te, np.tile(t, (len(_labels),))), axis=0)
     labels_te[labels_te < 0] = 0
-    print ('Testing datasets loaded - Tuples: {}'.format(len(labels_te)))
+    print ('\tTesting datasets loaded - Tuples: {}'.format(len(labels_te)))
     #################################################################################################################################
     #################################################################################################################################
     ########################################################## Classifiers ##########################################################
@@ -390,18 +461,36 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
     plt.title('Inlier/Outlier Precision-Recall Curve \n(n_estimators={} max_depth={})'.format( \
         options['n_estimators'], options['max_depth']), \
         fontsize=18)
-    auc_baseline_train = calculate_dataset_auc(num_rmatches_tr, labels_tr, color='green', ls='dashed')
-    _, _, _, auc_per_image_per_dset_means_baseline_train, auc_per_image_mean_baseline_train = calculate_per_image_mean_auc(dsets_tr, fns_tr, num_rmatches_tr, labels_tr)
-    print ('Baseline (Train): AUC: {} / {}'.format(auc_baseline_train, auc_per_image_mean_baseline_train))
 
+    auc_s_t = timer()
+    auc_baseline_train = calculate_dataset_auc(num_rmatches_tr, labels_tr, color='green', ls='dashed')
+    auc_e_t = timer()
+    aucpi_s_t = timer()
+    _, _, _, auc_per_image_per_dset_means_baseline_train, auc_per_image_mean_baseline_train = calculate_per_image_mean_auc(dsets_tr, fns_tr, num_rmatches_tr, labels_tr)
+    aucpi_e_t = timer()
+    ppi_s_t = timer()
+    _, _, _, _, mean_precision_per_image_baseline_train = calculate_per_image_precision_top_k(dsets_tr, fns_tr, num_rmatches_tr, labels_tr)
+    ppi_e_t = timer()
+    print ('\tBaseline (Train): AUC: {} / {} / {}'.format(\
+        round(auc_baseline_train,3), round(auc_per_image_mean_baseline_train,3), round(mean_precision_per_image_baseline_train,3) \
+        ))
+
+    auc_s_t = timer()
     auc_baseline_test = calculate_dataset_auc(num_rmatches_te, labels_te, color='red', ls='dashed')
+    auc_e_t = timer()
+    aucpi_s_t = timer()
     _, _, _, auc_per_image_per_dset_means_baseline_test, auc_per_image_mean_baseline_test = calculate_per_image_mean_auc(dsets_te, fns_te, num_rmatches_te, labels_te)
-    
+    aucpi_e_t = timer()
+    ppi_s_t = timer()
+    _, _, _, _, mean_precision_per_image_baseline_test = calculate_per_image_precision_top_k(dsets_te, fns_te, num_rmatches_te, labels_te)
+    ppi_e_t = timer()
     # print (json.dumps(auc_per_image_per_dset_means_baseline_train, sort_keys=True, indent=4, separators=(',', ': ')))
     # print (json.dumps(auc_per_image_per_dset_means_baseline_test, sort_keys=True, indent=4, separators=(',', ': ')))
     # import sys; sys.exit(1)
 
-    print ('Baseline (Test): AUC: {} / {}'.format(auc_baseline_test, auc_per_image_mean_baseline_test))
+    print ('\tBaseline (Test): AUC: {} / {} / {}'.format(\
+        round(auc_baseline_test,3), round(auc_per_image_mean_baseline_test,3), round(mean_precision_per_image_baseline_test, 3) \
+        ))
     legends = ['{} : {}'.format('Baseline (Train)', auc_baseline_train), '{} : {}'.format('Baseline (Test)', auc_baseline_test)]
     im_data_folder = os.path.join(options['image_matching_data_folder'], 'image-matching-classifiers-classifier-{}-max_depth-{}-n_estimators-{}-thresholds-{}-{}'.format( \
         options['classifier'], options['max_depth'], options['n_estimators'], options['image_match_classifier_min_match'], \
@@ -416,17 +505,44 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
     # classifier_testing_scores = 20
 
     exps = [
+        ['RM', 'TE', 'PE'],
+        # ['RM'],
+        # ['SQ'],
+        # ['TE'],
+        # ['PE'],
+        # ['NBVS'],
+        # ['SE'],
+        # ['TM'],
+        # ['VD'],
+        # ['RM', 'SQ'],
+        # ['RM', 'TE'],
+        # ['RM', 'PE'],
+        # ['RM', 'VT'],
+        # ['RM', 'NBVS'],
+        # ['RM', 'SE'],
+        # ['RM', 'VD'],
+        # ['RM', 'TM'],
+        # ['RM', 'HIST'],
+        # ['RM', 'TE', 'PE', 'NBVS', 'SE' ],
+        # ['RM', 'SQ', 'TE', 'PE', 'NBVS', 'SE'],
+        # ['RM', 'TE', 'PE', 'NBVS', 'SE', 'VD', 'TM'],
+        # ['RM', 'SQ', 'TE', 'PE', 'NBVS', 'SE', 'VD', 'TM'],
+        
+        # ['RM', 'SQ', 'TE', 'PE', 'NBVS', 'SE', 'VD', 'TM', 'HIST'],
+        # ['RM', 'TE', 'PE', 'NBVS', 'SE'],
 
-        ['RM', 'TE', 'PE', 'NBVS', 'SE'],
-        ['RM', 'PE', 'NBVS', 'SE'],
-        ['RM'],
-        ['RM', 'TE'],
-        ['RM', 'PE'],
-        ['RM', 'VT'],
-        ['RM', 'NBVS'],
-        ['RM', 'SE'],
-        ['RM', 'HIST'],
-        ['RM', 'TE', 'PE', 'NBVS'],
+
+        # ['RM', 'TE', 'PE', 'NBVS', 'SE'],
+        # ['RM', 'TE', 'PE', 'NBVS', 'SE', 'SQ'],
+        # ['TE'],
+        # ['RM', 'TE', 'PE', 'NBVS', 'SE', 'HIST'],
+        
+        # ['RM', 'PE', 'NBVS', 'SE'],
+        # ['RM', 'PE', 'NBVS', 'SE', 'SQ'],
+        
+        
+        # ['RM', 'TE', 'PE', 'NBVS'],
+        # ['RM', 'TE', 'PE', 'NBVS', 'SQ'],
 
         
         # ['RM', 'PE', 'TE'],
@@ -460,57 +576,111 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
     ]
 
     for exp in exps:
-        print ('**************************************************************************************************************************')
-        print ('**************************************************************************************************************************')
-        print ('******************************* Performing experiment :{} *******************************'.format(exp))
-        print ('**************************************************************************************************************************')
-        print ('**************************************************************************************************************************')
+        print ('\t**************************************************************************************************************************')
+        print ('\t**************************************************************************************************************************')
+        print ('\t******************************* Performing experiment :{} *******************************'.format(exp))
+        print ('\t**************************************************************************************************************************')
+        print ('\t**************************************************************************************************************************')
         options['experiment'] = '+'.join(exp)
         for mode in ['train', 'test']:
-            dsets = dsets_tr if mode == 'train' else dsets_te
-            fns = fns_tr if mode == 'train' else fns_te
-            R11s = R11s_tr if mode == 'train' else R11s_te
-            R12s = R12s_tr if mode == 'train' else R12s_te
-            R13s = R13s_tr if mode == 'train' else R13s_te
-            R21s = R21s_tr if mode == 'train' else R21s_te
-            R22s = R22s_tr if mode == 'train' else R22s_te
-            R23s = R23s_tr if mode == 'train' else R23s_te
-            R31s = R31s_tr if mode == 'train' else R31s_te
-            R32s = R32s_tr if mode == 'train' else R32s_te
-            R33s = R33s_tr if mode == 'train' else R33s_te
-            num_rmatches = num_rmatches_tr if mode == 'train' else num_rmatches_te
-            num_matches = num_matches_tr if mode == 'train' else num_matches_te
-            spatial_entropy_1_8x8 = spatial_entropy_1_8x8_tr if mode == 'train' else spatial_entropy_1_8x8_te
-            spatial_entropy_2_8x8 = spatial_entropy_2_8x8_tr if mode == 'train' else spatial_entropy_2_8x8_te
-            spatial_entropy_1_16x16 = spatial_entropy_1_16x16_tr if mode == 'train' else spatial_entropy_1_16x16_te
-            spatial_entropy_2_16x16 = spatial_entropy_2_16x16_tr if mode == 'train' else spatial_entropy_2_16x16_te
-            pe_histogram = pe_histogram_tr if mode == 'train' else pe_histogram_te
-            pe_polygon_area_percentage = pe_polygon_area_percentage_tr if mode == 'train' else pe_polygon_area_percentage_te
-            nbvs_im1 = nbvs_im1_tr if mode == 'train' else nbvs_im1_te
-            nbvs_im2 = nbvs_im2_tr if mode == 'train' else nbvs_im2_te
-            te_histogram = te_histogram_tr if mode == 'train' else te_histogram_te
-            ch_im1 = ch_im1_tr if mode == 'train' else ch_im1_te
-            ch_im2 = ch_im2_tr if mode == 'train' else ch_im2_te            
-            vt_rank_percentage_im1_im2 = vt_rank_percentage_im1_im2_tr if mode == 'train' else vt_rank_percentage_im1_im2_te
-            vt_rank_percentage_im2_im1 = vt_rank_percentage_im2_im1_tr if mode == 'train' else vt_rank_percentage_im2_im1_te
-            num_gt_inliers = num_gt_inliers_tr if mode == 'train' else num_gt_inliers_te
-            labels = labels_tr if mode == 'train' else labels_te
+            dsets = dsets_tr.copy() if mode == 'train' else dsets_te.copy()
+            fns = fns_tr.copy() if mode == 'train' else fns_te.copy()
+            R11s = R11s_tr.copy() if mode == 'train' else R11s_te.copy()
+            R12s = R12s_tr.copy() if mode == 'train' else R12s_te.copy()
+            R13s = R13s_tr.copy() if mode == 'train' else R13s_te.copy()
+            R21s = R21s_tr.copy() if mode == 'train' else R21s_te.copy()
+            R22s = R22s_tr.copy() if mode == 'train' else R22s_te.copy()
+            R23s = R23s_tr.copy() if mode == 'train' else R23s_te.copy()
+            R31s = R31s_tr.copy() if mode == 'train' else R31s_te.copy()
+            R32s = R32s_tr.copy() if mode == 'train' else R32s_te.copy()
+            R33s = R33s_tr.copy() if mode == 'train' else R33s_te.copy()
+            num_rmatches = num_rmatches_tr.copy() if mode == 'train' else num_rmatches_te.copy()
+            num_matches = num_matches_tr.copy() if mode == 'train' else num_matches_te.copy()
+            spatial_entropy_1_8x8 = spatial_entropy_1_8x8_tr.copy() if mode == 'train' else spatial_entropy_1_8x8_te.copy()
+            spatial_entropy_2_8x8 = spatial_entropy_2_8x8_tr.copy() if mode == 'train' else spatial_entropy_2_8x8_te.copy()
+            spatial_entropy_1_16x16 = spatial_entropy_1_16x16_tr.copy() if mode == 'train' else spatial_entropy_1_16x16_te.copy()
+            spatial_entropy_2_16x16 = spatial_entropy_2_16x16_tr.copy() if mode == 'train' else spatial_entropy_2_16x16_te.copy()
+            pe_histogram = pe_histogram_tr.copy() if mode == 'train' else pe_histogram_te.copy()
+            pe_polygon_area_percentage = pe_polygon_area_percentage_tr.copy() if mode == 'train' else pe_polygon_area_percentage_te.copy()
+            nbvs_im1 = nbvs_im1_tr.copy() if mode == 'train' else nbvs_im1_te.copy()
+            nbvs_im2 = nbvs_im2_tr.copy() if mode == 'train' else nbvs_im2_te.copy()
+            te_histogram = te_histogram_tr.copy() if mode == 'train' else te_histogram_te.copy()
+            ch_im1 = ch_im1_tr.copy() if mode == 'train' else ch_im1_te.copy()
+            ch_im2 = ch_im2_tr.copy() if mode == 'train' else ch_im2_te.copy()
+            vt_rank_percentage_im1_im2 = vt_rank_percentage_im1_im2_tr.copy() if mode == 'train' else vt_rank_percentage_im1_im2_te.copy()
+            vt_rank_percentage_im2_im1 = vt_rank_percentage_im2_im1_tr.copy() if mode == 'train' else vt_rank_percentage_im2_im1_te.copy()
+            sq_rank_scores_mean = sq_rank_scores_mean_tr.copy() if mode == 'train' else sq_rank_scores_mean_te.copy()
+            sq_rank_scores_min = sq_rank_scores_min_tr.copy() if mode == 'train' else sq_rank_scores_min_te.copy()
+            sq_rank_scores_max = sq_rank_scores_max_tr.copy() if mode == 'train' else sq_rank_scores_max_te.copy()
+            sq_distance_scores = sq_distance_scores_tr.copy() if mode == 'train' else sq_distance_scores_te.copy()
+            num_gt_inliers = num_gt_inliers_tr.copy() if mode == 'train' else num_gt_inliers_te.copy()
+            labels = labels_tr.copy() if mode == 'train' else labels_te.copy()
             train_mode = True if mode == 'train' else False
+
+            # if options['classifier'] == 'NN' or options['classifier'] == 'GCN':
+            dsets_te_clone = dsets_te.copy()
+            fns_te_clone = fns_te.copy()
+            R11s_te_clone = R11s_te.copy()
+            R12s_te_clone = R12s_te.copy()
+            R13s_te_clone = R13s_te.copy()
+            R21s_te_clone = R21s_te.copy()
+            R22s_te_clone = R22s_te.copy()
+            R23s_te_clone = R23s_te.copy()
+            R31s_te_clone = R31s_te.copy()
+            R32s_te_clone = R32s_te.copy()
+            R33s_te_clone = R33s_te.copy()
+            num_rmatches_te_clone = num_rmatches_te.copy()
+            num_matches_te_clone = num_matches_te.copy()
+            spatial_entropy_1_8x8_te_clone = spatial_entropy_1_8x8_te.copy()
+            spatial_entropy_2_8x8_te_clone = spatial_entropy_2_8x8_te.copy()
+            spatial_entropy_1_16x16_te_clone = spatial_entropy_1_16x16_te.copy()
+            spatial_entropy_2_16x16_te_clone = spatial_entropy_2_16x16_te.copy()
+            pe_histogram_te_clone = pe_histogram_te.copy()
+            pe_polygon_area_percentage_te_clone = pe_polygon_area_percentage_te.copy()
+            nbvs_im1_te_clone = nbvs_im1_te.copy()
+            nbvs_im2_te_clone = nbvs_im2_te.copy()
+            te_histogram_te_clone = te_histogram_te.copy()
+            ch_im1_te_clone = ch_im1_te.copy()
+            ch_im2_te_clone = ch_im2_te.copy()
+            vt_rank_percentage_im1_im2_te_clone = vt_rank_percentage_im1_im2_te.copy()
+            vt_rank_percentage_im2_im1_te_clone = vt_rank_percentage_im2_im1_te.copy()
+            sq_rank_scores_mean_te_clone = sq_rank_scores_mean_te.copy()
+            sq_rank_scores_min_te_clone = sq_rank_scores_min_te.copy()
+            sq_rank_scores_max_te_clone = sq_rank_scores_max_te.copy()
+            sq_distance_scores_te_clone = sq_distance_scores_te.copy()
+            num_gt_inliers_te_clone = num_gt_inliers_te.copy()
+            labels_te_clone = labels_te.copy()
 
             plt.figure(1)
             if 'RM' not in exp:
                 num_rmatches = np.zeros((len(labels),1))
+                num_rmatches_te_clone = np.zeros((len(labels_te_clone),1))
             if 'TM' not in exp:
                 num_matches = np.zeros((len(labels),1))
+                num_matches_te_clone = np.zeros((len(labels_te_clone),1))
             if 'NBVS' not in exp:
                 nbvs_im1 = np.zeros((len(labels),1))
                 nbvs_im2 = np.zeros((len(labels),1))
+                nbvs_im1_te_clone = np.zeros((len(labels_te_clone),1))
+                nbvs_im2_te_clone = np.zeros((len(labels_te_clone),1))
             if 'SE' not in exp:
                 spatial_entropy_1_8x8 = np.zeros((len(labels),1))
                 spatial_entropy_2_8x8 = np.zeros((len(labels),1))
                 spatial_entropy_1_16x16 = np.zeros((len(labels),1))
                 spatial_entropy_2_16x16 = np.zeros((len(labels),1))
-
+                spatial_entropy_1_8x8_te_clone = np.zeros((len(labels_te_clone),1))
+                spatial_entropy_2_8x8_te_clone = np.zeros((len(labels_te_clone),1))
+                spatial_entropy_1_16x16_te_clone = np.zeros((len(labels_te_clone),1))
+                spatial_entropy_2_16x16_te_clone = np.zeros((len(labels_te_clone),1))
+            if 'SQ' not in exp:
+                sq_rank_scores_mean = np.zeros((len(labels),1))
+                sq_rank_scores_min = np.zeros((len(labels),1))
+                sq_rank_scores_max = np.zeros((len(labels),1))
+                sq_distance_scores = np.zeros((len(labels),1))
+                sq_rank_scores_mean_te_clone = np.zeros((len(labels_te_clone),1))
+                sq_rank_scores_min_te_clone = np.zeros((len(labels_te_clone),1))
+                sq_rank_scores_max_te_clone = np.zeros((len(labels_te_clone),1))
+                sq_distance_scores_te_clone = np.zeros((len(labels_te_clone),1))
             if 'VD' not in exp:
                 R11s = np.zeros((len(labels),))
                 R12s = np.zeros((len(labels),))
@@ -521,34 +691,81 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
                 R31s = np.zeros((len(labels),))
                 R32s = np.zeros((len(labels),))
                 R33s = np.zeros((len(labels),))
+                R11s_te_clone = np.zeros((len(labels_te_clone),1))
+                R12s_te_clone = np.zeros((len(labels_te_clone),1))
+                R13s_te_clone = np.zeros((len(labels_te_clone),1))
+                R21s_te_clone = np.zeros((len(labels_te_clone),1))
+                R22s_te_clone = np.zeros((len(labels_te_clone),1))
+                R23s_te_clone = np.zeros((len(labels_te_clone),1))
+                R31s_te_clone = np.zeros((len(labels_te_clone),1))
+                R32s_te_clone = np.zeros((len(labels_te_clone),1))
+                R33s_te_clone = np.zeros((len(labels_te_clone),1))
 
             if 'TE' not in exp:
                 te_histogram = np.zeros(te_histogram.shape)
+                te_histogram_te_clone = np.zeros(te_histogram_te_clone.shape)
+            else:
+                te_histogram = te_histogram.copy()
+                for i in xrange(0,len(te_histogram)):
+                    mu, sigma = scipy.stats.norm.fit(te_histogram[i,:])
+                    te_histogram[i,:] = np.zeros((len(te_histogram[i,:]),))
+                    te_histogram[i,0] = mu
+                    te_histogram[i,1] = sigma
+                for i in xrange(0,len(te_histogram_te_clone)):
+                    mu, sigma = scipy.stats.norm.fit(te_histogram_te_clone[i,:])
+                    te_histogram_te_clone[i,:] = np.zeros((len(te_histogram_te_clone[i,:]),))
+                    te_histogram_te_clone[i,0] = mu
+                    te_histogram_te_clone[i,1] = sigma
+                
             if 'PE' not in exp:
                 pe_histogram = np.zeros(pe_histogram.shape)
                 pe_polygon_area_percentage = np.zeros(pe_polygon_area_percentage.shape)
+                pe_histogram_te_clone = np.zeros(pe_histogram_te_clone.shape)
+                pe_polygon_area_percentage_te_clone = np.zeros(pe_polygon_area_percentage_te_clone.shape)
+            else:
+                pe_histogram = pe_histogram.copy()
+                for i in xrange(0,len(pe_histogram)):
+                    mu, sigma = scipy.stats.norm.fit(pe_histogram[i,:])
+                    pe_histogram[i,:] = np.zeros((len(pe_histogram[i,:]),))
+                    pe_histogram[i,0] = mu
+                    pe_histogram[i,1] = sigma
+                for i in xrange(0,len(pe_histogram_te_clone)):
+                    mu, sigma = scipy.stats.norm.fit(pe_histogram_te_clone[i,:])
+                    pe_histogram_te_clone[i,:] = np.zeros((len(pe_histogram_te_clone[i,:]),))
+                    pe_histogram_te_clone[i,0] = mu
+                    pe_histogram_te_clone[i,1] = sigma
+                    
             if 'HIST' not in exp:
                 ch_im1 = np.zeros(ch_im1.shape)
                 ch_im2 = np.zeros(ch_im2.shape)
+                ch_im1_te_clone = np.zeros(ch_im1_te_clone.shape)
+                ch_im2_te_clone = np.zeros(ch_im2_te_clone.shape)
             if 'VT' not in exp:
                 vt_rank_percentage_im1_im2 = np.zeros(vt_rank_percentage_im1_im2.shape)
                 vt_rank_percentage_im2_im1 = np.zeros(vt_rank_percentage_im2_im1.shape)
+                vt_rank_percentage_im1_im2_te_clone = np.zeros(vt_rank_percentage_im1_im2_te_clone.shape)
+                vt_rank_percentage_im2_im1_te_clone = np.zeros(vt_rank_percentage_im2_im1_te_clone.shape)
 
             arg = [ \
                 dsets, fns, R11s, R12s, R13s, R21s, R22s, R23s, R31s, R32s, R33s, num_rmatches, num_matches, spatial_entropy_1_8x8, \
                 spatial_entropy_2_8x8, spatial_entropy_1_16x16, spatial_entropy_2_16x16, pe_histogram, pe_polygon_area_percentage, \
-                nbvs_im1, nbvs_im2, te_histogram, ch_im1, ch_im2, vt_rank_percentage_im1_im2, vt_rank_percentage_im2_im1, labels, \
+                nbvs_im1, nbvs_im2, te_histogram, ch_im1, ch_im2, vt_rank_percentage_im1_im2, vt_rank_percentage_im2_im1, \
+                sq_rank_scores_mean, sq_rank_scores_min, sq_rank_scores_max, sq_distance_scores, labels, \
                 train_mode, trained_classifier, options
             ]
 
             if options['classifier'] == 'BDT':
                 _, _, regr, scores, _ = classifier.classify_boosted_dts_image_match(arg)
+                print ("\t\tFinished Learning/Classifying Boosted Decision Tree")  
             elif options['classifier'] == 'NN':
                 if mode == 'train':
                     arg_te = [ \
-                            dsets_te, fns_te, R11s_te, R12s_te, R13s_te, R21s_te, R22s_te, R23s_te, R31s_te, R32s_te, R33s_te, num_rmatches_te, num_matches_te, spatial_entropy_1_8x8_te, \
-                            spatial_entropy_2_8x8_te, spatial_entropy_1_16x16_te, spatial_entropy_2_16x16_te, pe_histogram_te, pe_polygon_area_percentage_te, \
-                            nbvs_im1_te, nbvs_im2_te, te_histogram_te, ch_im1_te, ch_im2_te, vt_rank_percentage_im1_im2_te, vt_rank_percentage_im2_im1_te, labels_te, \
+                            dsets_te_clone, fns_te_clone, R11s_te_clone, R12s_te_clone, R13s_te_clone, R21s_te_clone, R22s_te_clone, R23s_te_clone, \
+                            R31s_te_clone, R32s_te_clone, R33s_te_clone, num_rmatches_te_clone, num_matches_te_clone, spatial_entropy_1_8x8_te_clone, \
+                            spatial_entropy_2_8x8_te_clone, spatial_entropy_1_16x16_te_clone, spatial_entropy_2_16x16_te_clone, pe_histogram_te_clone, pe_polygon_area_percentage_te_clone, \
+                            nbvs_im1_te_clone, nbvs_im2_te_clone, te_histogram_te_clone, ch_im1_te_clone, ch_im2_te_clone, vt_rank_percentage_im1_im2_te_clone, \
+                            vt_rank_percentage_im2_im1_te_clone, sq_rank_scores_mean_te_clone, sq_rank_scores_min_te_clone, sq_rank_scores_max_te_clone, sq_distance_scores_te_clone, \
+                            labels_te_clone, \
                             False, trained_classifier, options
                         ]
                     # arg: train set, arg_te: test set
@@ -556,18 +773,35 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
                 else:
                     # arg: test set
                     _, _, regr, scores, _ = nn.classify_nn_image_match_inference(arg)
+            elif options['classifier'] == 'GCN':
+                if mode == 'train':
+                    arg_te = [ \
+                            dsets_te_clone, fns_te_clone, R11s_te_clone, R12s_te_clone, R13s_te_clone, R21s_te_clone, R22s_te_clone, R23s_te_clone, \
+                            R31s_te_clone, R32s_te_clone, R33s_te_clone, num_rmatches_te_clone, num_matches_te_clone, spatial_entropy_1_8x8_te_clone, \
+                            spatial_entropy_2_8x8_te_clone, spatial_entropy_1_16x16_te_clone, spatial_entropy_2_16x16_te_clone, pe_histogram_te_clone, pe_polygon_area_percentage_te_clone, \
+                            nbvs_im1_te_clone, nbvs_im2_te_clone, te_histogram_te_clone, ch_im1_te_clone, ch_im2_te_clone, vt_rank_percentage_im1_im2_te_clone, \
+                            vt_rank_percentage_im2_im1_te_clone, sq_rank_scores_mean_te_clone, sq_rank_scores_min_te_clone, sq_rank_scores_max_te_clone, sq_distance_scores_te_clone, \
+                            labels_te_clone, \
+                            False, trained_classifier, options
+                        ]
+                    # arg: train set, arg_te: test set
+                    _, _, regr, scores, _ = gcn.classify_gcn_image_match_training(arg, arg_te)
+                else:
+                    # arg: test set
+                    _, _, regr, scores, _ = gcn.classify_gcn_image_match_inference(arg)
 
-            print ("\tFinished Learning/Classifying Boosted Decision Tree")  
+            
             
             if not train_mode:
                 auc = calculate_dataset_auc(scores, labels, 'black', 'solid' if not train_mode else 'dashed')
                 _, _, _, _, auc_per_image_mean = calculate_per_image_mean_auc(dsets, fns, scores, labels)
+                _, _, _, _, mean_precision_per_image = calculate_per_image_precision_top_k(dsets, fns, scores, labels)
                 trained_classifier = None
                 # classifier_testing_scores = scores
                 # classifier_testing_threshold = 0.3
                 # legends.append('{} : {}'.format(exp, auc))
-                legends.append('{} : {} : {} / {}'.format(mode, exp, auc, auc_per_image_mean))
-                print ('\tExperiment: {} AUC: {} / {}'.format(exp, auc, auc_per_image_mean))
+                legends.append('{} : {} : {} / {} / {}'.format(mode, exp, auc, auc_per_image_mean, mean_precision_per_image))
+                print ('\t\tExperiment: {} AUC: {} / {} / {}'.format(exp, round(auc,3), round(auc_per_image_mean,3), round(mean_precision_per_image, 3)))
             else:
                 auc = 0.0
                 trained_classifier = regr
@@ -595,6 +829,11 @@ def main(argv):
     parser.add_argument('-d', '--max_depth', help='')
     parser.add_argument('-m', '--image_match_classifier_min_match', help='')
     parser.add_argument('-x', '--image_match_classifier_max_match', help='')
+    parser.add_argument('-c', '--classifier', help='')
+    parser.add_argument('-a', '--use_all_training_data', help='')
+    parser.add_argument('-s', '--use_small_weights', help='')
+    
+    # parser.set_defaults(use_all_training_data=False)
   
     parser_options = parser.parse_args()
 
@@ -602,169 +841,121 @@ def main(argv):
         sys.path.insert(1, parser_options.opensfm_path)
     from opensfm import dataset, matching, classifier, reconstruction, types, io
     global matching, classifier, dataset
-
-    training_datasets = [
-        '/hdd/Research/psfm/pipelines/baseline/OpenSfM-0.2.0-VT-Faster-BA/data/TanksAndTemples-ClassifierDatasets/Barn',
-        '/hdd/Research/psfm/pipelines/baseline/OpenSfM-0.2.0-VT-Faster-BA/data/TanksAndTemples-ClassifierDatasets/Caterpillar',
-        '/hdd/Research/psfm/pipelines/baseline/OpenSfM-0.2.0-VT-Faster-BA/data/TanksAndTemples-ClassifierDatasets/Church',
-        '/hdd/Research/psfm/pipelines/baseline/OpenSfM-0.2.0-VT-Faster-BA/data/TanksAndTemples-ClassifierDatasets/Ignatius',
-
-        '/hdd/Research/psfm/pipelines/baseline/OpenSfM-0.2.0-VT-Faster-BA/data/GTAV_540-ClassifierDatasets/0000',
-        '/hdd/Research/psfm/pipelines/baseline/OpenSfM-0.2.0-VT-Faster-BA/data/GTAV_540-ClassifierDatasets/0001',
-        '/hdd/Research/psfm/pipelines/baseline/OpenSfM-0.2.0-VT-Faster-BA/data/GTAV_540-ClassifierDatasets/0002',
-
-        '/hdd/Research/psfm-iccv/data/GTAV_540/0065',
-        '/hdd/Research/psfm-iccv/data/GTAV_540/0071',
-        '/hdd/Research/psfm-iccv/data/GTAV_540/0073',
-        '/hdd/Research/psfm-iccv/data/GTAV_540/0088',
-        '/hdd/Research/psfm-iccv/data/GTAV_540/0089',
-        '/hdd/Research/psfm-iccv/data/GTAV_540/0098',
-        '/hdd/Research/psfm-iccv/data/GTAV_540/0100',
-        '/hdd/Research/psfm-iccv/data/GTAV_540/0102',
-        '/hdd/Research/psfm-iccv/data/GTAV_540/0112',
-        '/hdd/Research/psfm-iccv/data/GTAV_540/0116',
-        '/hdd/Research/psfm-iccv/data/GTAV_540/0118',
-
-        '/hdd/Research/psfm-iccv/data/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_360',
-        '/hdd/Research/psfm-iccv/data/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_desk',
-        '/hdd/Research/psfm-iccv/data/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_desk2',
-        '/hdd/Research/psfm-iccv/data/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_floor',
-        '/hdd/Research/psfm-iccv/data/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_plant',
-        '/hdd/Research/psfm-iccv/data/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_room',
-        '/hdd/Research/psfm-iccv/data/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_teddy',
-
-        '/hdd/Research/psfm/pipelines/baseline/OpenSfM-0.2.0-VT-Faster-BA/data/ETH3D-ClassifierDatasets/courtyard',
-        '/hdd/Research/psfm/pipelines/baseline/OpenSfM-0.2.0-VT-Faster-BA/data/ETH3D-ClassifierDatasets/delivery_area',
-        '/hdd/Research/psfm/pipelines/baseline/OpenSfM-0.2.0-VT-Faster-BA/data/ETH3D-ClassifierDatasets/electro',
-        '/hdd/Research/psfm/pipelines/baseline/OpenSfM-0.2.0-VT-Faster-BA/data/ETH3D-ClassifierDatasets/facade',
-        '/hdd/Research/psfm/pipelines/baseline/OpenSfM-0.2.0-VT-Faster-BA/data/ETH3D-ClassifierDatasets/kicker',
-        '/hdd/Research/psfm/pipelines/baseline/OpenSfM-0.2.0-VT-Faster-BA/data/ETH3D-ClassifierDatasets/meadow',
-    ]
-
-    testing_datasets = [
-        '/hdd/Research/psfm/pipelines/baseline/OpenSfM-0.2.0-VT-Faster-BA/data/TanksAndTemples-ClassifierDatasets/Meetingroom',
-        '/hdd/Research/psfm/pipelines/baseline/OpenSfM-0.2.0-VT-Faster-BA/data/TanksAndTemples-ClassifierDatasets/Truck',
-        
-        # '/hdd/Research/psfm/pipelines/baseline/OpenSfM-0.2.0-VT-Faster-BA/data/GTAV_540-ClassifierDatasets/0060',
-        # '/hdd/Research/psfm/pipelines/baseline/OpenSfM-0.2.0-VT-Faster-BA/data/GTAV_540-ClassifierDatasets/0061',
-        # '/hdd/Research/psfm/pipelines/baseline/OpenSfM-0.2.0-VT-Faster-BA/data/GTAV_540-ClassifierDatasets/0062',
-
-        '/hdd/Research/psfm/pipelines/baseline/OpenSfM-0.2.0-VT-Faster-BA/data/ETH3D-ClassifierDatasets/exhibition_hall',
-        '/hdd/Research/psfm/pipelines/baseline/OpenSfM-0.2.0-VT-Faster-BA/data/ETH3D-ClassifierDatasets/lecture_room',
-        '/hdd/Research/psfm/pipelines/baseline/OpenSfM-0.2.0-VT-Faster-BA/data/ETH3D-ClassifierDatasets/living_room',
-    ]
-
-    training_datasets = [
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TanksAndTemples/Barn',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TanksAndTemples/Caterpillar',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TanksAndTemples/Church',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TanksAndTemples/Courthouse',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TanksAndTemples/Ignatius',
-        
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0000',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0001',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0002',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0003',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0004',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0005',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0006',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0007',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0008',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0009',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0010',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0011',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0012',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0013',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0014',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0015',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0016',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0017',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0018',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0019',
-        
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/ETH3D/courtyard',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/ETH3D/delivery_area',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/ETH3D/electro',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/ETH3D/facade',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/ETH3D/kicker',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/ETH3D/meadow',
-
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_360',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_desk',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_desk2',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_floor',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_plant',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_room',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_teddy',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_360_hemisphere',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_coke',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_desk',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_desk_with_person',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_dishes',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_flowerbouquet',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_flowerbouquet_brownbackground',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_large_no_loop',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_large_with_loop',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_metallic_sphere',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_metallic_sphere2',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_pioneer_360',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_pioneer_slam',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_pioneer_slam2',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_pioneer_slam3',
-    ]
-
-    testing_datasets = [
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TanksAndTemples/Meetingroom',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TanksAndTemples/Truck',
-
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/ETH3D/exhibition_hall',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/ETH3D/lecture_room',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/ETH3D/living_room',
-
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0020',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0021',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0022',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0023',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0024',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0025',
-
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_cabinet',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_large_cabinet',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_long_office_household',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_nostructure_notexture_far',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_nostructure_notexture_near_withloop',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_nostructure_texture_far',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_nostructure_texture_near_withloop',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_sitting_halfsphere',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_sitting_rpy',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_sitting_static',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_sitting_xyz',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_structure_notexture_far',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_structure_notexture_near',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_structure_texture_far',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_structure_texture_near',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_teddy',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_walking_halfsphere',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_walking_rpy',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_walking_static',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_walking_xyz',
-    ]
-
-    # training_datasets = [
-    #     '/hdd/Research/psfm/pipelines/baseline/OpenSfM-0.2.0-VT-Faster-BA/data/TanksAndTemples-ClassifierDatasets/Barn',
-    #     # '/hdd/Research/psfm/pipelines/baseline/OpenSfM-0.2.0-VT-Faster-BA/data/ETH3D-ClassifierDatasets/kicker',
-    # ]
-
-    # testing_datasets = [
-    #     '/hdd/Research/psfm/pipelines/baseline/OpenSfM-0.2.0-VT-Faster-BA/data/TanksAndTemples-ClassifierDatasets/Meetingroom',
-    #     # '/hdd/Research/psfm/pipelines/baseline/OpenSfM-0.2.0-VT-Faster-BA/data/ETH3D-ClassifierDatasets/living_room',
-    # ]
+    datasets = {
+        'training': {
+            'TanksAndTemples': [
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TanksAndTemples/Barn',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TanksAndTemples/Caterpillar',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TanksAndTemples/Church',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TanksAndTemples/Courthouse',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TanksAndTemples/Ignatius',
+            ],
+            'ETH3D': [
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/ETH3D/courtyard',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/ETH3D/delivery_area',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/ETH3D/electro',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/ETH3D/facade',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/ETH3D/kicker',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/ETH3D/meadow',
+            ],
+            'TUM_RGBD_SLAM': [
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_360',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_desk',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_desk2',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_floor',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_plant',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_room',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_teddy',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_360_hemisphere',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_coke',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_desk',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_desk_with_person',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_dishes',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_flowerbouquet',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_flowerbouquet_brownbackground',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_large_no_loop',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_large_with_loop',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_metallic_sphere',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_metallic_sphere2',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_pioneer_360',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_pioneer_slam',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_pioneer_slam2',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_pioneer_slam3',
+            ],
+            'GTAV_540': [
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0000',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0001',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0002',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0003',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0004',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0005',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0006',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0007',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0008',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0009',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0010',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0011',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0012',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0013',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0014',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0015',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0016',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0017',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0018',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0019',
+            ]
+        },
+        'testing': {
+            'TanksAndTemples': [
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TanksAndTemples/Meetingroom',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TanksAndTemples/Truck',
+            ],
+            'ETH3D': [
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/ETH3D/exhibition_hall',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/ETH3D/lecture_room',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/ETH3D/living_room',
+            ],
+            'TUM_RGBD_SLAM': [
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_cabinet',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_large_cabinet',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_long_office_household',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_nostructure_notexture_far',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_nostructure_notexture_near_withloop',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_nostructure_texture_far',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_nostructure_texture_near_withloop',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_sitting_halfsphere',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_sitting_rpy',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_sitting_static',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_sitting_xyz',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_structure_notexture_far',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_structure_notexture_near',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_structure_texture_far',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_structure_texture_near',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_teddy',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_walking_halfsphere',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_walking_rpy',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_walking_static',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_walking_xyz',
+            ],
+            'GTAV_540': [
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0020',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0021',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0022',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0023',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0024',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0025',
+            ]
+        }
+    }
 
     options = {
         'feature_matching_data_folder': 'data/feature-matching-classifiers-results',
         'image_matching_data_folder': 'data/image-matching-classifiers-results',
-        'classifier': 'BDT', \
-        # 'classifier': 'NN',
+        'use_all_training_data': True if parser_options.use_all_training_data == 'yes' else False,
+        'use_small_weights': True if parser_options.use_small_weights == 'yes' else False,
+        # 'classifier': 'BDT',
+        'classifier': parser_options.classifier.upper(),
+        # 'classifier': 'GCN',
         # BDT options
         'max_depth': int(parser_options.max_depth),
         'n_estimators': int(parser_options.n_estimators),
@@ -772,11 +963,11 @@ def main(argv):
         'image_match_classifier_max_match': int(parser_options.image_match_classifier_max_match),
         # 'feature_selection': False, \
         # NN options
-        # 'batch_size': 32,
-        'batch_size': 32,
-        # 'batch_size': 1,
+        'batch_size': 128,
+        # 'batch_size': 16,
+        # 'batch_size': 4,
+        # 'shuffle': True,
         'shuffle': True,
-        # 'shuffle': False,
         'lr': 0.001,
         'optimizer': 'adam',
         'wd': 0.0001,
@@ -784,10 +975,11 @@ def main(argv):
         'start_epoch': 0,
         'resume': None,
         'lr_decay': 0.01,
-        'log_dir': 'data/nn-image-matching-classifiers-results/logs',
+        'nn_log_dir': 'data/nn-image-matching-classifiers-results/logs',
+        'gcn_log_dir': 'data/nn-image-matching-classifiers-results/logs',
         'subsample_ratio': 1.0,
         'log_interval': 16,
-        # 'sfm_root': './UIUCTag/' if socket.gethostname() == 'rajs-ubuntu' else '/data/raj/UIUCTag/',
+        'opensfm_path': parser_options.opensfm_path,
         # 'fine_tuning': True, \
         # 'class_balance': False, \
         # 'all_features': False, \
@@ -795,17 +987,100 @@ def main(argv):
         'triplet-sampling-strategy': 'uniform-files',
         # 'sample-inclass': True,
         'sample-inclass': False,
-        'num_workers': 8,
-        # 'num_workers': 1,
+        # 'num_workers': 4,
+        'num_workers': 0,
         # 'use_image_features': True,
         'use_image_features': False,
         # 'loss': 'cross-entropy'
         'loss': 'triplet'
         # 'loss': 'cross-entropy+triplet'
     }
+    if options['classifier'] == 'GCN':
+        mkdir_p(options['gcn_log_dir'])
 
-    # feature_matching_learned_classifier(options, training_datasets, testing_datasets)
-    image_matching_learned_classifier(training_datasets, testing_datasets, options)  
+
+    dataset_experiments = [
+        # {
+        #     'training': ['TanksAndTemples'], 
+        #     'testing': ['TanksAndTemples']
+        # },
+        # {
+        #     'training': ['TanksAndTemples', 'ETH3D', 'TUM_RGBD_SLAM'], 
+        #     'testing': ['TanksAndTemples']
+        # },
+        # {
+        #     'training': ['TanksAndTemples', 'ETH3D', 'GTAV_540', 'TUM_RGBD_SLAM'], 
+        #     'testing': ['TanksAndTemples']
+        # },
+        # {
+        #     'training': ['ETH3D'], 
+        #     'testing': ['ETH3D']
+        # },
+        # {
+        #     'training': ['TanksAndTemples', 'ETH3D', 'TUM_RGBD_SLAM'], 
+        #     'testing': ['ETH3D']
+        # },
+        # {
+        #     'training': ['TanksAndTemples', 'ETH3D', 'GTAV_540', 'TUM_RGBD_SLAM'], 
+        #     'testing': ['ETH3D']
+        # },
+        # {
+        #     'training': ['GTAV_540'], 
+        #     'testing': ['GTAV_540']
+        # },
+        # {
+        #     'training': ['TanksAndTemples', 'ETH3D', 'TUM_RGBD_SLAM'], 
+        #     'testing': ['GTAV_540']
+        # },
+        # {
+        #     'training': ['TanksAndTemples', 'ETH3D', 'GTAV_540', 'TUM_RGBD_SLAM'], 
+        #     'testing': ['GTAV_540']
+        # },
+        # {
+        #     'training': ['TUM_RGBD_SLAM'], 
+        #     'testing': ['TUM_RGBD_SLAM']
+        # },
+        # {
+        #     'training': ['TanksAndTemples', 'ETH3D', 'TUM_RGBD_SLAM'], 
+        #     'testing': ['TUM_RGBD_SLAM']
+        # },
+        # {
+        #     'training': ['TanksAndTemples', 'ETH3D', 'GTAV_540', 'TUM_RGBD_SLAM'], 
+        #     'testing': ['TUM_RGBD_SLAM']
+        # },
+        # {
+        #     'training': ['TanksAndTemples', 'ETH3D', 'GTAV_540', 'TUM_RGBD_SLAM'], 
+        #     'testing': ['TanksAndTemples', 'ETH3D', 'GTAV_540', 'TUM_RGBD_SLAM']
+        # },
+        {
+            'training': ['TanksAndTemples', 'ETH3D', 'TUM_RGBD_SLAM'], 
+            'testing': ['TanksAndTemples', 'ETH3D', 'TUM_RGBD_SLAM']
+        },
+        # {
+        #     'training': ['TanksAndTemples', 'ETH3D'], 
+        #     'testing': ['TanksAndTemples', 'ETH3D']
+        # },
+    ]
+    for dataset_exp in dataset_experiments:
+        print ('#'*200)
+        print ('#'*200)
+        print ('############################### Dataset Exps => Training : {}\t\t Testing: {} ###############################'.format( \
+            dataset_exp['training'], dataset_exp['testing']
+        ))
+        print ('#'*200)
+        print ('#'*200)
+        training_datasets = []
+        testing_datasets = []
+
+        for dataset_name in dataset_exp['training']:
+            training_datasets.extend(datasets['training'][dataset_name])
+            # training_datasets.extend(datasets['testing'][dataset_name])
+        for dataset_name in dataset_exp['testing']:
+            testing_datasets.extend(datasets['testing'][dataset_name])
+            # testing_datasets.extend(datasets['training'][dataset_name])
+
+        # feature_matching_learned_classifier(options, training_datasets, testing_datasets)
+        image_matching_learned_classifier(training_datasets, testing_datasets, options)  
 
 if __name__ == '__main__':
     main(sys.argv)

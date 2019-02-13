@@ -375,7 +375,10 @@ class NN(nn.Module):
                 # nn.Linear(5015, 1024),
                 # nn.Linear(1431, 1024),
                 # nn.Linear(1943, 1024),
-                nn.Linear(1432, 1024),
+                nn.Linear(1436, 1024),
+                nn.ReLU(),
+                nn.Dropout(),
+                nn.Linear(1024, 1024),
                 nn.ReLU(),
                 nn.Dropout(),
                 nn.Linear(1024, 1024),
@@ -387,7 +390,10 @@ class NN(nn.Module):
         else:
             self.mlp = nn.Sequential(
                 # nn.Linear(919, 2),
-                nn.Linear(919, 1024),
+                nn.Linear(923, 1024),
+                nn.ReLU(),
+                nn.Dropout(),
+                nn.Linear(1024, 1024),
                 nn.ReLU(),
                 nn.Dropout(),
                 nn.Linear(1024, 1024),
@@ -445,7 +451,9 @@ class NN(nn.Module):
         R11s, R12s, R13s, R21s, R22s, R23s, R31s, R32s, R33s, \
             num_rmatches, num_matches, spatial_entropy_1_8x8, spatial_entropy_2_8x8, spatial_entropy_1_16x16, spatial_entropy_2_16x16, \
             pe_histogram, pe_polygon_area_percentage, nbvs_im1, nbvs_im2, te_histogram, ch_im1, ch_im2, \
-            vt_rank_percentage_im1_im2, vt_rank_percentage_im2_im1, labels, img1, img2 = arg
+            vt_rank_percentage_im1_im2, vt_rank_percentage_im2_im1, \
+            sq_rank_scores_mean, sq_rank_scores_min, sq_rank_scores_max, sq_distance_scores, \
+            labels, img1, img2 = arg
 
         x = torch.cat(( \
             R11s.type(torch.cuda.FloatTensor).view(R11s.size(0), -1), \
@@ -479,6 +487,11 @@ class NN(nn.Module):
 
             vt_rank_percentage_im1_im2.type(torch.cuda.FloatTensor).view(vt_rank_percentage_im1_im2.size(0), -1), \
             vt_rank_percentage_im2_im1.type(torch.cuda.FloatTensor).view(vt_rank_percentage_im2_im1.size(0), -1), \
+
+            sq_rank_scores_mean.type(torch.cuda.FloatTensor).view(sq_rank_scores_mean.size(0), -1), \
+            sq_rank_scores_min.type(torch.cuda.FloatTensor).view(sq_rank_scores_min.size(0), -1), \
+            sq_rank_scores_max.type(torch.cuda.FloatTensor).view(sq_rank_scores_max.size(0), -1), \
+            sq_distance_scores.type(torch.cuda.FloatTensor).view(sq_distance_scores.size(0), -1), \
             ), 1)
 
         if self.opts['use_image_features']:
@@ -558,7 +571,10 @@ class NN(nn.Module):
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()
             elif isinstance(m, nn.Linear):
-                m.weight.data.normal_(0, 0.00000000001)
+                if self.opts['use_small_weights']:
+                    m.weight.data.normal_(0, 0.00000000001)
+                else:
+                    m.weight.data.normal_(0, 0.01)
                 m.bias.data.zero_()
 
 
@@ -589,7 +605,9 @@ class ImageMatchingDataset(data.Dataset):
         self.dsets, self.fns, self.R11s, self.R12s, self.R13s, self.R21s, self.R22s, self.R23s, self.R31s, self.R32s, self.R33s, \
             self.num_rmatches, self.num_matches, self.spatial_entropy_1_8x8, self.spatial_entropy_2_8x8, self.spatial_entropy_1_16x16, self.spatial_entropy_2_16x16, \
             self.pe_histogram, self.pe_polygon_area_percentage, self.nbvs_im1, self.nbvs_im2, self.te_histogram, self.ch_im1, self.ch_im2, \
-            self.vt_rank_percentage_im1_im2, self.vt_rank_percentage_im2_im1, self.labels, self.train, self.model, self.options = arg
+            self.vt_rank_percentage_im1_im2, self.vt_rank_percentage_im2_im1, \
+            self.sq_rank_scores_mean, self.sq_rank_scores_min, self.sq_rank_scores_max, self.sq_distance_scores, \
+            self.labels, self.train, self.model, self.options = arg
 
         self.transform = transform
         self.loader = loader
@@ -909,7 +927,9 @@ class ImageMatchingDataset(data.Dataset):
                 self.spatial_entropy_2_8x8[i], self.spatial_entropy_1_16x16[i], self.spatial_entropy_2_16x16[i], \
                 self.pe_histogram[i].reshape((-1,1)), self.pe_polygon_area_percentage[i], self.nbvs_im1[i], self.nbvs_im2[i], \
                 self.te_histogram[i].reshape((-1,1)), self.ch_im1[i].reshape((-1,1)), self.ch_im2[i].reshape((-1,1)), \
-                self.vt_rank_percentage_im1_im2[i], self.vt_rank_percentage_im2_im1[i], self.labels[i], img1, img2])
+                self.vt_rank_percentage_im1_im2[i], self.vt_rank_percentage_im2_im1[i], \
+                self.sq_rank_scores_mean[i], self.sq_rank_scores_min[i], self.sq_rank_scores_max[i], self.sq_distance_scores[i], \
+                self.labels[i], img1, img2])
             # else:
             #     data.append([self.dsets[i].tolist(), self.fns[i,0].tolist(), self.fns[i,1].tolist(), self.R11s[i], self.R12s[i], self.R13s[i], \
             #         self.R21s[i], self.R22s[i], self.R23s[i], self.R31s[i], self.R32s[i], self.R33s[i], \
@@ -1026,21 +1046,29 @@ def inference(data_loader, model, epoch, run_dir, logger, opts, mode=None, optim
             dsets, im1s, im2s, R11s, R12s, R13s, R21s, R22s, R23s, R31s, R32s, R33s, \
                 num_rmatches, num_matches, spatial_entropy_1_8x8, spatial_entropy_2_8x8, spatial_entropy_1_16x16, spatial_entropy_2_16x16, \
                 pe_histogram, pe_polygon_area_percentage, nbvs_im1, nbvs_im2, te_histogram, ch_im1, ch_im2, \
-                vt_rank_percentage_im1_im2, vt_rank_percentage_im2_im1, labels, img1, img2 = sample
+                vt_rank_percentage_im1_im2, vt_rank_percentage_im2_im1, \
+                sq_rank_scores_mean, sq_rank_scores_min, sq_rank_scores_max, sq_distance_scores, \
+                labels, img1, img2 = sample
 
             _R11s, _R12s, _R13s, _R21s, _R22s, _R23s, _R31s, _R32s, _R33s, \
                 _num_rmatches, _num_matches, _spatial_entropy_1_8x8, _spatial_entropy_2_8x8, _spatial_entropy_1_16x16, _spatial_entropy_2_16x16, \
                 _pe_histogram, _pe_polygon_area_percentage, _nbvs_im1, _nbvs_im2, _te_histogram, _ch_im1, _ch_im2, \
-                _vt_rank_percentage_im1_im2, _vt_rank_percentage_im2_im1, _labels, _img1, _img2 = \
+                _vt_rank_percentage_im1_im2, _vt_rank_percentage_im2_im1, \
+                _sq_rank_scores_mean, _sq_rank_scores_min, _sq_rank_scores_max, _sq_distance_scores, \
+                _labels, _img1, _img2 = \
                 R11s.cuda(), R12s.cuda(), R13s.cuda(), R21s.cuda(), R22s.cuda(), R23s.cuda(), R31s.cuda(), R32s.cuda(), R33s.cuda(), \
                 num_rmatches.cuda(), num_matches.cuda(), spatial_entropy_1_8x8.cuda(), spatial_entropy_2_8x8.cuda(), spatial_entropy_1_16x16.cuda(), spatial_entropy_2_16x16.cuda(), \
                 pe_histogram.cuda(), pe_polygon_area_percentage.cuda(), nbvs_im1.cuda(), nbvs_im2.cuda(), te_histogram.cuda(), ch_im1.cuda(), ch_im2.cuda(), \
-                vt_rank_percentage_im1_im2.cuda(), vt_rank_percentage_im2_im1.cuda(), labels.cuda(), img1.cuda(), img2.cuda()
+                vt_rank_percentage_im1_im2.cuda(), vt_rank_percentage_im2_im1.cuda(), \
+                sq_rank_scores_mean.cuda(), sq_rank_scores_min.cuda(), sq_rank_scores_max.cuda(), sq_distance_scores.cuda(), \
+                labels.cuda(), img1.cuda(), img2.cuda()
 
             arg = [Variable(_R11s), Variable(_R12s), Variable(_R13s), Variable(_R21s), Variable(_R22s), Variable(_R23s), Variable(_R31s), Variable(_R32s), Variable(_R33s), \
                 Variable(_num_rmatches), Variable(_num_matches), Variable(_spatial_entropy_1_8x8), Variable(_spatial_entropy_2_8x8), Variable(_spatial_entropy_1_16x16), Variable(_spatial_entropy_2_16x16), \
                 Variable(_pe_histogram), Variable(_pe_polygon_area_percentage), Variable(_nbvs_im1), Variable(_nbvs_im2), Variable(_te_histogram), Variable(_ch_im1), Variable(_ch_im2), \
-                Variable(_vt_rank_percentage_im1_im2), Variable(_vt_rank_percentage_im2_im1), Variable(_labels), Variable(_img1), Variable(_img2)]
+                Variable(_vt_rank_percentage_im1_im2), Variable(_vt_rank_percentage_im2_im1), \
+                Variable(_sq_rank_scores_mean), Variable(_sq_rank_scores_min), Variable(_sq_rank_scores_max), Variable(_sq_distance_scores), \
+                Variable(_labels), Variable(_img1), Variable(_img2)]
             
 
             y_prediction = model(arg)
@@ -1135,9 +1163,9 @@ def inference(data_loader, model, epoch, run_dir, logger, opts, mode=None, optim
 
         adjust_learning_rate(optimizer, opts)
         cum_loss = cum_loss/(num_tests/(1.0*opts['batch_size']))
-        logger.log_value('train_lr', optimizer.param_groups[0]['lr'])
-        logger.log_value('train_acc', accuracy)
-        logger.log_value('train_loss', cum_loss)
+        logger.log_value('TRAIN-LR', optimizer.param_groups[0]['lr'])
+        logger.log_value('TRAIN-ACCURACY', accuracy)
+        logger.log_value('TRAIN-LOSS', cum_loss)
         print '{} Epoch: {}  Correct: {}  Accuracy: {}  Loss: {}'.format(mode.upper(), epoch, correct_counts, \
             round(accuracy, 2), round(cum_loss,2))
         # do checkpointing
@@ -1145,7 +1173,7 @@ def inference(data_loader, model, epoch, run_dir, logger, opts, mode=None, optim
             torch.save({'epoch': epoch + 1, 'state_dict': model.state_dict()},
                '{}/checkpoint_{}.pth'.format(run_dir, epoch))
     else:
-        logger.log_value('test_acc', accuracy)
+        logger.log_value('TEST-ACCURACY', accuracy)
         print '{} Epoch: {}  Correct: {}  Accuracy: {}\n'.format(mode.upper(), epoch, correct_counts, \
             round(accuracy, 2))
 
@@ -1181,24 +1209,34 @@ def inference(data_loader, model, epoch, run_dir, logger, opts, mode=None, optim
     # plt.clf()
     auc = matching_classifiers.calculate_dataset_auc(all_predictions[:,1], all_targets, color='green', ls='solid')
     _, _, _, _, auc_per_image_mean = matching_classifiers.calculate_per_image_mean_auc(all_dsets, all_fns, all_predictions[:,1], all_targets)
+    _, _, _, _, mean_precision_per_image = matching_classifiers.calculate_per_image_precision_top_k(all_dsets, all_fns, all_predictions[:,1], all_targets)
     # plt.clf()
     auc_baseline = matching_classifiers.calculate_dataset_auc(all_num_rmatches, all_targets, color='green', ls='solid')
     _, _, _, _, auc_per_image_mean_baseline = matching_classifiers.calculate_per_image_mean_auc(all_dsets, all_fns, all_num_rmatches, all_targets)
+    _, _, _, _, mean_precision_per_image_baseline = matching_classifiers.calculate_per_image_precision_top_k(all_dsets, all_fns, all_num_rmatches, all_targets)
 
 
-    print ('\t{} Epoch: {}     Experiment: {} AUC: {} / {}'.format(mode.upper(), epoch, opts['experiment'], auc, auc_per_image_mean))
-    print ('\t{} Epoch: {}     Baseline: {} AUC: {} / {}'.format(mode.upper(), epoch, 'Baseline', auc_baseline, auc_per_image_mean_baseline))
+    print ('\t{} Epoch: {}     Experiment: {} AUC: {} / {} / {}'.format(mode.upper(), epoch, opts['experiment'], \
+        round(auc,3), round(auc_per_image_mean, 3), round(mean_precision_per_image, 3) \
+        ))
+    print ('\t{} Epoch: {}     Baseline: {} AUC: {} / {} / {}'.format(mode.upper(), epoch, 'Baseline', \
+        round(auc_baseline, 3), round(auc_per_image_mean_baseline, 3), round(mean_precision_per_image_baseline, 3) \
+        ))
     print ('='*100)
     if mode == 'train':
-        logger.log_value('train_auc_baseline', auc_baseline)
-        logger.log_value('train_auc_per_image_baseline', auc_per_image_mean_baseline)
-        logger.log_value('train_auc_exp', auc)
-        logger.log_value('train_auc_per_image_exp', auc_per_image_mean)
+        logger.log_value('TRAIN-AUC-BASELINE', auc_baseline)
+        logger.log_value('TRAIN-AUCPI-BASELINE', auc_per_image_mean_baseline)
+        logger.log_value('TRAIN-PPI-BASELINE', mean_precision_per_image_baseline)
+        logger.log_value('TRAIN-AUC-EXP', auc)
+        logger.log_value('TRAIN-AUCPI-EXP', auc_per_image_mean)
+        logger.log_value('TRAIN-PPI-EXP', mean_precision_per_image)
     else:
-        logger.log_value('test_auc_baseline', auc_baseline)
-        logger.log_value('test_auc_per_image_baseline', auc_per_image_mean_baseline)
-        logger.log_value('test_auc_exp', auc)
-        logger.log_value('test_auc_per_image_exp', auc_per_image_mean)
+        logger.log_value('TEST-AUC-BASELINE', auc_baseline)
+        logger.log_value('TEST-AUCPI-BASELINE', auc_per_image_mean_baseline)
+        logger.log_value('TEST-PPI-BASELINE', mean_precision_per_image_baseline)
+        logger.log_value('TEST-AUC-EXP', auc)
+        logger.log_value('TEST-AUCPI-EXP', auc_per_image_mean)
+        logger.log_value('TEST-PPI-EXP', mean_precision_per_image)
     # plt.legend(['{} : {} : {} / {}'.format(mode, opts['experiment'], auc, auc_per_image_mean)],  loc='lower left',  shadow=True, fontsize=20)
     # fig = plt.gcf()
     # fig.set_size_inches(18.5, 10.5)
@@ -1251,8 +1289,23 @@ def classify_nn_image_match_inference(arg):
         batch_size=opts['batch_size'], shuffle=opts['shuffle'], **kwargs
         )
 
-    run_dir = os.path.join(opts['log_dir'], \
-        'run-optimizer-{}-batch_size-{}-lr-{}-model-{}-test'.format(opts['optimizer'], opts['batch_size'], opts['lr'], model.name))
+    run_dir = os.path.join(opts['nn_log_dir'], \
+        'run-opt-{}-bs-{}-lr-{}-exp-{}-loss-{}-image-feats-{}-triplet-sampling-{}-sample-inclass-{}-min-images-{}-max-images-{}-use-all-data-{}-use-small-weights-{}-model-{}'.format(\
+            opts['optimizer'], \
+            opts['batch_size'], \
+            opts['lr'], \
+            opts['experiment'], \
+            opts['loss'], \
+            opts['use_image_features'], \
+            opts['triplet-sampling-strategy'], \
+            opts['sample-inclass'], \
+            opts['image_match_classifier_min_match'], \
+            opts['image_match_classifier_max_match'], \
+            opts['use_all_training_data'], \
+            opts['use_small_weights'], \
+            model.name
+        )
+    )
     logger = Logger(run_dir)
     epoch = 0
 
@@ -1283,8 +1336,8 @@ def classify_nn_image_match_initialization(train_loader, test_loader, opts):
     end = start + opts['epochs']
   
     # create logger
-    run_dir = os.path.join(opts['log_dir'], \
-        'run-opt-{}-bs-{}-lr-{}-exp-{}-loss-{}-image-feats-{}-triplet-sampling-{}-sample-inclass-{}-min-images-{}-max-images-{}-model-{}'.format(\
+    run_dir = os.path.join(opts['nn_log_dir'], \
+        'run-opt-{}-bs-{}-lr-{}-exp-{}-loss-{}-image-feats-{}-triplet-sampling-{}-sample-inclass-{}-min-images-{}-max-images-{}-use-all-data-{}-use-small-weights-{}-model-{}'.format(\
             opts['optimizer'], \
             opts['batch_size'], \
             opts['lr'], \
@@ -1295,6 +1348,8 @@ def classify_nn_image_match_initialization(train_loader, test_loader, opts):
             opts['sample-inclass'], \
             opts['image_match_classifier_min_match'], \
             opts['image_match_classifier_max_match'], \
+            opts['use_all_training_data'], \
+            opts['use_small_weights'], \
             model.name
         )
     )

@@ -686,7 +686,8 @@ class DataSet:
     def load_groundtruth_image_matching_results(self):
         fns, [R11s, R12s, R13s, R21s, R22s, R23s, R31s, R32s, R33s, num_rmatches, num_matches, spatial_entropy_1_8x8, \
             spatial_entropy_2_8x8, spatial_entropy_1_16x16, spatial_entropy_2_16x16, pe_histogram, pe_polygon_area_percentage, \
-            nbvs_im1, nbvs_im2, te_histogram, ch_im1, ch_im2, vt_rank_percentage_im1_im2, vt_rank_percentage_im2_im1, num_gt_inliers, labels] \
+            nbvs_im1, nbvs_im2, te_histogram, ch_im1, ch_im2, vt_rank_percentage_im1_im2, vt_rank_percentage_im2_im1, \
+            sq_rank_scores_mean, sq_rank_scores_min, sq_rank_scores_max, sq_distance_scores, num_gt_inliers, labels] \
             = self.load_image_matching_dataset(robust_matches_threshold=15)
 
         gt_results = {}
@@ -833,6 +834,40 @@ class DataSet:
         return fns, [indices_1, indices_2, max_distances, errors, size1, size2, angle1, angle2, rerr1, \
             rerr2, labels]
 
+
+    def sequence_rank_adapter(self, options={}):
+        sequence_ranks = self.load_sequence_ranks()
+        sequence_rank_scores_mean = {}
+        sequence_rank_scores_min = {}
+        sequence_rank_scores_max = {}
+        sequence_distance_scores = {}
+        total_images = len(sequence_ranks.keys())
+
+        for im1 in sequence_ranks:
+            if im1 not in sequence_rank_scores_mean:
+                sequence_rank_scores_mean[im1] = {}
+                sequence_rank_scores_min[im1] = {}
+                sequence_rank_scores_max[im1] = {}
+                sequence_distance_scores[im1] = {}
+
+            for im2 in sequence_ranks[im1]:
+                sequence_distance_scores[im1][im2] = \
+                    (total_images - sequence_ranks[im1][im2]['distance']) / total_images
+
+                sequence_rank_scores_mean[im1][im2] = \
+                    0.5 * (total_images - sequence_ranks[im1][im2]['rank']) / total_images + \
+                    0.5 * (total_images - sequence_ranks[im2][im1]['rank']) / total_images
+                sequence_rank_scores_min[im1][im2] = min(\
+                    (total_images - sequence_ranks[im1][im2]['rank']) / total_images,
+                    (total_images - sequence_ranks[im2][im1]['rank']) / total_images
+                    )
+                sequence_rank_scores_max[im1][im2] = max(\
+                    (total_images - sequence_ranks[im1][im2]['rank']) / total_images,
+                    (total_images - sequence_ranks[im2][im1]['rank']) / total_images
+                    )
+
+        return sequence_rank_scores_mean, sequence_rank_scores_min, sequence_rank_scores_max, sequence_distance_scores
+
     def save_image_matching_dataset(self, robust_matches_threshold):
         write_header = True
         lowes_threshold = 0.8
@@ -843,6 +878,9 @@ class DataSet:
         triplet_pairwise_errors = self.load_triplet_pairwise_errors()
         color_histograms = self.load_color_histograms()
         vt_ranks, vt_scores = self.load_vocab_ranks_and_scores()
+        sequence_scores_mean, sequence_scores_min, sequence_scores_max, sequence_distance_scores = \
+            self.sequence_rank_adapter()
+
         counter = 0
         with open(self.__image_matching_dataset_file(suffix=robust_matches_threshold), 'w') as fout:
             
@@ -854,11 +892,11 @@ class DataSet:
                 for im2 in transformations[im1]:
                     R = np.around(np.array(transformations[im1][im2]['rotation']), decimals=2)
                     se = spatial_entropies[im1][im2]
-                    pe_histogram = ','.join(map(str, np.around(np.array(photometric_errors[im1][im2]['histogram']), decimals=2)))
+                    pe_histogram = ','.join(map(str, np.around(np.array(photometric_errors[im1][im2]['histogram-cumsum']), decimals=2)))
                     pe_polygon_area_percentage = photometric_errors[im1][im2]['polygon_area_percentage']
                     nbvs_im1 = nbvs[im1][im2]['nbvs_im1']
                     nbvs_im2 = nbvs[im1][im2]['nbvs_im2']
-                    te_histogram = ','.join(map(str, np.around(np.array(triplet_pairwise_errors[im1][im2]['histogram']), decimals=2)))
+                    te_histogram = ','.join(map(str, np.around(np.array(triplet_pairwise_errors[im1][im2]['histogram-cumsum']), decimals=2)))
                     ch_im1 = ','.join(map(str, np.around(np.array(color_histograms[im1]['histogram']), decimals=2)))
                     ch_im2 = ','.join(map(str, np.around(np.array(color_histograms[im2]['histogram']), decimals=2)))
                     vt_rank_percentage_im1_im2 = 100.0 * vt_ranks[im1][im2] / len(self.images())
@@ -899,6 +937,7 @@ class DataSet:
                             triplet error histogram {}\
                             color histogram im1 {} color histogram im2 {}\
                             vt rank percentage im1-im2, vt rank percentage im2-im1,\
+                            sq mean, sq min, sq max, sq distance score, \
                             # of gt inliers, label\n'.format(\
                                 ','*len(pe_histogram.split(',')), \
                                 ','*len(te_histogram.split(',')), \
@@ -931,6 +970,8 @@ class DataSet:
                         {}, \
                         {}, {}, \
                         {}, {}, \
+                        {}, {}, {}, \
+                        {}, \
                         {}, {}\n'.format( \
                         im1, im2, \
                         R[0,0], R[0,1], R[0,2], R[1,0], R[1,1], R[1,2], R[2,0], R[2,1], R[2,2], \
@@ -941,6 +982,8 @@ class DataSet:
                         te_histogram, \
                         ch_im1, ch_im2, \
                         vt_rank_percentage_im1_im2, vt_rank_percentage_im2_im1, \
+                        sequence_scores_mean[im1][im2], sequence_scores_min[im1][im2], sequence_scores_max[im1][im2], \
+                        sequence_distance_scores[im1][im2], \
                         num_thresholded_gt_inliers, label))
 
     def load_image_matching_dataset(self, robust_matches_threshold, rmatches_min_threshold=0, rmatches_max_threshold=10000):
@@ -969,8 +1012,12 @@ class DataSet:
         ch_im2 = data[:,533:917] # 384 dimensional vector
         vt_rank_percentage_im1_im2 = data[:,917]
         vt_rank_percentage_im2_im1 = data[:,918]
-        gt_inliers = data[:,919]
-        labels = data[:,920]
+        sequence_scores_mean = data[:,919]
+        sequence_scores_min = data[:,920]
+        sequence_scores_max = data[:,921]
+        sequence_distance_scores = data[:,922]
+        gt_inliers = data[:,923]
+        labels = data[:,924]
 
         ri = np.where((num_rmatches >= rmatches_min_threshold) & (num_rmatches <= rmatches_max_threshold))[0]
         return fns[ri], [R11s[ri], R12s[ri], R13s[ri], R21s[ri], R22s[ri], R23s[ri], R31s[ri], R32s[ri], R33s[ri], \
@@ -981,6 +1028,7 @@ class DataSet:
           te_histogram[ri], \
           ch_im1[ri], ch_im2[ri], \
           vt_rank_percentage_im1_im2[ri], vt_rank_percentage_im2_im1[ri], \
+          sequence_scores_mean[ri], sequence_scores_min[ri], sequence_scores_max[ri], sequence_distance_scores[ri], \
           gt_inliers[ri], labels[ri]]
 
     def save_tum_format(self, reconstruction, suffix):
