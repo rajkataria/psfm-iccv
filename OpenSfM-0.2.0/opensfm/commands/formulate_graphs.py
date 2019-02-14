@@ -18,6 +18,8 @@ from opensfm import io
 from opensfm import log
 from opensfm.context import parallel_map
 
+from multiprocessing import Pool
+
 logger = logging.getLogger(__name__)
 
 
@@ -28,12 +30,19 @@ class Command:
     def add_arguments(self, parser):
         parser.add_argument('dataset', help='dataset to process')
 
+    
+    def graph_arguments(self, data, graphs, images, G_gt):
+        args = []
+        for criteria, label in graphs:
+            args.append([data, images, criteria, label, G_gt])
+        return args
+
     def run(self, args):
         data = dataset.DataSet(args.dataset)
         images = data.images()
+        processes = 4 #data.config['processes']
 
         start = timer()
-
         # ground-truth match graph
         scores_gt = classifier.groundtruth_image_matching_results_adapter(data)
         G_gt = formulate_graph([data, images, scores_gt, 'gt'])
@@ -41,33 +50,37 @@ class Command:
 
         # Criterias for match graph edges
         num_rmatches = classifier.rmatches_adapter(data)
-        vt_scores_mean, vt_scores_min, vt_scores_max = classifier.vocab_tree_adapter(data)
+        vt_rank_scores_mean, vt_rank_scores_min, vt_rank_scores_max, vt_scores_mean, vt_scores_min, vt_scores_max = classifier.vocab_tree_adapter(data)
         triplet_scores = classifier.triplet_errors_adapter(data, options={'scores_gt': scores_gt})
-        sequence_scores_mean, sequence_scores_min, sequence_scores_max = classifier.sequence_rank_adapter(data)
+        sequence_scores_mean, sequence_scores_min, sequence_scores_max, sequence_distance_scores = \
+            data.sequence_rank_adapter()
 
         graphs = [
             [num_rmatches, 'rm'],
-            [vt_scores_min, 'vt-min'],
-            [vt_scores_max, 'vt-max'],
-            [vt_scores_mean, 'vt-mean'],
+            [vt_rank_scores_min, 'vt-rank-min'],
+            [vt_rank_scores_max, 'vt-rank-max'],
+            [vt_rank_scores_mean, 'vt-rank-mean'],
+            [vt_scores_min, 'vt-scores-min'],
+            [vt_scores_max, 'vt-scores-max'],
+            [vt_scores_mean, 'vt-scores-mean'],
             [triplet_scores, 'te'],
             [sequence_scores_min, 'sq-min'],
             [sequence_scores_max, 'sq-max'],
             [sequence_scores_mean, 'sq-mean'],
+            [sequence_distance_scores, 'sq-distance']
         ]
 
         results = {'gt': auc_gt}
-
-        for criteria, label in graphs:
-            G = formulate_graph([data, images, criteria, label])            
-            auc = calculate_graph_auc(G, G_gt)
-            draw_graph(G, \
-                filename=os.path.join(data.data_path,'graph-{}.png'.format(label.replace(' ','-'))), \
-                highlighted_nodes=[], \
-                layout='shell', \
-                title='{} match graph'.format(label))
-
-            results[label] = round(auc,2)
+        args = self.graph_arguments(data, graphs, images, G_gt)
+        p = Pool(processes)
+        if processes > 1:
+            m_results = p.map(evaluate_metric, args)
+        else:
+            m_results = []
+            for arg in args:
+                m_results.append(evaluate_metric(arg))
+        for r in m_results:
+            results.update(r)
 
         print (json.dumps(results, sort_keys=True, indent=4, separators=(',', ': ')))
         data.save_match_graph_results(results)
@@ -83,6 +96,22 @@ class Command:
             "wall_time": wall_time
         }
         data.save_report(io.json_dumps(report), 'similarity-graphs.json')
+
+def evaluate_metric(arg):
+    data, images, criteria, label, G_gt = arg
+    results = {}
+
+    G = formulate_graph([data, images, criteria, label])            
+    auc = calculate_graph_auc(G, G_gt)
+    if False:
+        draw_graph(G, \
+            filename=os.path.join(data.data_path,'graph-{}.png'.format(label.replace(' ','-'))), \
+            highlighted_nodes=[], \
+            layout='shell', \
+            title='{} match graph'.format(label))
+
+    results[label] = round(auc,2)
+    return results
 
 def calculate_graph_auc(G, G_gt):
     scores_gt = []
@@ -103,9 +132,6 @@ def calculate_graph_auc(G, G_gt):
 
     precision, recall, threshs = sklearn.metrics.precision_recall_curve(scores_gt, scores)
     auc = sklearn.metrics.average_precision_score(scores_gt, scores)
-    # plt.step(recall, precision, color=color, alpha=0.2 * width,
-    #     where='post')
-    # print auc
     return auc
     
 def draw_graph(G, filename, highlighted_nodes=[], layout='shell', title=None):
@@ -129,18 +155,17 @@ def draw_graph(G, filename, highlighted_nodes=[], layout='shell', title=None):
     esmall = [(u, v) for (u, v, d) in G.edges(data=True) if d['weight'] >= 0.2 and d['weight'] < 0.4]
     exsmall = [(u, v) for (u, v, d) in G.edges(data=True) if d['weight'] >= 0.0 and d['weight'] < 0.2]
 
-    # if pagerank is not None:
-    # pageranks = nx.get_node_attributes(G,'pagerank')
     node_labels = {}
     for n in G.nodes():
-        # if len(highlighted_nodes) > 0 and (n1 not in highlighted_nodes or n2 not in highlighted_nodes):
-        #     continue
-        # print '#'*100
-        # print G[n]
-        # print '='*100
-        node_labels[n] = '{}\npr: {}\nlcc: {}'.format(n, round(G.node[n]['pagerank'], 2), round(G.node[n]['lcc'], 2))
-    # print node_labels
-    
+        if 'lcc' in G.node[n] and 'pagerank' in G.node[n]:
+            node_labels[n] = '{}\npr: {}\nlcc: {}'.format(n, round(G.node[n]['pagerank'], 2), round(G.node[n]['lcc'], 2))
+        elif 'lcc' in G.node[n]:
+            node_labels[n] = '{}\nlcc: {}'.format(n, round(G.node[n]['lcc'], 2))
+        elif 'pagerank' in G.node[n]:
+            node_labels[n] = '{}\npr: {}'.format(n, round(G.node[n]['pagerank'], 2))
+        else:
+            node_labels[n] = '{}'.format(n)
+
 
     weights = nx.get_edge_attributes(G,'weight')
     edge_weights = {}
@@ -179,7 +204,6 @@ def draw_graph(G, filename, highlighted_nodes=[], layout='shell', title=None):
             with_labels=False
         )
 
-    # nx.draw_networkx_labels(G,pos,font_size=8,font_family='sans-serif')
     nx.draw_networkx_labels(G,pos,node_labels, font_size=8,font_family='sans-serif')
     if title:
         plt.title(title)
@@ -201,8 +225,14 @@ def formulate_graph(args):
             if img1 in scores and img2 in scores[img1]:
                 G.add_edge(img1, img2, weight=scores[img1][img2])
 
-    pagerank = nx.pagerank(G, alpha=0.9)
+    try:
+        pagerank = nx.pagerank(G, alpha=0.9)
+    except:
+        pagerank = {}
+        for n in G.nodes():
+            pagerank[n] = 1.0
     lcc = nx.clustering(G, nodes=G.nodes())
+
     for n in G.nodes():
         G.node[n]['pagerank'] = pagerank[n]
         G.node[n]['lcc'] = lcc[n]
@@ -215,3 +245,29 @@ def formulate_graph(args):
                      'similarity-graphs.json')
     return G
 
+def invert_graph(G):
+    S = nx.Graph()
+    edges = {}
+    for n1,n2 in G.edges():
+        if n1 not in edges:
+            edges[n1] = []
+        if n2 not in edges:
+            edges[n2] = []
+        node = '{}---{}'.format(n1,n2)
+        S.add_node(node, weight=G.get_edge_data(n1,n2)['weight'])
+
+    for i,en1 in enumerate(sorted(S.nodes())):
+        n1,n2 = en1.split('---')
+        for j,en2 in enumerate(sorted(S.nodes())):
+            if j <= i:
+                continue
+            n1_,n2_ = en2.split('---')
+            common_nodes = list(set([n1,n2]).intersection([n1_,n2_]))
+            if len(common_nodes) > 0:
+                common_node = common_nodes[0]
+                S.add_edge(en1, en2, weight=1.0, \
+                    label=common_node, \
+                    pagerank=G.node[common_node]['pagerank'] if 'pagerank' in G.node[common_node] else '-', \
+                    lcc=G.node[common_node]['lcc'] if 'lcc' in G.node[common_node] else '-'
+                    )
+    return S

@@ -45,6 +45,8 @@ class Command:
         color_histograms = data.load_color_histograms()
         nbvs = data.load_nbvs()
         vt_ranks, vt_scores = data.load_vocab_ranks_and_scores()
+        sequence_scores_mean, sequence_scores_min, sequence_scores_max, sequence_distance_scores = \
+            data.sequence_rank_adapter()
 
         logger.info('Classifying images...')
         args = []
@@ -67,46 +69,19 @@ class Command:
                 pe_percentage = np.array(photometric_errors[im1][im2]['polygon_area_percentage'])
                 te = np.array(triplet_pairwise_errors[im1][im2]['histogram'])
                 colmap = nbvs[im1][im2]
-                # chist = np.concatenate((
-                #     np.array(color_histograms[im1]['histogram']).reshape((-1,1)), np.array(color_histograms[im2]['histogram']).reshape((-1,1))
-                #     ))
+
                 chist_im1 = np.array([color_histograms[im1]['histogram']])
                 chist_im2 = np.array([color_histograms[im2]['histogram']])
                 vt_rank_percentage_im1_im2 = np.array([100.0 * vt_ranks[im1][im2] / len(data.images())])
                 vt_rank_percentage_im2_im1 = np.array([100.0 * vt_ranks[im2][im1] / len(data.images())])
+                sq_scores_mean, sq_scores_min, sq_scores_max, sq_distance_scores = \
+                    np.array(sequence_scores_mean[im1][im2]), np.array(sequence_scores_min[im1][im2]), \
+                    np.array(sequence_scores_max[im1][im2]), np.array(sequence_distance_scores[im1][im2])
+
                 timedelta = 0.0
                 feature_matching_scores = 0.0
                 feature_matching_rmatch_scores = 0.0
 
-                # print '#'*200
-                # print '#'*25 + ' {} - {} : {} '.format(im1, im2, len(rmatches)) + '#'*25
-                # print '#'*25 + ' transformations ' + '#'*25
-                
-                # print '#'*25 + ' photometric_errors ' + '#'*25
-                # print photometric_errors[im1][im2]
-                # print '#'*25 + ' triplet_pairwise_errors ' + '#'*25
-                # print triplet_pairwise_errors[im1][im2]
-                # print '#'*25 + ' spatial_entropies ' + '#'*25
-                # print spatial_entropies[im1][im2]
-
-                # print '#'*25 + ' color_histograms ' + '#'*25
-                # print color_histograms[im1]
-                # print color_histograms[im2]
-                # print '#'*25 + ' nbvs ' + '#'*25
-                # print nbvs[im1][im2]
-
-                # regr, R33s, rmatches, matches, \
-                # spatial_entropy_1_8x8, spatial_entropy_2_8x8, spatial_entropy_1_16x16, spatial_entropy_2_16x16, \
-                # photometric_histogram, polygon_area_percentage, \
-                # feature_matching_scores, feature_matching_rmatch_scores, \
-                # triplet_histogram, nbvs, timedelta, color_histograms = arg
-                
-                # classify_boosted_dts_image_match(
-                #     fns, R11s, R12s, R13s, R21s, R22s, R23s, R31s, R32s, R33s, num_rmatches, num_matches, spatial_entropy_1_8x8, \
-                #     spatial_entropy_2_8x8, spatial_entropy_1_16x16, spatial_entropy_2_16x16, pe_histogram, pe_polygon_area_percentage, \
-                #     nbvs_im1, nbvs_im2, te_histogram, ch_im1, ch_im2, vt_rank_percentage_im1_im2, vt_rank_percentage_im2_im1, labels, \
-                #     train=False, regr=None, options={}
-                #     ):
                 args.append([ \
                     data.data_path,
                     np.array([im1, im2]), \
@@ -118,6 +93,7 @@ class Command:
                     # feature_matching_scores, feature_matching_rmatch_scores, \
                     te, chist_im1, chist_im2, \
                     vt_rank_percentage_im1_im2, vt_rank_percentage_im2_im1, \
+                    sq_scores_mean, sq_scores_min, sq_scores_max, sq_distance_scores, \
                     [0], \
                     False, regr, \
                     { 'classifier': 'BDT', 'max_depth': -1, 'n_estimators': -1} \
@@ -130,8 +106,7 @@ class Command:
                 #     ])
                 num_pairs = num_pairs + 1
         logger.info('Classifying {} total image pairs...'.format(num_pairs))
-        # import sys
-        # sys.exit(1)
+
         p_results = []
         results = {}
         p = Pool(processes)

@@ -37,6 +37,10 @@ class Command:
         # DELETE THE NEXT 3 LINES (SEQ IS BEING CALCULATED LATER)
         # classifier.calculate_triplet_errors(ctx)
         # classifier.calculate_sequence_ranks(ctx)
+        # _, num_pairs = classifier.calculate_transformations(ctx)
+        # classifier.create_feature_matching_dataset(ctx)
+        # classifier.calculate_photometric_errors(ctx)
+        # classifier.create_image_matching_dataset(ctx)
         # import sys; sys.exit(1)
 
         s_transformations = timer()
