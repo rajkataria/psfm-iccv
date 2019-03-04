@@ -34,6 +34,7 @@ from tqdm import tqdm
 from eval_metrics import ErrorRateAt95Recall
 from tensorboard_logger import configure, log_value
 from timeit import default_timer as timer
+import torchvision.models as models
 
 import matching_classifiers
 import torch.multiprocessing
@@ -75,20 +76,49 @@ class GCN(nn.Module):
         self.opts = opts
         
         # self.gcn_ll = nn.Linear(923, 923)
-        self.gcn = nn.Sequential(
-            nn.Linear(923,923),
-            nn.ReLU(),
-            nn.Linear(923,923),
-            nn.ReLU(),
-            nn.Linear(923,923),
-            nn.ReLU(),
-            nn.Linear(923,2),
-            # nn.Softmax()
+        # self.gcn_layers = []
+        # for i in range(0,4):
+        #     gcn_layer = nn.Linear(923,923)
+        #     self.gcn_layers.append(gcn_layer)
+
+        __model = models.resnet18(pretrained=True)
+        _feature_extraction_model = nn.Sequential(*list(__model.children())[:-1])
+        _feature_extraction_model.cuda()
+        self.image_feature_extractor = _feature_extraction_model
+
+        d = 512
+        self.gcn_layer_1 = nn.Sequential(
+            nn.Linear(d, d)
         )
+        self.gcn_layer_2 = nn.Sequential(
+            nn.Linear(d, d)
+        )
+        self.gcn_layer_3 = nn.Sequential(
+            nn.Linear(d, d)
+        )
+        self.gcn_layer_4 = nn.Sequential(
+            nn.Linear(d, d)
+        )
+        self.gcn_layer_5 = nn.Sequential(
+            nn.Linear(d, d)
+        )
+        self.relu = nn.Sequential(
+            nn.ReLU(),
+        )
+        self.mlp = nn.Sequential(
+            nn.Linear(d, d),
+            nn.ReLU(),
+            nn.Linear(d, d),
+            nn.ReLU(),
+            nn.Linear(d, d),
+            nn.ReLU(),
+            nn.Linear(d, 2),
+        )
+        
         
         self._initialize_weights()
 
-    def forward(self, x):
+    def forward(self, args):
         # features = []
         # R11s, R12s, R13s, R21s, R22s, R23s, R31s, R32s, R33s, \
         #     num_rmatches, num_matches, spatial_entropy_1_8x8, spatial_entropy_2_8x8, spatial_entropy_1_16x16, spatial_entropy_2_16x16, \
@@ -159,11 +189,104 @@ class GCN(nn.Module):
         # print ('#'*100)
         # import sys; sys.exit(1)
         # print ('x: {}'.format(x.size()))
-        result = self.gcn(x.type(torch.cuda.FloatTensor))
+
+        x, images, node_indices, A, D_normalizer = args
+        # print '='*100
+        # print A.size()
+        # # print A
+        # print '#'*100
+        # print x.size()
+        # # print x
+        # print '='*100
+        # print images.size()
+        # print '='*100
+        # import sys; sys.exit(1)
+        # print '='*100
+        # for i,image in enumerate(images[0]):
+        # print '='*100
+        # print images.size()
+        image_features = self.image_feature_extractor(images)
+        # print image_features.size()
+        # print '='*100
+        feature_shape = image_features.size()
+        print '&'*100
+        print feature_shape
+        print '&'*100
+        # print '^'*100
+        # print image_features
+        node_features = image_features.view(1, feature_shape[0], feature_shape[1])
+
+        # print node_features.size()
+        # print '='*100
+        # import sys; sys.exit(1)
+
+        # result = self.gcn(x.type(torch.cuda.FloatTensor))
+        # node_features = x.type(torch.cuda.FloatTensor)
+        # node_features = x
+        for i in range(0, 5):
+            # self.gcn_layers[l](torch.bmm(A.type(torch.cuda.FloatTensor), node_features))
+            # print '*'*100
+            
+            # print A
+            print '*'*100
+            print node_features.size()
+            
+            # print '*'*100
+            
+            # print relevant_node_features
+            # print relevant_node_features.is_cuda
+            
+            # print '#'*100
+            if i == 0:
+                node_features_result = self.gcn_layer_1(node_features)
+            elif i == 1:
+                node_features_result = self.gcn_layer_2(node_features)
+            elif i == 2:
+                node_features_result = self.gcn_layer_3(node_features)
+            elif i == 3:
+                node_features_result = self.gcn_layer_4(node_features)
+            elif i == 4:
+                node_features_result = self.gcn_layer_5(node_features)
+
+            print node_features_result.size()
+            print '#'*100
+            node_features_result = torch.bmm(A, node_features_result)
+            node_features_result = torch.bmm(D_normalizer, node_features_result)
+            node_features_result = self.relu(node_features_result)
+            node_features = node_features_result
+        
+        print '$'*100
+        print '$'*100
+        print node_features.size()
+        print '@'*100
+        print '@'*100
+        print node_indices.size()
+        print '!'*100
+        print '!'*100
+        
+        for n in node_indices[0].data.cpu().numpy():
+            print n
+            # pdb.set_trace()
+            n1, n2 = n
+            a = node_features[0][n1]
+            b = node_features[0][n2]
+            print '{}  /  {}'.format(a.size(), b.size())
+            # x = toch
+        import sys; sys.exit(1)
+        result = self.mlp(node_features)
+        # print product.size()
+        # print '*'*100
+        # result = self.gcn_layer_1(product)
+
+        # print result.size()
+        
+        
+        
         
         # print ('='*100)
         # print (result.size())
         # print ('='*100)
+        # import sys; sys.exit(1)
 
            
         return result
@@ -204,33 +327,55 @@ class MatchGraphDataset(data.Dataset):
             self.pe_histogram, self.pe_polygon_area_percentage, self.nbvs_im1, self.nbvs_im2, self.te_histogram, self.ch_im1, self.ch_im2, \
             self.vt_rank_percentage_im1_im2, self.vt_rank_percentage_im2_im1, \
             self.sq_rank_scores_mean, self.sq_rank_scores_min, self.sq_rank_scores_max, self.sq_distance_scores, \
+            self.lcc_im1_15, self.lcc_im2_15, self.min_lcc_15, self.max_lcc_15, \
+            self.lcc_im1_20, self.lcc_im2_20, self.min_lcc_20, self.max_lcc_20, \
+            self.lcc_im1_25, self.lcc_im2_25, self.min_lcc_25, self.max_lcc_25, \
+            self.lcc_im1_30, self.lcc_im2_30, self.min_lcc_30, self.max_lcc_30, \
+            self.lcc_im1_35, self.lcc_im2_35, self.min_lcc_35, self.max_lcc_35, \
+            self.lcc_im1_40, self.lcc_im2_40, self.min_lcc_40, self.max_lcc_40, \
             self.labels, self.train, self.model, self.options = arg
 
-        self.adjacency_matrices = {}
+        self.transform = transform
+        self.loader = loader
+        self.adjacency_matrices_rm = {}
+        self.adjacency_matrices_te = {}
+        self.D_inv_rm = {}
+        self.D_inv_te = {}
         # self.graphs = {}
         self.feature_indices = {}
+        self.feature_indices_sorted = {}
         self.neighbor_nodes = {}
         self.node_mapping = {}
+        self.unique_dsets = list(set(self.dsets.tolist()))
+        self.unique_fns = {}
+        self.unique_fns_dsets = {}
+        self.image_fns = {}
 
-        for d, dset in enumerate(list(set(self.dsets.tolist()))):
+        for d, dset in enumerate(self.unique_dsets):
             dset_name = dset.split('/')[-1]
             data = dataset.DataSet(dset)
             ri = np.where(self.dsets == dset)[0].astype(np.int)
             dset_fns = self.fns[ri,:]
+            
             dset_rmatches = classifier.rmatches_adapter(data)
+            dset_tes, _ = classifier.triplet_errors_adapter(data)
+
             filtered_dset_rmatches = self.filter_scores(dset_fns, dset_rmatches)
+            filtered_dset_tes = self.filter_scores(dset_fns, dset_tes)
+
             dset_unique_fns = np.array(list(set(np.concatenate((self.fns[ri,0], self.fns[ri,1])).tolist())))
             dset_name = dset.split('/')[-1]
             dset_unique_fns_dsets = np.tile(dset, (len(dset_unique_fns),))
 
-            if d == 0:
-                self.unique_fns = dset_unique_fns
-                self.unique_fns_dsets = dset_unique_fns_dsets
-            else:
-                self.unique_fns = np.concatenate((self.unique_fns, dset_unique_fns))
-                self.unique_fns_dsets = np.concatenate((self.unique_fns_dsets, dset_unique_fns_dsets))
+            # if d == 0:
+            self.unique_fns[dset] = dset_unique_fns
+            self.unique_fns_dsets[dset] = dset_unique_fns_dsets
+            # else:
+            #     self.unique_fns = np.concatenate((self.unique_fns, dset_unique_fns))
+            #     self.unique_fns_dsets = np.concatenate((self.unique_fns_dsets, dset_unique_fns_dsets))
             
-            arg = [data, dset_unique_fns, filtered_dset_rmatches, 'rm']
+            arg_rm = [data, dset_unique_fns, filtered_dset_rmatches, 'rm']
+            arg_te = [data, dset_unique_fns, filtered_dset_tes, 'te']
 
             run_dir = os.path.join(opts['gcn_log_dir'], \
                 'run-opt-{}-bs-{}-lr-{}-exp-{}-loss-{}-image-feats-{}-triplet-sampling-{}-sample-inclass-{}-min-images-{}-max-images-{}-use-all-data-{}-use-small-weights-{}-model-{}'.format(\
@@ -249,65 +394,103 @@ class MatchGraphDataset(data.Dataset):
                     'GCN'
                 )
             )
-            g_fn = os.path.join(run_dir,"{}-graph.gpickle".format(dset_name))
+            g_rm_fn = os.path.join(run_dir,"{}-graph-rm.gpickle".format(dset_name))
+            g_te_fn = os.path.join(run_dir,"{}-graph-te.gpickle".format(dset_name))
             g_inv_fn = os.path.join(run_dir,"{}-graph-inverted.gpickle".format(dset_name))
-            if os.path.exists(g_fn):
-                G = nx.read_gpickle(g_fn)
+            if os.path.exists(g_rm_fn) and os.path.exists(g_te_fn):
+                G_rm = nx.read_gpickle(g_rm_fn)
+                G_te = nx.read_gpickle(g_te_fn)
                 G_inv = nx.read_gpickle(g_inv_fn)
             else:
-                G = formulate_graphs.formulate_graph(arg)
-                # formulate_graphs.draw_graph(G, \
-                #     filename=os.path.join(self.options['gcn_log_dir'],'graph-gcn-{}.png'.format(dset_name)), \
-                #     highlighted_nodes=[], \
-                #     layout='shell', \
-                #     title='{} match graph'.format(dset_name))
-                
-                G_inv = formulate_graphs.invert_graph(G)
-                nx.write_gpickle(G, g_fn)
+                G_rm = formulate_graphs.formulate_graph(arg_rm)
+                G_te = formulate_graphs.formulate_graph(arg_te)
+                G_inv = formulate_graphs.invert_graph(G_rm)
+                nx.write_gpickle(G_rm, g_rm_fn)
+                nx.write_gpickle(G_te, g_te_fn)
                 nx.write_gpickle(G_inv, g_inv_fn)
 
-                # formulate_graphs.draw_graph(G_inv, \
-                #     filename=os.path.join(self.options['gcn_log_dir'],'graph-gcn-r-{}.png'.format(dset_name)), \
-                #     highlighted_nodes=[], \
-                #     layout='shell', \
-                #     title='Inverted {} match graph'.format(dset_name))
+            A_rm = nx.adjacency_matrix(G_rm, nodelist=sorted(G_rm.nodes()), weight='weight').todense()
+            A_te = nx.adjacency_matrix(G_te, nodelist=sorted(G_te.nodes()), weight='weight').todense()
+            I = np.matrix(np.eye(A_rm.shape[0]))
+            A_rm = A_rm + I
+            A_te = A_te + I
 
-            # A = nx.adjacency_matrix(G_inv, nodelist=sorted(G_inv.nodes()), weight=None).todense()
-            A = nx.to_numpy_matrix(G_inv, nodelist=sorted(G_inv.nodes()))
-            self.adjacency_matrices[dset] = A
-            # self.graphs[dset] = G_inv
-            self.feature_indices[dset] = {}
-            self.neighbor_nodes[dset] = {}
+            D_rm = np.array(np.sum(A_rm, axis=0))[0]
+            D_rm = np.matrix(np.diag(D_rm))
+
+            D_te = np.array(np.sum(A_te, axis=0))[0]
+            D_te = np.matrix(np.diag(D_te))
+            
+            # self.feature_indices[dset] = {}
+            self.feature_indices_sorted[dset] = []
+            # self.neighbor_nodes[dset] = {}
+            
             self.node_mapping[dset] = {}
-            for i,n in enumerate(sorted(G_inv.nodes())):
-                n1, n2 = n.split('---')
-                f_ri = np.where(\
-                    (dset_fns[:,0] == n1) & (dset_fns[:,1] == n2) | \
-                    (dset_fns[:,1] == n1) & (dset_fns[:,0] == n2) \
-                    )[0]
-                self.feature_indices[dset][n] = ri[f_ri]
-                self.neighbor_nodes[dset][n] = G_inv.neighbors(n)
-                self.node_mapping[dset][n] = i
+            for i,n1 in enumerate(sorted(G_rm.nodes())):
+                self.node_mapping[dset][n1] = i
+                for j,n2 in enumerate(sorted(G_rm.nodes())):
+                    if j <= i:
+                        continue
+                    f_ri = np.where(\
+                        (dset_fns[:,0] == n1) & (dset_fns[:,1] == n2) | \
+                        (dset_fns[:,1] == n1) & (dset_fns[:,0] == n2) \
+                        )[0]
+                    if len(f_ri) == 0:
+                        continue
+                    self.feature_indices_sorted[dset].append(ri[f_ri])
+
+            self.image_fns[dset] = []
+            for i,n1 in enumerate(sorted(G_rm.nodes())):
+                img_fn = os.path.join(dset, 'images', n1)
+                self.image_fns[dset].append(img_fn)
+
+            # self.feature_indices_sorted[dset] = np.array(self.feature_indices_sorted[dset])
+            # self.neighbor_nodes[dset][n] = []
+
+            # A_triplet = np.matrix(np.eye(A.shape[0]))
+            # nns = G_inv.neighbors(n)
+            # n_index = self.node_mapping[dset][n]
+            # for neighbor_n in nns:
+            #     neighbor_n1, neighbor_n2 = neighbor_n.split('---')
+            #     if n1 == neighbor_n1 or n1 == neighbor_n2:
+            #         triplet_node = n2
+            #         # neighbor_n1, neighbor_n2 = neighbor_n2, neighbor_n1
+            #     elif n2 == neighbor_n1 or n2 == neighbor_n2:
+            #         triplet_node = n1
+
+            #     for second_neighbor_n in G_inv.neighbors(neighbor_n):
+            #         if second_neighbor_n == n:
+            #             continue
+            #         second_neighbor_n1, second_neighbor_n2 = second_neighbor_n.split('---')
+            #         if triplet_node == second_neighbor_n1 or triplet_node == second_neighbor_n2:
+            #             self.neighbor_nodes[dset][n].append([n, neighbor_n, second_neighbor_n])
+
+            #             A_triplet[n_index, self.node_mapping[dset][neighbor_n]] = 1.0
+            #             A_triplet[n_index, self.node_mapping[dset][second_neighbor_n]] = 1.0
+
+
+            # D_triplet = np.array(np.sum(A_triplet, axis=0))[0]
+            # D_triplet = np.matrix(np.diag(D_triplet))
+
+            self.adjacency_matrices_rm[dset] = A_rm
+            self.D_inv_rm[dset] = D_rm**-1
+            self.adjacency_matrices_te[dset] = A_te
+            self.D_inv_te[dset] = D_te**-1
+
+            # print '$'*100
+            # print len(ri)
+            # print len(self.feature_indices_sorted[dset])
+            # print self.feature_indices_sorted[dset]
+            # print '$'*100
+        # import sys; sys.exit(1)
+            # self.adjacency_matrices[dset] = A_triplet
+            # self.D_inv[dset] = D_triplet**-1
+            # self.adjacency_matrices[dset] = np.matrix(np.eye(A.shape[0]))
+            # self.D_inv[dset] = np.matrix(np.eye(A.shape[0]))
 
     def __getitem__(self, index):
-        # indices = []
-        im1,im2 = self.fns[index]
-        dset = self.dsets[index]
-        node_name = '{}---{}'.format(im1,im2)
-        if node_name not in self.feature_indices[dset]:
-            node_name = '{}---{}'.format(im2,im1)
-
-        neighbor_nodes = self.neighbor_nodes[dset][node_name]
-        indices = [self.feature_indices[dset][node_name]]
-        for nnn in neighbor_nodes:
-            indices.append(self.feature_indices[dset][nnn])
-
-        # print '$'*100
-        # print 'indices: {}'.format(len(indices))
-        # print '$'*100
-        # data = []
-        for c, i in enumerate(indices):
-            # print ('self.ch_im2[i]: {}'.format(self.ch_im2[i].flatten().shape))
+        dset = self.unique_dsets[index]
+        for c, i in enumerate(self.feature_indices_sorted[dset]):
             datum = np.concatenate((
                 self.R11s[i].flatten(), self.R12s[i].flatten(), self.R13s[i].flatten(), \
                 self.R21s[i].flatten(), self.R22s[i].flatten(), self.R23s[i].flatten(), self.R31s[i].flatten(), self.R32s[i].flatten(), self.R33s[i].flatten(), \
@@ -318,39 +501,147 @@ class MatchGraphDataset(data.Dataset):
                 self.vt_rank_percentage_im1_im2[i].flatten(), self.vt_rank_percentage_im2_im1[i].flatten(), \
                 self.sq_rank_scores_mean[i].flatten(), self.sq_rank_scores_min[i].flatten(), self.sq_rank_scores_max[i].flatten(), self.sq_distance_scores[i].flatten()
                 ))
-            # fns = np.c
-            # print 'datum: {}'.format(datum.shape)
+            # print '('*100
+            # print self.fns[i,:].reshape((-1,2))
+            # print ')'*100
             if c == 0:
                 data = datum.reshape((1,-1))
-                fns = self.fns[i,:]
-                # labels = self.labels[i].reshape((1,-1))
-                labels = self.labels[i].flatten()
-                # num_rmatches = self.num_rmatches[i].reshape((1,-1))
-                num_rmatches = self.num_rmatches[i].flatten()
+                fns = self.fns[i,:].reshape((-1,2))
+                labels = self.labels[i].flatten().reshape((1,-1))
+                num_rmatches = self.num_rmatches[i].flatten().reshape((1,-1))
+                node_indices = np.concatenate((\
+                    np.array(self.node_mapping[dset][fns[0][0]]).reshape((-1,1)), np.array(self.node_mapping[dset][fns[0][1]]).reshape((-1,1)) \
+                    ), axis=1)
             else:
-                # print '{} / {}'.format(data.shape, datum.reshape((1,-1)).shape)
+                current_fns = self.fns[i,:].reshape((-1,2))
                 data = np.concatenate((data, datum.reshape((1,-1))), axis=0)
-                # fns = np.concatenate((fns, self.fns[i,:]), axis=0)
-                # labels = np.concatenate((labels, self.labels[i].reshape((1,-1))), axis=0)
+                fns = np.concatenate((fns, current_fns), axis=0)
+                labels = np.concatenate((labels, self.labels[i].flatten().reshape((1,-1))), axis=0)
+                num_rmatches = np.concatenate((num_rmatches, self.num_rmatches[i].flatten().reshape((1,-1))), axis=0)
+                node_indices = np.concatenate((node_indices, np.concatenate((\
+                    np.array(self.node_mapping[dset][current_fns[0][0]]).reshape((-1,1)), np.array(self.node_mapping[dset][current_fns[0][1]]).reshape((-1,1)) \
+                    ), axis=1)), axis=0)
 
-            # data.append([self.dsets[i].tolist(), self.fns[i,0].tolist(), self.fns[i,1].tolist(), self.R11s[i], self.R12s[i], self.R13s[i], \
-            #     self.R21s[i], self.R22s[i], self.R23s[i], self.R31s[i], self.R32s[i], self.R33s[i], \
-            #     self.num_rmatches[i], self.num_matches[i], self.spatial_entropy_1_8x8[i], \
-            #     self.spatial_entropy_2_8x8[i], self.spatial_entropy_1_16x16[i], self.spatial_entropy_2_16x16[i], \
-            #     self.pe_histogram[i].reshape((-1,1)), self.pe_polygon_area_percentage[i], self.nbvs_im1[i], self.nbvs_im2[i], \
-            #     self.te_histogram[i].reshape((-1,1)), self.ch_im1[i].reshape((-1,1)), self.ch_im2[i].reshape((-1,1)), \
-            #     self.vt_rank_percentage_im1_im2[i], self.vt_rank_percentage_im2_im1[i], \
-            #     self.sq_rank_scores_mean[i], self.sq_rank_scores_min[i], self.sq_rank_scores_max[i], self.sq_distance_scores[i], \
-            #     self.labels[i]])
+        # print '#'*100
+        # print (self.adjacency_matrices[dset].tolist())
+        # print '#'*100
+        # metadata = {'fns1': , 'fns2':, 'dset': }
+        images = []
+        for img_fn in self.image_fns[dset]:
+            images.append(self.transform(self.loader(img_fn)).tolist())
 
-        mean_data = np.mean(data, axis=0)
-        # print ('Node neighbors: {}'.format(len(neighbor_nodes)))
-        # print ('Mean Data: {}'.format(mean_data.shape))
-        # print ('fns: {} labels: {}'.format(fns.shape, labels.shape))
-        return [mean_data, labels, num_rmatches, fns[:,0].flatten()[0], fns[:,1].flatten()[0], dset]
+        # print '#'*100
+        # print '#'*100
+        # print node_indices
+        # print '@'*100
+        # print '@'*100
+        # import sys; sys.exit(1)
+        # print len(images)
+        # print '-'*100
+        # print images[0].shape
+        # print '#'*100
+        # print '#'*100
+        # import sys; sys.exit(1)
+        return [ \
+            self.D_inv_rm[dset].tolist(), \
+            self.adjacency_matrices_rm[dset].tolist(), \
+            self.D_inv_te[dset].tolist(), \
+            self.adjacency_matrices_te[dset].tolist(), \
+            images, \
+            node_indices, \
+            data, \
+            labels.flatten(), \
+            num_rmatches.flatten(), \
+            fns[:,0].flatten().tolist(), \
+            fns[:,1].flatten().tolist(), \
+            dset \
+        ]
+
 
     def __len__(self):
-        return len(self.fns)
+        return len(self.unique_dsets)
+    # def __getitem__(self, index):
+    #     # indices = []
+    #     im1,im2 = self.fns[index]
+    #     dset = self.dsets[index]
+    #     node_name = '{}---{}'.format(im1,im2)
+    #     if node_name not in self.feature_indices[dset]:
+    #         node_name = '{}---{}'.format(im2,im1)
+
+    #     if len(self.neighbor_nodes[dset][node_name]) > 0:
+    #         random_triplet = random.randint(0,len(self.neighbor_nodes[dset][node_name])-1)
+    #         # neighbor_nodes = self.neighbor_nodes[dset][node_name][random_triplet]
+    #         valid_triplet = True
+    #         for n in self.neighbor_nodes[dset][node_name][random_triplet]:
+    #             node_index = self.feature_indices[dset][n]
+    #             if self.num_rmatches[node_index] < 30:
+    #                 valid_triplet = False
+    #         if valid_triplet:
+    #             neighbor_nodes = self.neighbor_nodes[dset][node_name][random_triplet]
+    #         else:
+    #             neighbor_nodes = [node_name, node_name, node_name]    
+    #     else:
+    #         neighbor_nodes = [node_name, node_name, node_name]
+        
+    #     indices = []
+    #     for nnn in neighbor_nodes:
+    #         indices.append(self.feature_indices[dset][nnn])
+
+    #     # print '$'*100
+    #     # print 'indices: {}'.format(len(indices))
+    #     # print '$'*100
+    #     # data = []
+    #     for c, i in enumerate(indices):
+    #         # print ('self.ch_im2[i]: {}'.format(self.ch_im2[i].flatten().shape))
+    #         datum = np.concatenate((
+    #             self.R11s[i].flatten(), self.R12s[i].flatten(), self.R13s[i].flatten(), \
+    #             self.R21s[i].flatten(), self.R22s[i].flatten(), self.R23s[i].flatten(), self.R31s[i].flatten(), self.R32s[i].flatten(), self.R33s[i].flatten(), \
+    #             self.num_rmatches[i].flatten(), self.num_matches[i].flatten(), self.spatial_entropy_1_8x8[i].flatten(), \
+    #             self.spatial_entropy_2_8x8[i].flatten(), self.spatial_entropy_1_16x16[i].flatten(), self.spatial_entropy_2_16x16[i].flatten(), \
+    #             self.pe_histogram[i].flatten(), self.pe_polygon_area_percentage[i].flatten(), self.nbvs_im1[i].flatten(), self.nbvs_im2[i].flatten(), \
+    #             self.te_histogram[i].flatten(), self.ch_im1[i].flatten(), self.ch_im2[i].flatten(), \
+    #             self.vt_rank_percentage_im1_im2[i].flatten(), self.vt_rank_percentage_im2_im1[i].flatten(), \
+    #             self.sq_rank_scores_mean[i].flatten(), self.sq_rank_scores_min[i].flatten(), self.sq_rank_scores_max[i].flatten(), self.sq_distance_scores[i].flatten()
+    #             ))
+    #         # fns = np.c
+    #         # print 'datum: {}'.format(datum.shape)
+    #         if c == 0:
+    #             data = datum.reshape((1,-1))
+    #             fns = self.fns[i,:]
+    #             # labels = self.labels[i].reshape((1,-1))
+    #             labels = self.labels[i].flatten()
+    #             # num_rmatches = self.num_rmatches[i].reshape((1,-1))
+    #             num_rmatches = self.num_rmatches[i].flatten()
+    #         else:
+    #             # print '{} / {}'.format(data.shape, datum.reshape((1,-1)).shape)
+    #             data = np.concatenate((data, datum.reshape((1,-1))), axis=0)
+    #             # fns = np.concatenate((fns, self.fns[i,:]), axis=0)
+    #             # labels = np.concatenate((labels, self.labels[i].reshape((1,-1))), axis=0)
+
+    #         # data.append([self.dsets[i].tolist(), self.fns[i,0].tolist(), self.fns[i,1].tolist(), self.R11s[i], self.R12s[i], self.R13s[i], \
+    #         #     self.R21s[i], self.R22s[i], self.R23s[i], self.R31s[i], self.R32s[i], self.R33s[i], \
+    #         #     self.num_rmatches[i], self.num_matches[i], self.spatial_entropy_1_8x8[i], \
+    #         #     self.spatial_entropy_2_8x8[i], self.spatial_entropy_1_16x16[i], self.spatial_entropy_2_16x16[i], \
+    #         #     self.pe_histogram[i].reshape((-1,1)), self.pe_polygon_area_percentage[i], self.nbvs_im1[i], self.nbvs_im2[i], \
+    #         #     self.te_histogram[i].reshape((-1,1)), self.ch_im1[i].reshape((-1,1)), self.ch_im2[i].reshape((-1,1)), \
+    #         #     self.vt_rank_percentage_im1_im2[i], self.vt_rank_percentage_im2_im1[i], \
+    #         #     self.sq_rank_scores_mean[i], self.sq_rank_scores_min[i], self.sq_rank_scores_max[i], self.sq_distance_scores[i], \
+    #         #     self.labels[i]])
+
+    #     # mean_data = np.mean(data, axis=0)
+
+    #     # print ('Node neighbors: {}'.format(len(neighbor_nodes)))
+    #     # print ('Mean Data: {}'.format(mean_data.shape))
+    #     # print ('fns: {} labels: {}'.format(fns.shape, labels.shape))
+
+    #     # print '!'*100
+    #     # print mean_data.shape
+    #     # print data.shape
+    #     # print '!'*100
+    #     return [data, labels, num_rmatches, fns[:,0].flatten()[0], fns[:,1].flatten()[0], dset]
+
+    # def __len__(self):
+    #     return len(self.fns)
 
 def get_correct_counts(target, y_pred, verbose):
     try:
@@ -401,7 +692,8 @@ def inference(data_loader, model, epoch, run_dir, logger, opts, mode=None, optim
         # if len(p_sample) == 0 or len(n_sample) == 0:
         #     # not a valid triplet (no negative sample for anchor image)
         #     continue
-        data, labels, num_rmatches, im1s, im2s, dsets = batch
+        D_inv_rm, adjacency_matrix_rm, D_inv_te, adjacency_matrix_te, imgs, node_indices, data, labels, num_rmatches, im1s, im2s, dset = batch
+        # im1s, im2s, dsets = metadata['fns1'], metadata['fns2'], metadata['dset']
         # node_label = None
         if mode == 'train':
             optimizer.zero_grad()
@@ -429,7 +721,60 @@ def inference(data_loader, model, epoch, run_dir, logger, opts, mode=None, optim
         #     Variable(_pe_histogram), Variable(_pe_polygon_area_percentage), Variable(_nbvs_im1), Variable(_nbvs_im2), Variable(_te_histogram), Variable(_ch_im1), Variable(_ch_im2), \
         #     Variable(_vt_rank_percentage_im1_im2), Variable(_vt_rank_percentage_im2_im1), \
         #     Variable(_sq_rank_scores_mean), Variable(_sq_rank_scores_min), Variable(_sq_rank_scores_max), Variable(_sq_distance_scores)]
-        args = Variable(data.cuda())
+        
+        # print '#'*100
+        # A = torch.tensor(adjacency_matrix).float()
+        # print '#'*100
+        # print dset
+        # print data.shape
+        # print '-'*100
+        # print np.array(adjacency_matrix_rm).shape
+        # print '#'*100
+
+        A = torch.from_numpy(np.array(adjacency_matrix_rm).reshape((-1, len(adjacency_matrix_rm), len(adjacency_matrix_rm)))).float()
+        D_normalizer = torch.from_numpy(np.array(D_inv_rm).reshape((-1, len(adjacency_matrix_rm), len(adjacency_matrix_rm)))).float()
+
+        # print '#'*100
+        # print '#'*100
+        # print imgs.size()
+        # print '$'*100
+        # print len(imgs)
+        # print '-'*100
+        # print imgs[0].shape
+        # print '#'*100
+        # print '#'*100
+        # print imgs.shape
+        
+        # print np.array(imgs).shape
+
+        # images = torch.from_numpy(np.array(imgs).reshape((-1, len(imgs), 3, 224, 224))).float()
+        # images = imgs
+        images = torch.from_numpy(np.array(imgs)).float()
+
+        # print images.size()
+        # import sys; sys.exit(1)
+        # print A.size()
+        # print D_normalizer.size()
+        # print '#'*100
+        # import sys; sys.exit(1)
+        # print dset
+        # print im1s[0:10]
+        # print im2s[0:10]
+        # print data[0,0:10,9]
+
+        args = [ \
+            Variable(data.cuda()).type(torch.cuda.FloatTensor), \
+            Variable(images.cuda()).type(torch.cuda.FloatTensor), \
+            Variable(node_indices.cuda()).type(torch.cuda.FloatTensor), \
+            Variable(A.cuda()).type(torch.cuda.FloatTensor), \
+            Variable(D_normalizer.cuda()).type(torch.cuda.FloatTensor) \
+        ]
+
+
+        # print args.size()
+        # print '#'*100
+        # import sys; sys.exit(1)
+
         # args = []
         # As = []
         # for j, datum in enumerate(data):
@@ -475,44 +820,50 @@ def inference(data_loader, model, epoch, run_dir, logger, opts, mode=None, optim
         # print (num_rmatches.shape)
         # print (node_label.shape)
         # print (y_prediction.shape)
+        
+        target = Variable(labels.type(torch.cuda.LongTensor))
+
+        # print ('='*100)
+        # print ('='*100)
+        # print labels.size()
+        # print y_prediction.size()
         # print ('='*100)
         # print ('='*100)
         # import sys; sys.exit(1)
-        target = Variable(labels.type(torch.cuda.LongTensor))
 
         if not arrays_initialized:
             arrays_initialized = True
-            all_predictions = y_prediction
+            all_predictions = y_prediction[0]
             # positive_predictions = y_prediction
             # positive_targets = target
-            all_targets = target
-            all_num_rmatches = Variable(num_rmatches)
+            all_targets = target[0]
+            all_num_rmatches = Variable(num_rmatches[0])
             # print ('im1s: {} im2s: {}'.format(np.array(im1s).reshape((-1,1)).shape, np.array(im2s).reshape((-1,1)).shape))
             all_fns = np.concatenate((np.array(im1s).reshape((-1,1)), np.array(im2s).reshape((-1,1))), axis=1)
-            all_dsets = np.array(dsets)
+            all_dsets = np.array(dset)
         else:
-            all_predictions = torch.cat((all_predictions, y_prediction))
-            negative_predictions = y_prediction
+            all_predictions = torch.cat((all_predictions, y_prediction[0]))
+            # negative_predictions = y_prediction
             # negative_targets = target
-            all_targets = torch.cat((all_targets, target), dim=0)
-            all_num_rmatches = torch.cat((all_num_rmatches, Variable(num_rmatches)))
+            all_targets = torch.cat((all_targets, target[0]), dim=0)
+            all_num_rmatches = torch.cat((all_num_rmatches, Variable(num_rmatches[0])))
 
             # print 'fns: {} / {}  dset: {} / {}'.format(all_fns.shape, np.concatenate((np.array(im1s).reshape((-1,1)), np.array(im2s).reshape((-1,1))), axis=1).shape, all_dsets.shape, np.array(dsets).shape)
             # print 'targets: {} / {}'.format(all_targets.shape, target.shape)
             all_fns = np.concatenate((all_fns, np.concatenate((np.array(im1s).reshape((-1,1)), np.array(im2s).reshape((-1,1))), axis=1)), axis=0)
-            all_dsets = np.concatenate((all_dsets, np.array(dsets)), axis=0)
+            all_dsets = np.concatenate((all_dsets, np.array(dset)), axis=0)
             # dsets_b = np.concatenate((dsets_b, np.array(dsets)), axis=0)
 
         if mode == 'train':
-            reformatted_targets = all_targets.type(torch.cuda.FloatTensor)
+            reformatted_targets = all_targets.type(torch.cuda.FloatTensor).clone()
             reformatted_targets[reformatted_targets <= 0] = -1
 
-            loss = cross_entropy_loss(y_prediction, target.view(-1,))
+            loss = cross_entropy_loss(y_prediction[0], target[0].view(-1,))
 
             loss.backward()
             optimizer.step()
 
-        correct_counts = correct_counts + get_correct_counts(target, y_prediction, False)
+        correct_counts = correct_counts + get_correct_counts(target[0], y_prediction[0], False)
 
         # if not arrays_initialized:
         #     all_dsets = dsets_b

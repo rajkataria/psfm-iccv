@@ -143,10 +143,10 @@ feature_matching_classifier: Barn+Caterpillar+Church+Ignatius+3-50.pkl
 error_inlier_threshold: 0.01
 error_outlier_threshold: 0.08
 image_matching_classifier_threshold: 0.3
-image_matching_classifier: RM+TE+PE+Barn+Caterpillar+Church+Courthouse+Ignatius+6-50-thresholds-15-50.pkl
+image_matching_classifier: RM+PE+SE+TE+ETH3D+TUM_RGBD_SLAM+TanksAndTemples+6-50-thresholds-15-50.pkl
 image_matching_classifier_thresholds: 
     - 15
-    - 150
+    - 50
 
 # Params for submodel split and merge
 submodel_size: 80                                                   # Average number of images per submodel

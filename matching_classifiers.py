@@ -36,6 +36,7 @@ from sklearn.mixture import GaussianMixture
 from sklearn.feature_selection import SelectFromModel
 from timeit import default_timer as timer
 # from nn import classify_nn_image_match_training, classify_nn_image_match_inference
+import convnet
 import nn
 import gcn
 
@@ -66,9 +67,10 @@ def calculate_dataset_auc(y, y_gt, color, ls):
 
     precision, recall, threshs = sklearn.metrics.precision_recall_curve(y_gt, y)
     auc = sklearn.metrics.average_precision_score(y_gt, y)
+    auc_roc = sklearn.metrics.roc_auc_score(y_gt, y)
     plt.step(recall, precision, color=color, alpha=0.2 * width,
         where='post')
-    return auc
+    return auc, auc_roc
 
 def calculate_per_image_mean_auc(dsets, fns, y, y_gt):
 
@@ -94,13 +96,21 @@ def calculate_per_image_mean_auc(dsets, fns, y, y_gt):
 
             f_precision, f_recall, f_threshs = sklearn.metrics.precision_recall_curve(f_y_gt, f_y)
             f_auc = sklearn.metrics.average_precision_score(f_y_gt, f_y)
-
+            
+            # if len(f_y_gt) == np.sum(f_y_gt) or np.sum(f_y_gt) == 0:
+            #     continue
+            
+            # f_auc_roc = sklearn.metrics.roc_auc_score(f_y_gt, f_y)
+            f_auc_roc = 0.0
+            if np.isnan(f_auc):
+                continue
+            
             a_dsets.append(dset)
             a_fns.append(f)
             
-            if np.isnan(f_auc):
-                f_auc = 0.0
-            a_precision_recall_auc.append([f_precision, f_recall, f_auc])
+            
+                # f_auc = 0.0
+            a_precision_recall_auc.append([f_precision, f_recall, f_auc, f_auc_roc])
             # print (f_precision.shape)
 
             # if np.isnan(f_auc):#
@@ -117,15 +127,17 @@ def calculate_per_image_mean_auc(dsets, fns, y, y_gt):
     a_precision_recall_auc = np.array(a_precision_recall_auc)
 
     auc_dset_means = []
-    # auc_dset_means = []
+    auc_roc_dset_means = []
     auc_cum = 0.0
     for i, d in enumerate(list(set(a_dsets))):
         ri = np.where(a_dsets == d)[0]
         auc_dset_means.append([d, np.mean(a_precision_recall_auc[ri][:,2])])
+        auc_roc_dset_means.append([d, np.mean(a_precision_recall_auc[ri][:,3])])
 
     auc_overall_mean = np.sum(a_precision_recall_auc[:,2]) / len(a_precision_recall_auc)
+    auc_roc_overall_mean = np.sum(a_precision_recall_auc[:,3]) / len(a_precision_recall_auc)
 
-    return a_dsets, a_fns, a_precision_recall_auc, auc_dset_means, auc_overall_mean
+    return a_dsets, a_fns, a_precision_recall_auc, auc_dset_means, auc_roc_dset_means, auc_overall_mean, auc_roc_overall_mean
 
 def calculate_per_image_precision_top_k(dsets, fns, y, y_gt):
     a_dsets, a_fns, a_precision_scores = [], [], []
@@ -203,27 +215,12 @@ def calculate_per_image_precision_top_k(dsets, fns, y, y_gt):
 #     return raw_results, aggregated_results
 
 def get_postfix(datasets):
-  postfix = ''
-  for t in datasets:
-    if 'yeh' in t and 'Yeh' not in postfix:
-      postfix += 'Yeh+'
-    if 'ece' in t and 'ECE' not in postfix:
-      postfix += 'ECE+'
-    if 'Barn' in t:
-      postfix += 'Barn+'
-    if 'Church' in t:
-      postfix += 'Church+'
-    if 'Caterpillar' in t:
-      postfix += 'Caterpillar+'
-    if 'Ignatius' in t:
-      postfix += 'Ignatius+'
-    if 'Courthouse' in t:
-      postfix += 'Courthouse+'
-    if 'Meetingroom' in t:
-      postfix += 'Meetingroom+'
-    if 'Truck' in t:
-      postfix += 'Truck+'
-  return postfix
+    root_datasets = []
+    for d in datasets:
+        root_datasets.append(os.path.abspath(d).split('/')[-2])
+
+    root_datasets = list(set(root_datasets))
+    return '+'.join(root_datasets) + '+'
 
 def feature_matching_learned_classifier(options, training_datasets, testing_datasets):
     #################################################################################################################################
@@ -255,7 +252,7 @@ def feature_matching_learned_classifier(options, training_datasets, testing_data
             labels = np.concatenate((labels, _labels), axis=0)
     labels[labels < 0] = 0
     max_distances = np.maximum(dists1, dists2)
-    auc_baseline_train = calculate_dataset_auc(-1.0 * max_distances, labels, color='green', ls='dashed')
+    auc_baseline_train = calculate_dataset_auc(-1.0 * max_distances**2, labels, color='green', ls='dashed')
     _, _, _, _, regr_bdt, y = classifier.classify_boosted_dts_feature_match([fns, dists1, dists2, size1, size2, angle1, angle2, labels, True, None, options])
     auc_bdts_train = calculate_dataset_auc(y, labels,'r','dashed')
     training_postfix = get_postfix(training_datasets)
@@ -294,7 +291,7 @@ def feature_matching_learned_classifier(options, training_datasets, testing_data
     labels[labels < 0] = 0
 
     max_distances = np.maximum(dists1, dists2)
-    auc_baseline_test = calculate_dataset_auc(-1.0 * max_distances, labels, color='blue', ls='dashed')
+    auc_baseline_test = calculate_dataset_auc(-1.0 * max_distances**2, labels, color='blue', ls='dashed')
     _, _, _, _, regr_bdt, y = classifier.classify_boosted_dts_feature_match([fns, dists1, dists2, size1, size2, angle1, angle2, labels, False, regr_bdt, options])
     auc_bdts_test = calculate_dataset_auc(y, labels,'r','solid')
   
@@ -315,6 +312,11 @@ def feature_matching_learned_classifier(options, training_datasets, testing_data
         training_postfix, options['max_depth'], options['n_estimators'], str(datetime.datetime.now()) 
         ))
     )
+
+def get_sample_weights(num_rmatches_tr, labels_tr):
+    print ('Need to implement get_sample_weights')
+    # import sys; sys.exit(1)
+    return np.ones((len(labels_tr)))
 
 def image_matching_learned_classifier(training_datasets, testing_datasets, options={}):
     epsilon = 0.00000001
@@ -337,19 +339,43 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
         _fns, [_R11s, _R12s, _R13s, _R21s, _R22s, _R23s, _R31s, _R32s, _R33s, _num_rmatches, _num_matches, _spatial_entropy_1_8x8, \
             _spatial_entropy_2_8x8, _spatial_entropy_1_16x16, _spatial_entropy_2_16x16, _pe_histogram, _pe_polygon_area_percentage, \
             _nbvs_im1, _nbvs_im2, _te_histogram, _ch_im1, _ch_im2, _vt_rank_percentage_im1_im2, _vt_rank_percentage_im2_im1, \
-            _sq_rank_scores_mean, _sq_rank_scores_min, _sq_rank_scores_max, _sq_distance_scores, _num_gt_inliers, _labels] \
-            = data.load_image_matching_dataset(robust_matches_threshold=15, rmatches_min_threshold=training_min_threshold, \
+            _sq_rank_scores_mean, _sq_rank_scores_min, _sq_rank_scores_max, _sq_distance_scores, \
+            _lcc_im1_15, _lcc_im2_15, _min_lcc_15, _max_lcc_15, \
+            _lcc_im1_20, _lcc_im2_20, _min_lcc_20, _max_lcc_20, \
+            _lcc_im1_25, _lcc_im2_25, _min_lcc_25, _max_lcc_25, \
+            _lcc_im1_30, _lcc_im2_30, _min_lcc_30, _max_lcc_30, \
+            _lcc_im1_35, _lcc_im2_35, _min_lcc_35, _max_lcc_35, \
+            _lcc_im1_40, _lcc_im2_40, _min_lcc_40, _max_lcc_40, \
+            _shortest_path_length, \
+            _num_gt_inliers, _labels] \
+            = data.load_image_matching_dataset(robust_matches_threshold=options['image_matching_gt_threshold'], rmatches_min_threshold=training_min_threshold, \
                 rmatches_max_threshold=training_max_threshold)
 
         if i == 0:
             fns_tr, R11s_tr, R12s_tr, R13s_tr, R21s_tr, R22s_tr, R23s_tr, R31s_tr, R32s_tr, R33s_tr, num_rmatches_tr, num_matches_tr, spatial_entropy_1_8x8_tr, \
                 spatial_entropy_2_8x8_tr, spatial_entropy_1_16x16_tr, spatial_entropy_2_16x16_tr, pe_histogram_tr, pe_polygon_area_percentage_tr, \
                 nbvs_im1_tr, nbvs_im2_tr, te_histogram_tr, ch_im1_tr, ch_im2_tr, vt_rank_percentage_im1_im2_tr, vt_rank_percentage_im2_im1_tr, \
-                sq_rank_scores_mean_tr, sq_rank_scores_min_tr, sq_rank_scores_max_tr, sq_distance_scores_tr, num_gt_inliers_tr, labels_tr \
+                sq_rank_scores_mean_tr, sq_rank_scores_min_tr, sq_rank_scores_max_tr, sq_distance_scores_tr, \
+                lcc_im1_15_tr, lcc_im2_15_tr, min_lcc_15_tr, max_lcc_15_tr, \
+                lcc_im1_20_tr, lcc_im2_20_tr, min_lcc_20_tr, max_lcc_20_tr, \
+                lcc_im1_25_tr, lcc_im2_25_tr, min_lcc_25_tr, max_lcc_25_tr, \
+                lcc_im1_30_tr, lcc_im2_30_tr, min_lcc_30_tr, max_lcc_30_tr, \
+                lcc_im1_35_tr, lcc_im2_35_tr, min_lcc_35_tr, max_lcc_35_tr, \
+                lcc_im1_40_tr, lcc_im2_40_tr, min_lcc_40_tr, max_lcc_40_tr, \
+                shortest_path_length_tr, \
+                num_gt_inliers_tr, labels_tr \
                 = _fns, _R11s, _R12s, _R13s, _R21s, _R22s, _R23s, _R31s, _R32s, _R33s, _num_rmatches, _num_matches, _spatial_entropy_1_8x8, \
                 _spatial_entropy_2_8x8, _spatial_entropy_1_16x16, _spatial_entropy_2_16x16, _pe_histogram, _pe_polygon_area_percentage, \
                 _nbvs_im1, _nbvs_im2, _te_histogram, _ch_im1, _ch_im2, _vt_rank_percentage_im1_im2, _vt_rank_percentage_im2_im1, \
-                _sq_rank_scores_mean, _sq_rank_scores_min, _sq_rank_scores_max, _sq_distance_scores, _num_gt_inliers,_labels
+                _sq_rank_scores_mean, _sq_rank_scores_min, _sq_rank_scores_max, _sq_distance_scores, \
+                _lcc_im1_15, _lcc_im2_15, _min_lcc_15, _max_lcc_15, \
+                _lcc_im1_20, _lcc_im2_20, _min_lcc_20, _max_lcc_20, \
+                _lcc_im1_25, _lcc_im2_25, _min_lcc_25, _max_lcc_25, \
+                _lcc_im1_30, _lcc_im2_30, _min_lcc_30, _max_lcc_30, \
+                _lcc_im1_35, _lcc_im2_35, _min_lcc_35, _max_lcc_35, \
+                _lcc_im1_40, _lcc_im2_40, _min_lcc_40, _max_lcc_40, \
+                _shortest_path_length, \
+                _num_gt_inliers, _labels
             dsets_tr = np.tile(t, (len(labels_tr),))
         else:
             fns_tr = np.concatenate((fns_tr, _fns), axis=0)
@@ -381,11 +407,37 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
             sq_rank_scores_min_tr = np.concatenate((sq_rank_scores_min_tr, _sq_rank_scores_min), axis=0)
             sq_rank_scores_max_tr = np.concatenate((sq_rank_scores_max_tr, _sq_rank_scores_max), axis=0)
             sq_distance_scores_tr = np.concatenate((sq_distance_scores_tr, _sq_distance_scores), axis=0)
+            lcc_im1_15_tr = np.concatenate((lcc_im1_15_tr, _lcc_im1_15), axis=0)
+            lcc_im2_15_tr = np.concatenate((lcc_im2_15_tr, _lcc_im2_15), axis=0)
+            min_lcc_15_tr = np.concatenate((min_lcc_15_tr, _min_lcc_15), axis=0)
+            max_lcc_15_tr = np.concatenate((max_lcc_15_tr, _max_lcc_15), axis=0)
+            lcc_im1_20_tr = np.concatenate((lcc_im1_20_tr, _lcc_im1_20), axis=0)
+            lcc_im2_20_tr = np.concatenate((lcc_im2_20_tr, _lcc_im2_20), axis=0)
+            min_lcc_20_tr = np.concatenate((min_lcc_20_tr, _min_lcc_20), axis=0)
+            max_lcc_20_tr = np.concatenate((max_lcc_20_tr, _max_lcc_20), axis=0)
+            lcc_im1_25_tr = np.concatenate((lcc_im1_25_tr, _lcc_im1_25), axis=0)
+            lcc_im2_25_tr = np.concatenate((lcc_im2_25_tr, _lcc_im2_25), axis=0)
+            min_lcc_25_tr = np.concatenate((min_lcc_25_tr, _min_lcc_25), axis=0)
+            max_lcc_25_tr = np.concatenate((max_lcc_25_tr, _max_lcc_25), axis=0)
+            lcc_im1_30_tr = np.concatenate((lcc_im1_30_tr, _lcc_im1_30), axis=0)
+            lcc_im2_30_tr = np.concatenate((lcc_im2_30_tr, _lcc_im2_30), axis=0)
+            min_lcc_30_tr = np.concatenate((min_lcc_30_tr, _min_lcc_30), axis=0)
+            max_lcc_30_tr = np.concatenate((max_lcc_30_tr, _max_lcc_30), axis=0)
+            lcc_im1_35_tr = np.concatenate((lcc_im1_35_tr, _lcc_im1_35), axis=0)
+            lcc_im2_35_tr = np.concatenate((lcc_im2_35_tr, _lcc_im2_35), axis=0)
+            min_lcc_35_tr = np.concatenate((min_lcc_35_tr, _min_lcc_35), axis=0)
+            max_lcc_35_tr = np.concatenate((max_lcc_35_tr, _max_lcc_35), axis=0)
+            lcc_im1_40_tr = np.concatenate((lcc_im1_40_tr, _lcc_im1_40), axis=0)
+            lcc_im2_40_tr = np.concatenate((lcc_im2_40_tr, _lcc_im2_40), axis=0)
+            min_lcc_40_tr = np.concatenate((min_lcc_40_tr, _min_lcc_40), axis=0)
+            max_lcc_40_tr = np.concatenate((max_lcc_40_tr, _max_lcc_40), axis=0)
+            shortest_path_length_tr = np.concatenate((shortest_path_length_tr, _shortest_path_length), axis=0)
             num_gt_inliers_tr = np.concatenate((num_gt_inliers_tr, _num_gt_inliers), axis=0)
             labels_tr = np.concatenate((labels_tr, _labels), axis=0)
             dsets_tr = np.concatenate((dsets_tr, np.tile(t, (len(_labels),))), axis=0)
 
     labels_tr[labels_tr < 0] = 0
+    weights_tr = get_sample_weights(num_rmatches_tr, labels_tr)
     print ('\tTraining datasets loaded - Tuples: {}'.format(len(labels_tr)))
 
     #################################################################################################################################
@@ -398,19 +450,43 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
         _fns, [_R11s, _R12s, _R13s, _R21s, _R22s, _R23s, _R31s, _R32s, _R33s, _num_rmatches, _num_matches, _spatial_entropy_1_8x8, \
             _spatial_entropy_2_8x8, _spatial_entropy_1_16x16, _spatial_entropy_2_16x16, _pe_histogram, _pe_polygon_area_percentage, \
             _nbvs_im1, _nbvs_im2, _te_histogram, _ch_im1, _ch_im2, _vt_rank_percentage_im1_im2, _vt_rank_percentage_im2_im1, \
-            _sq_rank_scores_mean, _sq_rank_scores_min, _sq_rank_scores_max, _sq_distance_scores, _num_gt_inliers, _labels] \
-            = data.load_image_matching_dataset(robust_matches_threshold=15, rmatches_min_threshold=options['image_match_classifier_min_match'], \
+            _sq_rank_scores_mean, _sq_rank_scores_min, _sq_rank_scores_max, _sq_distance_scores, \
+            _lcc_im1_15, _lcc_im2_15, _min_lcc_15, _max_lcc_15, \
+            _lcc_im1_20, _lcc_im2_20, _min_lcc_20, _max_lcc_20, \
+            _lcc_im1_25, _lcc_im2_25, _min_lcc_25, _max_lcc_25, \
+            _lcc_im1_30, _lcc_im2_30, _min_lcc_30, _max_lcc_30, \
+            _lcc_im1_35, _lcc_im2_35, _min_lcc_35, _max_lcc_35, \
+            _lcc_im1_40, _lcc_im2_40, _min_lcc_40, _max_lcc_40, \
+            _shortest_path_length, \
+            _num_gt_inliers, _labels] \
+            = data.load_image_matching_dataset(robust_matches_threshold=options['image_matching_gt_threshold'], rmatches_min_threshold=options['image_match_classifier_min_match'], \
                 rmatches_max_threshold=options['image_match_classifier_max_match'])
 
         if i == 0:
             fns_te, R11s_te, R12s_te, R13s_te, R21s_te, R22s_te, R23s_te, R31s_te, R32s_te, R33s_te, num_rmatches_te, num_matches_te, spatial_entropy_1_8x8_te, \
                 spatial_entropy_2_8x8_te, spatial_entropy_1_16x16_te, spatial_entropy_2_16x16_te, pe_histogram_te, pe_polygon_area_percentage_te, \
                 nbvs_im1_te, nbvs_im2_te, te_histogram_te, ch_im1_te, ch_im2_te, vt_rank_percentage_im1_im2_te, vt_rank_percentage_im2_im1_te, \
-                sq_rank_scores_mean_te, sq_rank_scores_min_te, sq_rank_scores_max_te, sq_distance_scores_te, num_gt_inliers_te, labels_te \
+                sq_rank_scores_mean_te, sq_rank_scores_min_te, sq_rank_scores_max_te, sq_distance_scores_te, \
+                lcc_im1_15_te, lcc_im2_15_te, min_lcc_15_te, max_lcc_15_te, \
+                lcc_im1_20_te, lcc_im2_20_te, min_lcc_20_te, max_lcc_20_te, \
+                lcc_im1_25_te, lcc_im2_25_te, min_lcc_25_te, max_lcc_25_te, \
+                lcc_im1_30_te, lcc_im2_30_te, min_lcc_30_te, max_lcc_30_te, \
+                lcc_im1_35_te, lcc_im2_35_te, min_lcc_35_te, max_lcc_35_te, \
+                lcc_im1_40_te, lcc_im2_40_te, min_lcc_40_te, max_lcc_40_te, \
+                shortest_path_length_te, \
+                num_gt_inliers_te, labels_te \
                 = _fns, _R11s, _R12s, _R13s, _R21s, _R22s, _R23s, _R31s, _R32s, _R33s, _num_rmatches, _num_matches, _spatial_entropy_1_8x8, \
                 _spatial_entropy_2_8x8, _spatial_entropy_1_16x16, _spatial_entropy_2_16x16, _pe_histogram, _pe_polygon_area_percentage, \
                 _nbvs_im1, _nbvs_im2, _te_histogram, _ch_im1, _ch_im2, _vt_rank_percentage_im1_im2, _vt_rank_percentage_im2_im1, \
-                _sq_rank_scores_mean, _sq_rank_scores_min, _sq_rank_scores_max, _sq_distance_scores, _num_gt_inliers, _labels
+                _sq_rank_scores_mean, _sq_rank_scores_min, _sq_rank_scores_max, _sq_distance_scores, \
+                _lcc_im1_15, _lcc_im2_15, _min_lcc_15, _max_lcc_15, \
+                _lcc_im1_20, _lcc_im2_20, _min_lcc_20, _max_lcc_20, \
+                _lcc_im1_25, _lcc_im2_25, _min_lcc_25, _max_lcc_25, \
+                _lcc_im1_30, _lcc_im2_30, _min_lcc_30, _max_lcc_30, \
+                _lcc_im1_35, _lcc_im2_35, _min_lcc_35, _max_lcc_35, \
+                _lcc_im1_40, _lcc_im2_40, _min_lcc_40, _max_lcc_40, \
+                _shortest_path_length, \
+                _num_gt_inliers, _labels
             dsets_te = np.tile(t, (len(labels_te),))
         else:
             fns_te = np.concatenate((fns_te, _fns), axis=0)
@@ -442,10 +518,36 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
             sq_rank_scores_min_te = np.concatenate((sq_rank_scores_min_te, _sq_rank_scores_min), axis=0)
             sq_rank_scores_max_te = np.concatenate((sq_rank_scores_max_te, _sq_rank_scores_max), axis=0)
             sq_distance_scores_te = np.concatenate((sq_distance_scores_te, _sq_distance_scores), axis=0)
+            lcc_im1_15_te = np.concatenate((lcc_im1_15_te, _lcc_im1_15), axis=0)
+            lcc_im2_15_te = np.concatenate((lcc_im2_15_te, _lcc_im2_15), axis=0)
+            min_lcc_15_te = np.concatenate((min_lcc_15_te, _min_lcc_15), axis=0)
+            max_lcc_15_te = np.concatenate((max_lcc_15_te, _max_lcc_15), axis=0)
+            lcc_im1_20_te = np.concatenate((lcc_im1_20_te, _lcc_im1_20), axis=0)
+            lcc_im2_20_te = np.concatenate((lcc_im2_20_te, _lcc_im2_20), axis=0)
+            min_lcc_20_te = np.concatenate((min_lcc_20_te, _min_lcc_20), axis=0)
+            max_lcc_20_te = np.concatenate((max_lcc_20_te, _max_lcc_20), axis=0)
+            lcc_im1_25_te = np.concatenate((lcc_im1_25_te, _lcc_im1_25), axis=0)
+            lcc_im2_25_te = np.concatenate((lcc_im2_25_te, _lcc_im2_25), axis=0)
+            min_lcc_25_te = np.concatenate((min_lcc_25_te, _min_lcc_25), axis=0)
+            max_lcc_25_te = np.concatenate((max_lcc_25_te, _max_lcc_25), axis=0)
+            lcc_im1_30_te = np.concatenate((lcc_im1_30_te, _lcc_im1_30), axis=0)
+            lcc_im2_30_te = np.concatenate((lcc_im2_30_te, _lcc_im2_30), axis=0)
+            min_lcc_30_te = np.concatenate((min_lcc_30_te, _min_lcc_30), axis=0)
+            max_lcc_30_te = np.concatenate((max_lcc_30_te, _max_lcc_30), axis=0)
+            lcc_im1_35_te = np.concatenate((lcc_im1_35_te, _lcc_im1_35), axis=0)
+            lcc_im2_35_te = np.concatenate((lcc_im2_35_te, _lcc_im2_35), axis=0)
+            min_lcc_35_te = np.concatenate((min_lcc_35_te, _min_lcc_35), axis=0)
+            max_lcc_35_te = np.concatenate((max_lcc_35_te, _max_lcc_35), axis=0)
+            lcc_im1_40_te = np.concatenate((lcc_im1_40_te, _lcc_im1_40), axis=0)
+            lcc_im2_40_te = np.concatenate((lcc_im2_40_te, _lcc_im2_40), axis=0)
+            min_lcc_40_te = np.concatenate((min_lcc_40_te, _min_lcc_40), axis=0)
+            max_lcc_40_te = np.concatenate((max_lcc_40_te, _max_lcc_40), axis=0)
+            shortest_path_length_te = np.concatenate((shortest_path_length_te, _shortest_path_length), axis=0)
             num_gt_inliers_te = np.concatenate((num_gt_inliers_te, _num_gt_inliers), axis=0)
             labels_te = np.concatenate((labels_te, _labels), axis=0)
             dsets_te = np.concatenate((dsets_te, np.tile(t, (len(_labels),))), axis=0)
     labels_te[labels_te < 0] = 0
+    weights_te = np.zeros((len(labels_te),))
     print ('\tTesting datasets loaded - Tuples: {}'.format(len(labels_te)))
     #################################################################################################################################
     #################################################################################################################################
@@ -463,23 +565,27 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
         fontsize=18)
 
     auc_s_t = timer()
-    auc_baseline_train = calculate_dataset_auc(num_rmatches_tr, labels_tr, color='green', ls='dashed')
+    auc_baseline_train, auc_roc_baseline_train = calculate_dataset_auc(num_rmatches_tr, labels_tr, color='green', ls='dashed')
     auc_e_t = timer()
     aucpi_s_t = timer()
-    _, _, _, auc_per_image_per_dset_means_baseline_train, auc_per_image_mean_baseline_train = calculate_per_image_mean_auc(dsets_tr, fns_tr, num_rmatches_tr, labels_tr)
+    _, _, _, auc_per_image_per_dset_means_baseline_train, _, auc_per_image_mean_baseline_train, auc_roc_per_image_mean_baseline_train = \
+        calculate_per_image_mean_auc(dsets_tr, fns_tr, num_rmatches_tr, labels_tr)
     aucpi_e_t = timer()
     ppi_s_t = timer()
     _, _, _, _, mean_precision_per_image_baseline_train = calculate_per_image_precision_top_k(dsets_tr, fns_tr, num_rmatches_tr, labels_tr)
     ppi_e_t = timer()
-    print ('\tBaseline (Train): AUC: {} / {} / {}'.format(\
-        round(auc_baseline_train,3), round(auc_per_image_mean_baseline_train,3), round(mean_precision_per_image_baseline_train,3) \
+    print ('\tBaseline (Train): AUC: {} ({}) / {} ({}) / {}'.format(\
+        round(auc_baseline_train,3), round(auc_roc_baseline_train,3), \
+        round(auc_per_image_mean_baseline_train,3), round(auc_roc_per_image_mean_baseline_train,3), \
+        round(mean_precision_per_image_baseline_train,3) \
         ))
 
     auc_s_t = timer()
-    auc_baseline_test = calculate_dataset_auc(num_rmatches_te, labels_te, color='red', ls='dashed')
+    auc_baseline_test, auc_roc_baseline_test = calculate_dataset_auc(num_rmatches_te, labels_te, color='red', ls='dashed')
     auc_e_t = timer()
     aucpi_s_t = timer()
-    _, _, _, auc_per_image_per_dset_means_baseline_test, auc_per_image_mean_baseline_test = calculate_per_image_mean_auc(dsets_te, fns_te, num_rmatches_te, labels_te)
+    _, _, _, auc_per_image_per_dset_means_baseline_test, _, auc_per_image_mean_baseline_test, auc_roc_per_image_mean_baseline_test = \
+        calculate_per_image_mean_auc(dsets_te, fns_te, num_rmatches_te, labels_te)
     aucpi_e_t = timer()
     ppi_s_t = timer()
     _, _, _, _, mean_precision_per_image_baseline_test = calculate_per_image_precision_top_k(dsets_te, fns_te, num_rmatches_te, labels_te)
@@ -488,8 +594,10 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
     # print (json.dumps(auc_per_image_per_dset_means_baseline_test, sort_keys=True, indent=4, separators=(',', ': ')))
     # import sys; sys.exit(1)
 
-    print ('\tBaseline (Test): AUC: {} / {} / {}'.format(\
-        round(auc_baseline_test,3), round(auc_per_image_mean_baseline_test,3), round(mean_precision_per_image_baseline_test, 3) \
+    print ('\tBaseline (Test): AUC: {} ({}) / {} ({}) / {}'.format(\
+        round(auc_baseline_test,3), round(auc_roc_baseline_test,3), \
+        round(auc_per_image_mean_baseline_test,3), round(auc_roc_per_image_mean_baseline_test,3), \
+        round(mean_precision_per_image_baseline_test, 3) \
         ))
     legends = ['{} : {}'.format('Baseline (Train)', auc_baseline_train), '{} : {}'.format('Baseline (Test)', auc_baseline_test)]
     im_data_folder = os.path.join(options['image_matching_data_folder'], 'image-matching-classifiers-classifier-{}-max_depth-{}-n_estimators-{}-thresholds-{}-{}'.format( \
@@ -505,8 +613,42 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
     # classifier_testing_scores = 20
 
     exps = [
-        ['RM', 'TE', 'PE'],
+        ['RM'],
+        ['PE'],
+        ['SP'],
+        ['SE'],
+        ['TE'],
+        ['NBVS'],
+        ['VD'],
+        ['TM'],
+        ['VT'],
+        ['HIST'],
+        ['LCC'],
+        ['SQ'],
+        ['RM', 'PE'],
+        ['RM', 'SP'],
+        ['RM', 'SE'],
+        ['RM', 'TE'],
+        ['RM', 'NBVS'],
+        ['RM', 'VD'],
+        ['RM', 'TM'],
+        ['RM', 'VT'],
+        ['RM', 'HIST'],
+        ['RM', 'LCC'],
+        ['RM', 'SQ'],
+        ['RM', 'PE', 'SE', 'TE'],
+        ['RM', 'PE', 'NBVS', 'TE'],
+        ['RM', 'TE', 'PE', 'NBVS', 'SE'],
+        ['RM', 'TE', 'PE', 'NBVS', 'SE', 'VD'],
+        ['RM', 'TE', 'PE', 'NBVS', 'SE', 'TM'],
+        ['RM', 'TE', 'PE', 'NBVS', 'SE', 'VD', 'TM'],
+
         # ['RM'],
+        # ['RM', 'SE', 'PE'],
+        # ['RM', 'SE', 'PE', 'TM'],
+        # ['RM', 'SE', 'PE', 'TE'],
+        # ['RM', 'SE', 'PE', 'TE', 'TM'],
+        # ['LCC'],
         # ['SQ'],
         # ['TE'],
         # ['PE'],
@@ -522,11 +664,14 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
         # ['RM', 'SE'],
         # ['RM', 'VD'],
         # ['RM', 'TM'],
+        # ['RM', 'LCC'],
         # ['RM', 'HIST'],
         # ['RM', 'TE', 'PE', 'NBVS', 'SE' ],
         # ['RM', 'SQ', 'TE', 'PE', 'NBVS', 'SE'],
         # ['RM', 'TE', 'PE', 'NBVS', 'SE', 'VD', 'TM'],
         # ['RM', 'SQ', 'TE', 'PE', 'NBVS', 'SE', 'VD', 'TM'],
+        # ['RM', 'TE', 'PE'],
+        # ['RM', 'TE', 'PE', 'SE'],
         
         # ['RM', 'SQ', 'TE', 'PE', 'NBVS', 'SE', 'VD', 'TM', 'HIST'],
         # ['RM', 'TE', 'PE', 'NBVS', 'SE'],
@@ -613,8 +758,34 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
             sq_rank_scores_min = sq_rank_scores_min_tr.copy() if mode == 'train' else sq_rank_scores_min_te.copy()
             sq_rank_scores_max = sq_rank_scores_max_tr.copy() if mode == 'train' else sq_rank_scores_max_te.copy()
             sq_distance_scores = sq_distance_scores_tr.copy() if mode == 'train' else sq_distance_scores_te.copy()
+            lcc_im1_15 = lcc_im1_15_tr.copy() if mode == 'train' else lcc_im1_15_te.copy()
+            lcc_im2_15 = lcc_im2_15_tr.copy() if mode == 'train' else lcc_im2_15_te.copy()
+            min_lcc_15 = min_lcc_15_tr.copy() if mode == 'train' else min_lcc_15_te.copy()
+            max_lcc_15 = max_lcc_15_tr.copy() if mode == 'train' else max_lcc_15_te.copy()
+            lcc_im1_20 = lcc_im1_20_tr.copy() if mode == 'train' else lcc_im1_20_te.copy()
+            lcc_im2_20 = lcc_im2_20_tr.copy() if mode == 'train' else lcc_im2_20_te.copy()
+            min_lcc_20 = min_lcc_20_tr.copy() if mode == 'train' else min_lcc_20_te.copy()
+            max_lcc_20 = max_lcc_20_tr.copy() if mode == 'train' else max_lcc_20_te.copy()
+            lcc_im1_25 = lcc_im1_25_tr.copy() if mode == 'train' else lcc_im1_25_te.copy()
+            lcc_im2_25 = lcc_im2_25_tr.copy() if mode == 'train' else lcc_im2_25_te.copy()
+            min_lcc_25 = min_lcc_25_tr.copy() if mode == 'train' else min_lcc_25_te.copy()
+            max_lcc_25 = max_lcc_25_tr.copy() if mode == 'train' else max_lcc_25_te.copy()
+            lcc_im1_30 = lcc_im1_30_tr.copy() if mode == 'train' else lcc_im1_30_te.copy()
+            lcc_im2_30 = lcc_im2_30_tr.copy() if mode == 'train' else lcc_im2_30_te.copy()
+            min_lcc_30 = min_lcc_30_tr.copy() if mode == 'train' else min_lcc_30_te.copy()
+            max_lcc_30 = max_lcc_30_tr.copy() if mode == 'train' else max_lcc_30_te.copy()
+            lcc_im1_35 = lcc_im1_35_tr.copy() if mode == 'train' else lcc_im1_35_te.copy()
+            lcc_im2_35 = lcc_im2_35_tr.copy() if mode == 'train' else lcc_im2_35_te.copy()
+            min_lcc_35 = min_lcc_35_tr.copy() if mode == 'train' else min_lcc_35_te.copy()
+            max_lcc_35 = max_lcc_35_tr.copy() if mode == 'train' else max_lcc_35_te.copy()
+            lcc_im1_40 = lcc_im1_40_tr.copy() if mode == 'train' else lcc_im1_40_te.copy()
+            lcc_im2_40 = lcc_im2_40_tr.copy() if mode == 'train' else lcc_im2_40_te.copy()
+            min_lcc_40 = min_lcc_40_tr.copy() if mode == 'train' else min_lcc_40_te.copy()
+            max_lcc_40 = max_lcc_40_tr.copy() if mode == 'train' else max_lcc_40_te.copy()
+            shortest_path_length = shortest_path_length_tr.copy() if mode == 'train' else shortest_path_length_te.copy()
             num_gt_inliers = num_gt_inliers_tr.copy() if mode == 'train' else num_gt_inliers_te.copy()
             labels = labels_tr.copy() if mode == 'train' else labels_te.copy()
+            weights = weights_tr.copy() if mode == 'train' else weights_te.copy()
             train_mode = True if mode == 'train' else False
 
             # if options['classifier'] == 'NN' or options['classifier'] == 'GCN':
@@ -648,8 +819,34 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
             sq_rank_scores_min_te_clone = sq_rank_scores_min_te.copy()
             sq_rank_scores_max_te_clone = sq_rank_scores_max_te.copy()
             sq_distance_scores_te_clone = sq_distance_scores_te.copy()
+            lcc_im1_15_te_clone = lcc_im1_15_te.copy()
+            lcc_im2_15_te_clone = lcc_im2_15_te.copy()
+            min_lcc_15_te_clone = min_lcc_15_te.copy()
+            max_lcc_15_te_clone = max_lcc_15_te.copy()
+            lcc_im1_20_te_clone = lcc_im1_20_te.copy()
+            lcc_im2_20_te_clone = lcc_im2_20_te.copy()
+            min_lcc_20_te_clone = min_lcc_20_te.copy()
+            max_lcc_20_te_clone = max_lcc_20_te.copy()
+            lcc_im1_25_te_clone = lcc_im1_25_te.copy()
+            lcc_im2_25_te_clone = lcc_im2_25_te.copy()
+            min_lcc_25_te_clone = min_lcc_25_te.copy()
+            max_lcc_25_te_clone = max_lcc_25_te.copy()
+            lcc_im1_30_te_clone = lcc_im1_30_te.copy()
+            lcc_im2_30_te_clone = lcc_im2_30_te.copy()
+            min_lcc_30_te_clone = min_lcc_30_te.copy()
+            max_lcc_30_te_clone = max_lcc_30_te.copy()
+            lcc_im1_35_te_clone = lcc_im1_35_te.copy()
+            lcc_im2_35_te_clone = lcc_im2_35_te.copy()
+            min_lcc_35_te_clone = min_lcc_35_te.copy()
+            max_lcc_35_te_clone = max_lcc_35_te.copy()
+            lcc_im1_40_te_clone = lcc_im1_40_te.copy()
+            lcc_im2_40_te_clone = lcc_im2_40_te.copy()
+            min_lcc_40_te_clone = min_lcc_40_te.copy()
+            max_lcc_40_te_clone = max_lcc_40_te.copy()
+            shortest_path_length_te_clone = shortest_path_length_te.copy()
             num_gt_inliers_te_clone = num_gt_inliers_te.copy()
             labels_te_clone = labels_te.copy()
+            weights_te_clone = weights_te.copy()
 
             plt.figure(1)
             if 'RM' not in exp:
@@ -681,6 +878,60 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
                 sq_rank_scores_min_te_clone = np.zeros((len(labels_te_clone),1))
                 sq_rank_scores_max_te_clone = np.zeros((len(labels_te_clone),1))
                 sq_distance_scores_te_clone = np.zeros((len(labels_te_clone),1))
+            if 'LCC' not in exp:
+                lcc_im1_15 = np.zeros((len(labels),1))
+                lcc_im2_15 = np.zeros((len(labels),1))
+                min_lcc_15 = np.zeros((len(labels),1))
+                max_lcc_15 = np.zeros((len(labels),1))
+                lcc_im1_15_te_clone = np.zeros((len(labels_te_clone),1))
+                lcc_im2_15_te_clone = np.zeros((len(labels_te_clone),1))
+                min_lcc_15_te_clone = np.zeros((len(labels_te_clone),1))
+                max_lcc_15_te_clone = np.zeros((len(labels_te_clone),1))
+                lcc_im1_20 = np.zeros((len(labels),1))
+                lcc_im2_20 = np.zeros((len(labels),1))
+                min_lcc_20 = np.zeros((len(labels),1))
+                max_lcc_20 = np.zeros((len(labels),1))
+                lcc_im1_20_te_clone = np.zeros((len(labels_te_clone),1))
+                lcc_im2_20_te_clone = np.zeros((len(labels_te_clone),1))
+                min_lcc_20_te_clone = np.zeros((len(labels_te_clone),1))
+                max_lcc_20_te_clone = np.zeros((len(labels_te_clone),1))
+                lcc_im1_25 = np.zeros((len(labels),1))
+                lcc_im2_25 = np.zeros((len(labels),1))
+                min_lcc_25 = np.zeros((len(labels),1))
+                max_lcc_25 = np.zeros((len(labels),1))
+                lcc_im1_25_te_clone = np.zeros((len(labels_te_clone),1))
+                lcc_im2_25_te_clone = np.zeros((len(labels_te_clone),1))
+                min_lcc_25_te_clone = np.zeros((len(labels_te_clone),1))
+                max_lcc_25_te_clone = np.zeros((len(labels_te_clone),1))
+                lcc_im1_30 = np.zeros((len(labels),1))
+                lcc_im2_30 = np.zeros((len(labels),1))
+                min_lcc_30 = np.zeros((len(labels),1))
+                max_lcc_30 = np.zeros((len(labels),1))
+                lcc_im1_30_te_clone = np.zeros((len(labels_te_clone),1))
+                lcc_im2_30_te_clone = np.zeros((len(labels_te_clone),1))
+                min_lcc_30_te_clone = np.zeros((len(labels_te_clone),1))
+                max_lcc_30_te_clone = np.zeros((len(labels_te_clone),1))
+                lcc_im1_35 = np.zeros((len(labels),1))
+                lcc_im2_35 = np.zeros((len(labels),1))
+                min_lcc_35 = np.zeros((len(labels),1))
+                max_lcc_35 = np.zeros((len(labels),1))
+                lcc_im1_35_te_clone = np.zeros((len(labels_te_clone),1))
+                lcc_im2_35_te_clone = np.zeros((len(labels_te_clone),1))
+                min_lcc_35_te_clone = np.zeros((len(labels_te_clone),1))
+                max_lcc_35_te_clone = np.zeros((len(labels_te_clone),1))
+                lcc_im1_40 = np.zeros((len(labels),1))
+                lcc_im2_40 = np.zeros((len(labels),1))
+                min_lcc_40 = np.zeros((len(labels),1))
+                max_lcc_40 = np.zeros((len(labels),1))
+                lcc_im1_40_te_clone = np.zeros((len(labels_te_clone),1))
+                lcc_im2_40_te_clone = np.zeros((len(labels_te_clone),1))
+                min_lcc_40_te_clone = np.zeros((len(labels_te_clone),1))
+                max_lcc_40_te_clone = np.zeros((len(labels_te_clone),1))
+
+            if 'SP' not in exp:
+                shortest_path_length = np.zeros((len(labels),))
+                shortest_path_length_te_clone = np.zeros((len(labels_te_clone),1))
+
             if 'VD' not in exp:
                 R11s = np.zeros((len(labels),))
                 R12s = np.zeros((len(labels),))
@@ -724,7 +975,15 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
                 dsets, fns, R11s, R12s, R13s, R21s, R22s, R23s, R31s, R32s, R33s, num_rmatches, num_matches, spatial_entropy_1_8x8, \
                 spatial_entropy_2_8x8, spatial_entropy_1_16x16, spatial_entropy_2_16x16, pe_histogram, pe_polygon_area_percentage, \
                 nbvs_im1, nbvs_im2, te_histogram, ch_im1, ch_im2, vt_rank_percentage_im1_im2, vt_rank_percentage_im2_im1, \
-                sq_rank_scores_mean, sq_rank_scores_min, sq_rank_scores_max, sq_distance_scores, labels, \
+                sq_rank_scores_mean, sq_rank_scores_min, sq_rank_scores_max, sq_distance_scores, \
+                lcc_im1_15, lcc_im2_15, min_lcc_15, max_lcc_15, \
+                lcc_im1_20, lcc_im2_20, min_lcc_20, max_lcc_20, \
+                lcc_im1_25, lcc_im2_25, min_lcc_25, max_lcc_25, \
+                lcc_im1_30, lcc_im2_30, min_lcc_30, max_lcc_30, \
+                lcc_im1_35, lcc_im2_35, min_lcc_35, max_lcc_35, \
+                lcc_im1_40, lcc_im2_40, min_lcc_40, max_lcc_40, \
+                shortest_path_length, \
+                labels, weights, \
                 train_mode, trained_classifier, options
             ]
 
@@ -739,7 +998,14 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
                             spatial_entropy_2_8x8_te_clone, spatial_entropy_1_16x16_te_clone, spatial_entropy_2_16x16_te_clone, pe_histogram_te_clone, pe_polygon_area_percentage_te_clone, \
                             nbvs_im1_te_clone, nbvs_im2_te_clone, te_histogram_te_clone, ch_im1_te_clone, ch_im2_te_clone, vt_rank_percentage_im1_im2_te_clone, \
                             vt_rank_percentage_im2_im1_te_clone, sq_rank_scores_mean_te_clone, sq_rank_scores_min_te_clone, sq_rank_scores_max_te_clone, sq_distance_scores_te_clone, \
-                            labels_te_clone, \
+                            lcc_im1_15_te_clone, lcc_im2_15_te_clone, min_lcc_15_te_clone, max_lcc_15_te_clone, \
+                            lcc_im1_20_te_clone, lcc_im2_20_te_clone, min_lcc_20_te_clone, max_lcc_20_te_clone, \
+                            lcc_im1_25_te_clone, lcc_im2_25_te_clone, min_lcc_25_te_clone, max_lcc_25_te_clone, \
+                            lcc_im1_30_te_clone, lcc_im2_30_te_clone, min_lcc_30_te_clone, max_lcc_30_te_clone, \
+                            lcc_im1_35_te_clone, lcc_im2_35_te_clone, min_lcc_35_te_clone, max_lcc_35_te_clone, \
+                            lcc_im1_40_te_clone, lcc_im2_40_te_clone, min_lcc_40_te_clone, max_lcc_40_te_clone, \
+                            shortest_path_length_te_clone, \
+                            labels_te_clone, weights_te_clone, \
                             False, trained_classifier, options
                         ]
                     # arg: train set, arg_te: test set
@@ -747,6 +1013,29 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
                 else:
                     # arg: test set
                     _, _, regr, scores, _ = nn.classify_nn_image_match_inference(arg)
+            elif options['classifier'] == 'CONVNET':
+                if mode == 'train':
+                    arg_te = [ \
+                            dsets_te_clone, fns_te_clone, R11s_te_clone, R12s_te_clone, R13s_te_clone, R21s_te_clone, R22s_te_clone, R23s_te_clone, \
+                            R31s_te_clone, R32s_te_clone, R33s_te_clone, num_rmatches_te_clone, num_matches_te_clone, spatial_entropy_1_8x8_te_clone, \
+                            spatial_entropy_2_8x8_te_clone, spatial_entropy_1_16x16_te_clone, spatial_entropy_2_16x16_te_clone, pe_histogram_te_clone, pe_polygon_area_percentage_te_clone, \
+                            nbvs_im1_te_clone, nbvs_im2_te_clone, te_histogram_te_clone, ch_im1_te_clone, ch_im2_te_clone, vt_rank_percentage_im1_im2_te_clone, \
+                            vt_rank_percentage_im2_im1_te_clone, sq_rank_scores_mean_te_clone, sq_rank_scores_min_te_clone, sq_rank_scores_max_te_clone, sq_distance_scores_te_clone, \
+                            lcc_im1_15_te_clone, lcc_im2_15_te_clone, min_lcc_15_te_clone, max_lcc_15_te_clone, \
+                            lcc_im1_20_te_clone, lcc_im2_20_te_clone, min_lcc_20_te_clone, max_lcc_20_te_clone, \
+                            lcc_im1_25_te_clone, lcc_im2_25_te_clone, min_lcc_25_te_clone, max_lcc_25_te_clone, \
+                            lcc_im1_30_te_clone, lcc_im2_30_te_clone, min_lcc_30_te_clone, max_lcc_30_te_clone, \
+                            lcc_im1_35_te_clone, lcc_im2_35_te_clone, min_lcc_35_te_clone, max_lcc_35_te_clone, \
+                            lcc_im1_40_te_clone, lcc_im2_40_te_clone, min_lcc_40_te_clone, max_lcc_40_te_clone, \
+                            shortest_path_length_te_clone, \
+                            labels_te_clone, weights_te, \
+                            False, trained_classifier, options
+                        ]
+                    # arg: train set, arg_te: test set
+                    _, _, regr, scores, _ = convnet.classify_convnet_image_match_training(arg, arg_te)
+                else:
+                    # arg: test set
+                    _, _, regr, scores, _ = convnet.classify_convnet_image_match_inference(arg)
             elif options['classifier'] == 'GCN':
                 if mode == 'train':
                     arg_te = [ \
@@ -755,6 +1044,13 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
                             spatial_entropy_2_8x8_te_clone, spatial_entropy_1_16x16_te_clone, spatial_entropy_2_16x16_te_clone, pe_histogram_te_clone, pe_polygon_area_percentage_te_clone, \
                             nbvs_im1_te_clone, nbvs_im2_te_clone, te_histogram_te_clone, ch_im1_te_clone, ch_im2_te_clone, vt_rank_percentage_im1_im2_te_clone, \
                             vt_rank_percentage_im2_im1_te_clone, sq_rank_scores_mean_te_clone, sq_rank_scores_min_te_clone, sq_rank_scores_max_te_clone, sq_distance_scores_te_clone, \
+                            lcc_im1_15_te_clone, lcc_im2_15_te_clone, min_lcc_15_te_clone, max_lcc_15_te_clone, \
+                            lcc_im1_20_te_clone, lcc_im2_20_te_clone, min_lcc_20_te_clone, max_lcc_20_te_clone, \
+                            lcc_im1_25_te_clone, lcc_im2_25_te_clone, min_lcc_25_te_clone, max_lcc_25_te_clone, \
+                            lcc_im1_30_te_clone, lcc_im2_30_te_clone, min_lcc_30_te_clone, max_lcc_30_te_clone, \
+                            lcc_im1_35_te_clone, lcc_im2_35_te_clone, min_lcc_35_te_clone, max_lcc_35_te_clone, \
+                            lcc_im1_40_te_clone, lcc_im2_40_te_clone, min_lcc_40_te_clone, max_lcc_40_te_clone, \
+                            shortest_path_length_te_clone, \
                             labels_te_clone, \
                             False, trained_classifier, options
                         ]
@@ -767,15 +1063,19 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
             
             
             if not train_mode:
-                auc = calculate_dataset_auc(scores, labels, 'black', 'solid' if not train_mode else 'dashed')
-                _, _, _, _, auc_per_image_mean = calculate_per_image_mean_auc(dsets, fns, scores, labels)
+                auc, auc_roc = calculate_dataset_auc(scores, labels, 'black', 'solid' if not train_mode else 'dashed')
+                _, _, _, _, _,auc_per_image_mean, auc_roc_per_image_mean = calculate_per_image_mean_auc(dsets, fns, scores, labels)
                 _, _, _, _, mean_precision_per_image = calculate_per_image_precision_top_k(dsets, fns, scores, labels)
                 trained_classifier = None
                 # classifier_testing_scores = scores
                 # classifier_testing_threshold = 0.3
                 # legends.append('{} : {}'.format(exp, auc))
-                legends.append('{} : {} : {} / {} / {}'.format(mode, exp, auc, auc_per_image_mean, mean_precision_per_image))
-                print ('\t\tExperiment: {} AUC: {} / {} / {}'.format(exp, round(auc,3), round(auc_per_image_mean,3), round(mean_precision_per_image, 3)))
+                # legends.append('{} : {} : {} / {} / {}'.format(mode, exp, auc, auc_per_image_mean, mean_precision_per_image))
+                print ('\t\tExperiment: {} AUC: {} ({}) / {} ({}) / {}'.format(exp, \
+                    round(auc,3), round(auc_roc,3), \
+                    round(auc_per_image_mean,3), round(auc_roc_per_image_mean,3), \
+                    round(mean_precision_per_image, 3)
+                ))
             else:
                 auc = 0.0
                 trained_classifier = regr
@@ -925,6 +1225,7 @@ def main(argv):
     options = {
         'feature_matching_data_folder': 'data/feature-matching-classifiers-results',
         'image_matching_data_folder': 'data/image-matching-classifiers-results',
+        'image_matching_gt_threshold': 15,
         'use_all_training_data': True if parser_options.use_all_training_data == 'yes' else False,
         'use_small_weights': True if parser_options.use_small_weights == 'yes' else False,
         # 'classifier': 'BDT',
@@ -937,12 +1238,13 @@ def main(argv):
         'image_match_classifier_max_match': int(parser_options.image_match_classifier_max_match),
         # 'feature_selection': False, \
         # NN options
-        'batch_size': 128,
-        # 'batch_size': 16,
-        # 'batch_size': 4,
+        # 'batch_size': 128,
+        # 'batch_size': 1,
+        # 'batch_size': 1024 if parser_options.classifier.upper() != 'GCN' else 1,
+        'batch_size': 48 if parser_options.classifier.upper() != 'GCN' else 1,
         # 'shuffle': True,
         'shuffle': True,
-        'lr': 0.001,
+        'lr': 0.01,
         'optimizer': 'adam',
         'wd': 0.0001,
         'epochs': 10000,
@@ -951,22 +1253,25 @@ def main(argv):
         'lr_decay': 0.01,
         'nn_log_dir': 'data/nn-image-matching-classifiers-results/logs',
         'gcn_log_dir': 'data/nn-image-matching-classifiers-results/logs',
+        'convnet_log_dir': 'data/nn-image-matching-classifiers-results/logs',
         'subsample_ratio': 1.0,
-        'log_interval': 16,
+        'log_interval': 1,
         'opensfm_path': parser_options.opensfm_path,
         # 'fine_tuning': True, \
         # 'class_balance': False, \
         # 'all_features': False, \
         # 'triplet-sampling-strategy': 'random',
-        'triplet-sampling-strategy': 'uniform-files',
+        # 'triplet-sampling-strategy': 'uniform-files',
+        'triplet-sampling-strategy': 'normal',
         # 'sample-inclass': True,
         'sample-inclass': False,
         # 'num_workers': 4,
-        'num_workers': 0,
-        # 'use_image_features': True,
-        'use_image_features': False,
-        # 'loss': 'cross-entropy'
-        'loss': 'triplet'
+        'num_workers': 6 if parser_options.classifier.upper() != 'GCN' else 0,
+        # 'num_workers': 10,
+        'use_image_features': True,
+        # 'use_image_features': False,
+        'loss': 'cross-entropy'
+        # 'loss': 'triplet'
         # 'loss': 'cross-entropy+triplet'
     }
     if options['classifier'] == 'GCN':
@@ -980,60 +1285,12 @@ def main(argv):
         # },
         # {
         #     'training': ['TanksAndTemples', 'ETH3D', 'TUM_RGBD_SLAM'], 
-        #     'testing': ['TanksAndTemples']
-        # },
-        # {
-        #     'training': ['TanksAndTemples', 'ETH3D', 'GTAV_540', 'TUM_RGBD_SLAM'], 
-        #     'testing': ['TanksAndTemples']
-        # },
-        # {
-        #     'training': ['ETH3D'], 
-        #     'testing': ['ETH3D']
-        # },
-        # {
-        #     'training': ['TanksAndTemples', 'ETH3D', 'TUM_RGBD_SLAM'], 
-        #     'testing': ['ETH3D']
-        # },
-        # {
-        #     'training': ['TanksAndTemples', 'ETH3D', 'GTAV_540', 'TUM_RGBD_SLAM'], 
-        #     'testing': ['ETH3D']
-        # },
-        # {
-        #     'training': ['GTAV_540'], 
-        #     'testing': ['GTAV_540']
-        # },
-        # {
-        #     'training': ['TanksAndTemples', 'ETH3D', 'TUM_RGBD_SLAM'], 
-        #     'testing': ['GTAV_540']
-        # },
-        # {
-        #     'training': ['TanksAndTemples', 'ETH3D', 'GTAV_540', 'TUM_RGBD_SLAM'], 
-        #     'testing': ['GTAV_540']
-        # },
-        # {
-        #     'training': ['TUM_RGBD_SLAM'], 
-        #     'testing': ['TUM_RGBD_SLAM']
-        # },
-        # {
-        #     'training': ['TanksAndTemples', 'ETH3D', 'TUM_RGBD_SLAM'], 
-        #     'testing': ['TUM_RGBD_SLAM']
-        # },
-        # {
-        #     'training': ['TanksAndTemples', 'ETH3D', 'GTAV_540', 'TUM_RGBD_SLAM'], 
-        #     'testing': ['TUM_RGBD_SLAM']
-        # },
-        # {
-        #     'training': ['TanksAndTemples', 'ETH3D', 'GTAV_540', 'TUM_RGBD_SLAM'], 
-        #     'testing': ['TanksAndTemples', 'ETH3D', 'GTAV_540', 'TUM_RGBD_SLAM']
+        #     'testing': ['TanksAndTemples', 'ETH3D', 'TUM_RGBD_SLAM']
         # },
         {
             'training': ['TanksAndTemples', 'ETH3D', 'TUM_RGBD_SLAM'], 
             'testing': ['TanksAndTemples', 'ETH3D', 'TUM_RGBD_SLAM']
         },
-        # {
-        #     'training': ['TanksAndTemples', 'ETH3D'], 
-        #     'testing': ['TanksAndTemples', 'ETH3D']
-        # },
     ]
     for dataset_exp in dataset_experiments:
         print ('#'*200)

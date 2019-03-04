@@ -27,6 +27,12 @@ def classify_images(datasets, options={}):
             _spatial_entropy_2_8x8, _spatial_entropy_1_16x16, _spatial_entropy_2_16x16, _pe_histogram, _pe_polygon_area_percentage, \
             _nbvs_im1, _nbvs_im2, _te_histogram, _ch_im1, _ch_im2, _vt_rank_percentage_im1_im2, _vt_rank_percentage_im2_im1, \
             _sq_rank_scores_mean, _sq_rank_scores_min, _sq_rank_scores_max, _sq_distance_scores, \
+            _lcc_im1_15, _lcc_im2_15, _min_lcc_15, _max_lcc_15, \
+            _lcc_im1_20, _lcc_im2_20, _min_lcc_20, _max_lcc_20, \
+            _lcc_im1_25, _lcc_im2_25, _min_lcc_25, _max_lcc_25, \
+            _lcc_im1_30, _lcc_im2_30, _min_lcc_30, _max_lcc_30, \
+            _lcc_im1_35, _lcc_im2_35, _min_lcc_35, _max_lcc_35, \
+            _lcc_im1_40, _lcc_im2_40, _min_lcc_40, _max_lcc_40, \
             _num_gt_inliers, _labels] \
             = data.load_image_matching_dataset(robust_matches_threshold=15, rmatches_min_threshold=options['image_match_classifier_min_match'], \
                 rmatches_max_threshold=options['image_match_classifier_max_match'])
@@ -37,11 +43,24 @@ def classify_images(datasets, options={}):
             spatial_entropy_2_8x8_te, spatial_entropy_1_16x16_te, spatial_entropy_2_16x16_te, pe_histogram_te, pe_polygon_area_percentage_te, \
             nbvs_im1_te, nbvs_im2_te, te_histogram_te, ch_im1_te, ch_im2_te, vt_rank_percentage_im1_im2_te, vt_rank_percentage_im2_im1_te, \
             sq_rank_scores_mean_te, sq_rank_scores_min_te, sq_rank_scores_max_te, sq_distance_scores_te, \
+            lcc_im1_15_te, lcc_im2_15_te, min_lcc_15_te, max_lcc_15_te, \
+            lcc_im1_20_te, lcc_im2_20_te, min_lcc_20_te, max_lcc_20_te, \
+            lcc_im1_25_te, lcc_im2_25_te, min_lcc_25_te, max_lcc_25_te, \
+            lcc_im1_30_te, lcc_im2_30_te, min_lcc_30_te, max_lcc_30_te, \
+            lcc_im1_35_te, lcc_im2_35_te, min_lcc_35_te, max_lcc_35_te, \
+            lcc_im1_40_te, lcc_im2_40_te, min_lcc_40_te, max_lcc_40_te, \
             num_gt_inliers_te, labels_te \
             = _fns, _R11s, _R12s, _R13s, _R21s, _R22s, _R23s, _R31s, _R32s, _R33s, _num_rmatches, _num_matches, _spatial_entropy_1_8x8, \
             _spatial_entropy_2_8x8, _spatial_entropy_1_16x16, _spatial_entropy_2_16x16, _pe_histogram, _pe_polygon_area_percentage, \
             _nbvs_im1, _nbvs_im2, _te_histogram, _ch_im1, _ch_im2, _vt_rank_percentage_im1_im2, _vt_rank_percentage_im2_im1, \
-            _sq_rank_scores_mean, _sq_rank_scores_min, _sq_rank_scores_max, _sq_distance_scores, _num_gt_inliers, _labels
+            _sq_rank_scores_mean, _sq_rank_scores_min, _sq_rank_scores_max, _sq_distance_scores, \
+            _lcc_im1_15, _lcc_im2_15, _min_lcc_15, _max_lcc_15, \
+            _lcc_im1_20, _lcc_im2_20, _min_lcc_20, _max_lcc_20, \
+            _lcc_im1_25, _lcc_im2_25, _min_lcc_25, _max_lcc_25, \
+            _lcc_im1_30, _lcc_im2_30, _min_lcc_30, _max_lcc_30, \
+            _lcc_im1_35, _lcc_im2_35, _min_lcc_35, _max_lcc_35, \
+            _lcc_im1_40, _lcc_im2_40, _min_lcc_40, _max_lcc_40, \
+            _num_gt_inliers, _labels
 
         dsets_te = np.tile(t, (len(labels_te),))
         labels_te[labels_te < 0] = 0
@@ -51,7 +70,14 @@ def classify_images(datasets, options={}):
             dsets_te, fns_te, R11s_te, R12s_te, R13s_te, R21s_te, R22s_te, R23s_te, R31s_te, R32s_te, R33s_te, num_rmatches_te, num_matches_te, spatial_entropy_1_8x8_te, \
             spatial_entropy_2_8x8_te, spatial_entropy_1_16x16_te, spatial_entropy_2_16x16_te, pe_histogram_te, pe_polygon_area_percentage_te, \
             nbvs_im1_te, nbvs_im2_te, te_histogram_te, ch_im1_te, ch_im2_te, vt_rank_percentage_im1_im2_te, vt_rank_percentage_im2_im1_te, \
-            sq_rank_scores_mean_te, sq_rank_scores_min_te, sq_rank_scores_max_te, sq_distance_scores_te, labels_te, \
+            sq_rank_scores_mean_te, sq_rank_scores_min_te, sq_rank_scores_max_te, sq_distance_scores_te, \
+            lcc_im1_15_te, lcc_im2_15_te, min_lcc_15_te, max_lcc_15_te, \
+            lcc_im1_20_te, lcc_im2_20_te, min_lcc_20_te, max_lcc_20_te, \
+            lcc_im1_25_te, lcc_im2_25_te, min_lcc_25_te, max_lcc_25_te, \
+            lcc_im1_30_te, lcc_im2_30_te, min_lcc_30_te, max_lcc_30_te, \
+            lcc_im1_35_te, lcc_im2_35_te, min_lcc_35_te, max_lcc_35_te, \
+            lcc_im1_40_te, lcc_im2_40_te, min_lcc_40_te, max_lcc_40_te, \
+            labels_te, \
             False, trained_classifier, options
         ]
 
@@ -163,7 +189,8 @@ def analyze_datasets(datasets, options={}):
         vt_classifier_precision_ties, vt_classifier_recall_ties = [], []
 
         vt_rank_mean = (vt_rank_percentage_im1_im2 + vt_rank_percentage_im2_im1) / 2.0
-        ranks = [1, 2, 5, 10, 15, 20, 30, 40, 50]
+        # ranks = [1, 2, 5, 10, 15, 20, 30, 40, 50]
+        ranks = [1]
         for k in ranks:
             raw_results_rmatches, mean_results_rmatches = get_precision_recall(fns, labels, criteria=num_rmatches, k=k)
             raw_results_vt, mean_results_vt = get_precision_recall(fns, labels, criteria=vt_rank_mean, k=k)
@@ -172,7 +199,7 @@ def analyze_datasets(datasets, options={}):
             print ('\tTop {} - Dataset: {}  Criteria: {}  Mean Precision: {}  Mean Recall: {}'.format(k, dataset_name, 'rmatches', mean_results_rmatches[0], mean_results_rmatches[1]))
             print ('\tTop {} - Dataset: {}  Criteria: {}  Mean Precision: {}  Mean Recall: {}'.format(k, dataset_name, 'vt', mean_results_vt[0], mean_results_vt[1]))
             print ('\tTop {} - Dataset: {}  Criteria: {}  Mean Precision: {}  Mean Recall: {}'.format(k, dataset_name, 'scores', mean_results_scores[0], mean_results_scores[1]))
-            print ('\tTop {} - Dataset: {}  Criteria: {}  Mean Precision: {}  Mean Recall: {}'.format(k, dataset_name, 'labels', mean_results_labels[0], mean_results_labels[1]))
+            print ('\tTop {} - Dataset: {}  Criteria: {}  Mean Precision: {}  Mean Recall: {}\n'.format(k, dataset_name, 'labels', mean_results_labels[0], mean_results_labels[1]))
             
             rmatches_classifier_p_wins, rmatches_classifier_r_wins, \
                 rmatches_classifier_ties_p, rmatches_classifier_ties_r, \
@@ -384,17 +411,24 @@ def analyze_datasets2(datasets, options):
 
     plt.figure(1)
 
-    dsets_rm, fns_rm, p_r_auc_rm, auc_dset_means_rm, auc_overall_mean_rm = matching_classifiers.calculate_per_image_mean_auc(dsets, fns, num_rmatches, labels)
-    dsets_cl, fns_cl, p_r_auc_cl, auc_dset_means_cl, auc_overall_mean_cl = matching_classifiers.calculate_per_image_mean_auc(dsets, fns, scores, labels)
-    dsets_gt, fns_gt, p_r_auc_gt, auc_dset_means_gt, auc_overall_mean_gt = matching_classifiers.calculate_per_image_mean_auc(dsets, fns, labels, labels)
-    auc_entire_ds_rm = matching_classifiers.calculate_dataset_auc(num_rmatches, labels, color='red', ls='dashed')
-    auc_entire_ds_cl = matching_classifiers.calculate_dataset_auc(scores, labels, color='red', ls='dashed')
+    dsets_rm, fns_rm, p_r_auc_rm, auc_dset_means_rm, _, auc_overall_mean_rm, _ = matching_classifiers.calculate_per_image_mean_auc(dsets, fns, num_rmatches, labels)
+    dsets_cl, fns_cl, p_r_auc_cl, auc_dset_means_cl, _, auc_overall_mean_cl, _ = matching_classifiers.calculate_per_image_mean_auc(dsets, fns, scores, labels)
+    dsets_gt, fns_gt, p_r_auc_gt, auc_dset_means_gt, _, auc_overall_mean_gt, _ = matching_classifiers.calculate_per_image_mean_auc(dsets, fns, labels, labels)
+    auc_entire_ds_rm, _ = matching_classifiers.calculate_dataset_auc(num_rmatches, labels, color='red', ls='dashed')
+    auc_entire_ds_cl, _ = matching_classifiers.calculate_dataset_auc(scores, labels, color='red', ls='dashed')
 
     for i, (d, _) in enumerate(auc_dset_means_rm):
         print ('-'*100)
         print ('\trmatches: Dataset: {}  AUC: {}'.format(d, auc_dset_means_rm[i][1]))
         print ('\tclassifier: Dataset: {}  AUC: {}'.format(d, auc_dset_means_cl[i][1]))
         print ('\tground-truth: Dataset: {}  AUC: {}'.format(d, auc_dset_means_gt[i][1]))
+        # print '#'*100
+        # print auc_dset_means_rm
+        for j,dset in enumerate(dsets_rm):
+            if dset == auc_dset_means_rm[i][0]:
+                print ('\t\t{} / {}|{} : {} | {}'.format(dset,fns_rm[j], fns_cl[j], round(p_r_auc_rm[j][2],3), round(p_r_auc_cl[j][2],3)))
+        print '='*100
+
     print ('='*100)
     print ('rmatches: Overall AUC: {}'.format(auc_overall_mean_rm))
     print ('classifier: Overall AUC: {}'.format(auc_overall_mean_cl))
@@ -655,7 +689,9 @@ def main(argv):
         '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_walking_xyz',
     ]
     datasets = [
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/ETH3D/exhibition_hall',
+        # '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/ETH3D/exhibition_hall',
+        '/hdd/Research/psfm-iccv/data/exhibition_hall',
+        # '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/ETH3D/exhibition_hall',
     ]
     classify_images(datasets, options)
     # analyze_datasets(datasets, options)

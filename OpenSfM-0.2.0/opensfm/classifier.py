@@ -3,15 +3,21 @@ import glob
 import json
 import logging
 import math
+import networkx as nx
 import numpy as np
 import os
 import pickle
 import pyopengv
 import random
 import re
+import scipy
+import opensfm 
+import sys
+# import matplotlib.pyplot as plt
 
 from opensfm import features, multiview
 from opensfm import context
+# from opensfm.commands import formulate_graphs
 from multiprocessing import Pool
 from sklearn.externals import joblib
 from scipy.spatial import Delaunay, ConvexHull
@@ -125,17 +131,17 @@ def robust_match_fundamental_weighted(p1, p2, matches, config, w=np.array([])):
 def calculate_spatial_entropy(image_coordinates, grid_size):
     epsilon = 0.000000000001
     entropy = 0.0
-
-    dmap = np.zeros((grid_size*grid_size,1)).astype(np.float)
-    indx = ((image_coordinates[:,0] + 1)/2 * grid_size).astype(np.int32)
-    indy = ((image_coordinates[:,1] + 1)/2 * grid_size).astype(np.int32)
+    dmap = np.zeros((grid_size*grid_size,)).astype(np.float)
+    dmap_entropy = np.zeros((grid_size*grid_size,)).astype(np.float)
+    denormalized_image_coordinates = features.denormalized_image_coordinates(image_coordinates, grid_size, grid_size)
+    indx = denormalized_image_coordinates[:,0].astype(np.int32)
+    indy = denormalized_image_coordinates[:,1].astype(np.int32)
     for i in xrange(0,len(indx)):
-        dmap[indy[i]*grid_size + indx[i]] += 1.0
-
-    prob_map = dmap / np.sum(dmap) + epsilon
+        dmap[indy[i]*grid_size + indx[i]] = 1.0
+        dmap_entropy[indy[i]*grid_size + indx[i]] += 1.0
+    prob_map = dmap_entropy / np.sum(dmap_entropy) + epsilon
     entropy = np.sum(prob_map * np.log2(prob_map))
-
-    return round(-entropy/np.log2(np.sum(dmap)),4)
+    return round(-entropy/np.log2(np.sum(dmap_entropy)),4), dmap.reshape((grid_size, grid_size))
 
 def next_best_view_score(image_coordinates):
   # Based on the paper Structure-from-Motion Revisited - https://demuc.de/papers/schoenberger2016sfm.pdf
@@ -145,8 +151,11 @@ def next_best_view_score(image_coordinates):
 
   for grid_size in grid_sizes:
     dmap = np.zeros((grid_size*grid_size,1))
-    indx = ((image_coordinates[:,0] + 1)/2 * grid_size).astype(np.int32)
-    indy = ((image_coordinates[:,1] + 1)/2 * grid_size).astype(np.int32)
+    # indx = ((image_coordinates[:,0] + 1)/2 * grid_size).astype(np.int32)
+    # indy = ((image_coordinates[:,1] + 1)/2 * grid_size).astype(np.int32)
+    denormalized_image_coordinates = features.denormalized_image_coordinates(image_coordinates, grid_size, grid_size)
+    indx = denormalized_image_coordinates[:,0].astype(np.int32)
+    indy = denormalized_image_coordinates[:,1].astype(np.int32)
     dmap[indy*grid_size + indx] = 1
     score += np.sum(dmap) * grid_size
   return score
@@ -182,7 +191,15 @@ def classify_boosted_dts_image_match(arg):
     dsets, fns, R11s, R12s, R13s, R21s, R22s, R23s, R31s, R32s, R33s, num_rmatches, num_matches, spatial_entropy_1_8x8, \
         spatial_entropy_2_8x8, spatial_entropy_1_16x16, spatial_entropy_2_16x16, pe_histogram, pe_polygon_area_percentage, \
         nbvs_im1, nbvs_im2, te_histogram, ch_im1, ch_im2, vt_rank_percentage_im1_im2, vt_rank_percentage_im2_im1, \
-        sq_rank_scores_mean, sq_rank_scores_min, sq_rank_scores_max, sq_distance_scores, labels, \
+        sq_rank_scores_mean, sq_rank_scores_min, sq_rank_scores_max, sq_distance_scores, \
+        lcc_im1_15, lcc_im2_15, min_lcc_15, max_lcc_15, \
+        lcc_im1_20, lcc_im2_20, min_lcc_20, max_lcc_20, \
+        lcc_im1_25, lcc_im2_25, min_lcc_25, max_lcc_25, \
+        lcc_im1_30, lcc_im2_30, min_lcc_30, max_lcc_30, \
+        lcc_im1_35, lcc_im2_35, min_lcc_35, max_lcc_35, \
+        lcc_im1_40, lcc_im2_40, min_lcc_40, max_lcc_40, \
+        shortest_path_length, \
+        labels, weights, \
         train, regr, options = arg
 
     classifier_type = options['classifier']
@@ -229,6 +246,32 @@ def classify_boosted_dts_image_match(arg):
         sq_rank_scores_min.reshape((len(labels),-1)),
         sq_rank_scores_max.reshape((len(labels),-1)),
         sq_distance_scores.reshape((len(labels),-1)),
+        lcc_im1_15.reshape((len(labels),-1)),
+        lcc_im2_15.reshape((len(labels),-1)),
+        min_lcc_15.reshape((len(labels),-1)),
+        max_lcc_15.reshape((len(labels),-1)),
+        lcc_im1_20.reshape((len(labels),-1)),
+        lcc_im2_20.reshape((len(labels),-1)),
+        min_lcc_20.reshape((len(labels),-1)),
+        max_lcc_20.reshape((len(labels),-1)),
+        lcc_im1_25.reshape((len(labels),-1)),
+        lcc_im2_25.reshape((len(labels),-1)),
+        min_lcc_25.reshape((len(labels),-1)),
+        max_lcc_25.reshape((len(labels),-1)),
+        lcc_im1_30.reshape((len(labels),-1)),
+        lcc_im2_30.reshape((len(labels),-1)),
+        min_lcc_30.reshape((len(labels),-1)),
+        max_lcc_30.reshape((len(labels),-1)),
+        lcc_im1_35.reshape((len(labels),-1)),
+        lcc_im2_35.reshape((len(labels),-1)),
+        min_lcc_35.reshape((len(labels),-1)),
+        max_lcc_35.reshape((len(labels),-1)),
+        lcc_im1_40.reshape((len(labels),-1)),
+        lcc_im2_40.reshape((len(labels),-1)),
+        min_lcc_40.reshape((len(labels),-1)),
+        max_lcc_40.reshape((len(labels),-1)),
+
+        shortest_path_length.reshape((len(labels),-1)),
         ),
     axis=1)
     
@@ -237,7 +280,7 @@ def classify_boosted_dts_image_match(arg):
     # Fit regression model
     if regr is None:
         regr = GradientBoostingClassifier(max_depth=options['max_depth'], n_estimators=options['n_estimators'], subsample=1.0, random_state=rng)
-        regr.fit(X, y)
+        regr.fit(X, y, sample_weight=weights)
 
     # Predict
     y_ = regr.predict_proba(X)[:,1]
@@ -343,8 +386,9 @@ def calculate_spatial_entropies(ctx):
         else:
             p1 = cached_p[im1]
 
-        for im2 in im1_all_matches:
-            rmatches = im1_all_matches[im2]
+        for im2 in im1_all_robust_matches:
+            rmatches = im1_all_robust_matches[im2]
+            matches = im1_all_matches[im2]
             
             p2, f2, c2 = ctx.data.load_features(im2)
             if im2 not in cached_p:
@@ -355,19 +399,37 @@ def calculate_spatial_entropies(ctx):
             if len(rmatches) == 0:
                 continue
 
-            p1_ = p1[rmatches[:, 0].astype(int)]
-            p2_ = p2[rmatches[:, 1].astype(int)]
+            p1_rmatches = p1[rmatches[:, 0].astype(int)]
+            p2_rmatches = p2[rmatches[:, 1].astype(int)]
 
-            entropy_im1_8 = calculate_spatial_entropy(p1_, 8)
-            entropy_im2_8 = calculate_spatial_entropy(p2_, 8)
-            entropy_im1_16 = calculate_spatial_entropy(p1_, 16)
-            entropy_im2_16 = calculate_spatial_entropy(p2_, 16)
+            entropy_im1_8, _ = calculate_spatial_entropy(p1_rmatches, 8)
+            entropy_im2_8, _ = calculate_spatial_entropy(p2_rmatches, 8)
+            entropy_im1_16, _ = calculate_spatial_entropy(p1_rmatches, 16)
+            entropy_im2_16, _ = calculate_spatial_entropy(p2_rmatches, 16)
+            
+            p1_matches = p1[matches[:, 0].astype(int)]
+            p2_matches = p2[matches[:, 1].astype(int)]
+            entropy_rmatches_im1_224, rmatches_map_im1 = calculate_spatial_entropy(p1_rmatches, 224)
+            entropy_rmatches_im2_224, rmatches_map_im2 = calculate_spatial_entropy(p2_rmatches, 224)
+            entropy_matches_im1_224, matches_map_im1 = calculate_spatial_entropy(p1_matches, 224)
+            entropy_matches_im2_224, matches_map_im2 = calculate_spatial_entropy(p2_matches, 224)
+
+            data.save_match_map('rmatches---{}-{}'.format(im1,im2), rmatches_map_im1)
+            data.save_match_map('rmatches---{}-{}'.format(im2,im1), rmatches_map_im2)
+            data.save_match_map('matches---{}-{}'.format(im1,im2), matches_map_im1)
+            data.save_match_map('matches---{}-{}'.format(im2,im1), matches_map_im2)
+
             if im1 not in entropies:
                 entropies[im1] = {}
-            entropies[im1][im2] = {
+            if im2 not in entropies:
+                entropies[im2] = {}
+
+            result = {
                 'entropy_im1_8': entropy_im1_8, 'entropy_im2_8': entropy_im2_8, \
                 'entropy_im1_16': entropy_im1_16, 'entropy_im2_16': entropy_im2_16 \
                 }
+            entropies[im1][im2] = result.copy()
+            entropies[im2][im1] = result.copy()
     data.save_spatial_entropies(entropies)
 
 def calculate_histogram(full_image, mask, x, y, w, h, histSize, color_image, debug):
@@ -499,103 +561,96 @@ def sample_points_polygon(denormalized_points, v, n):
 
   return polygon, points
 
-def warp_image(Ms, triangle_pts_img1, triangle_pts_img2, img1, img2, im1, im2, patchdataset, flags, colors):
-  img2_o_final = 255 * np.ones(img1.shape, dtype = img1.dtype)
+def warp_image(Ms, triangle_pts_img1, triangle_pts_img2, img1, img2, im1, im2, flags, colors):
+    img2_o_final = -255 * np.ones(img1.shape, dtype = img1.dtype)
   
-  for s, _ in enumerate(triangle_pts_img1):
-    pts_img1 = triangle_pts_img1[s].reshape((1,3,2))
-    pts_img2 = triangle_pts_img2[s].reshape((1,3,2))
-    r1 = cv2.boundingRect(pts_img1)
-    r2 = cv2.boundingRect(pts_img2)
+    for s, _ in enumerate(triangle_pts_img1):
+        pts_img1 = triangle_pts_img1[s].reshape((1,3,2))
+        pts_img2 = triangle_pts_img2[s].reshape((1,3,2))
+        r1 = cv2.boundingRect(pts_img1)
+        r2 = cv2.boundingRect(pts_img2)
 
-    img1_tri_cropped = []
-    img2_tri_cropped = []
-    for i in xrange(0, 3):
-      img1_tri_cropped.append(((pts_img1[0][i][0] - r1[0]),(pts_img1[0][i][1] - r1[1])))
-      img2_tri_cropped.append(((pts_img2[0][i][0] - r2[0]),(pts_img2[0][i][1] - r2[1])))
+        img1_tri_cropped = []
+        img2_tri_cropped = []
+        for i in xrange(0, 3):
+            img1_tri_cropped.append(((pts_img1[0][i][0] - r1[0]),(pts_img1[0][i][1] - r1[1])))
+            img2_tri_cropped.append(((pts_img2[0][i][0] - r2[0]),(pts_img2[0][i][1] - r2[1])))
 
-    img1_cropped = img1[r1[1]:r1[1] + r1[3], r1[0]:r1[0] + r1[2]]
-    M = cv2.getAffineTransform(np.float32(img1_tri_cropped),np.float32(img2_tri_cropped))
-    img2_cropped = cv2.warpAffine( img1_cropped, M, (r2[2], r2[3]), None, flags=cv2.INTER_LINEAR)#, borderMode=cv2.BORDER_REFLECT_101 )
+        img1_cropped = img1[r1[1]:r1[1] + r1[3], r1[0]:r1[0] + r1[2]]
+        M = cv2.getAffineTransform(np.float32(img1_tri_cropped),np.float32(img2_tri_cropped))
+        img2_cropped = cv2.warpAffine( img1_cropped, M, (r2[2], r2[3]), None, flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT_101 )
 
-    mask = np.zeros((r2[3], r2[2], 3), dtype = np.float32)
-    cv2.fillConvexPoly(mask, np.int32(img2_tri_cropped), (1.0, 1.0, 1.0), 16, 0);
-    img2_cropped = img2_cropped * mask
+        mask = np.zeros((r2[3], r2[2], 3), dtype = np.float32)
+        cv2.fillConvexPoly(mask, np.int32(img2_tri_cropped), (1.0, 1.0, 1.0), 16, 0);
+        img2_cropped = img2_cropped * mask
 
-    # Output image is set to white
-    img2_o = 255 * np.ones(img1.shape, dtype = img1.dtype)
-    img2_o[r2[1]:r2[1]+r2[3], r2[0]:r2[0]+r2[2]] = img2_o[r2[1]:r2[1]+r2[3], r2[0]:r2[0]+r2[2]] * ( (1.0, 1.0, 1.0) - mask )
-    img2_o[r2[1]:r2[1]+r2[3], r2[0]:r2[0]+r2[2]] = img2_o[r2[1]:r2[1]+r2[3], r2[0]:r2[0]+r2[2]] + img2_cropped
-    img2_o_final[r2[1]:r2[1]+r2[3], r2[0]:r2[0]+r2[2]] = img2_o_final[r2[1]:r2[1]+r2[3], r2[0]:r2[0]+r2[2]] * ( (1.0, 1.0, 1.0) - mask )
-    img2_o_final[r2[1]:r2[1]+r2[3], r2[0]:r2[0]+r2[2]] = img2_o_final[r2[1]:r2[1]+r2[3], r2[0]:r2[0]+r2[2]] + img2_cropped
+        # Output image is set to white
+        img2_o = 255 * np.ones(img1.shape, dtype = img1.dtype)
+        img2_o[r2[1]:r2[1]+r2[3], r2[0]:r2[0]+r2[2]] = img2_o[r2[1]:r2[1]+r2[3], r2[0]:r2[0]+r2[2]] * ( (1.0, 1.0, 1.0) - mask )
+        img2_o[r2[1]:r2[1]+r2[3], r2[0]:r2[0]+r2[2]] = img2_o[r2[1]:r2[1]+r2[3], r2[0]:r2[0]+r2[2]] + img2_cropped
+        img2_o_final[r2[1]:r2[1]+r2[3], r2[0]:r2[0]+r2[2]] = img2_o_final[r2[1]:r2[1]+r2[3], r2[0]:r2[0]+r2[2]] * ( (1.0, 1.0, 1.0) - mask )
+        img2_o_final[r2[1]:r2[1]+r2[3], r2[0]:r2[0]+r2[2]] = img2_o_final[r2[1]:r2[1]+r2[3], r2[0]:r2[0]+r2[2]] + img2_cropped
 
-    if flags['draw_points']:
-      for i, _ in enumerate(pts_img1[0]):
-        color_index = random.randint(0,len(colors)-1)
-        cv2.circle(img1, (int(pts_img1[0][i][0]), int(pts_img1[0][i][1])), 2, colors[color_index], 2)
-        cv2.circle(img2, (int(pts_img2[0][i][0]), int(pts_img2[0][i][1])), 2, colors[color_index], 2)
+        if flags['draw_points']:
+            for i, _ in enumerate(pts_img1[0]):
+                color_index = random.randint(0,len(colors)-1)
+                cv2.circle(img1, (int(pts_img1[0][i][0]), int(pts_img1[0][i][1])), 2, colors[color_index], 2)
+                cv2.circle(img2, (int(pts_img2[0][i][0]), int(pts_img2[0][i][1])), 2, colors[color_index], 2)
 
-    if flags['draw_triangles']:
-      color_index = random.randint(0,len(colors)-1)
-      cv2.polylines(img1,[triangle_pts_img1[s]],True,colors[color_index])
-      cv2.polylines(img2,[triangle_pts_img2[s]],True,colors[color_index])
+        if flags['draw_triangles']:
+            color_index = random.randint(0,len(colors)-1)
+            cv2.polylines(img1,[triangle_pts_img1[s]],True,colors[color_index])
+            cv2.polylines(img2,[triangle_pts_img2[s]],True,colors[color_index])
 
-  h1,w1,c1 = img1_cropped.shape
-  h2,w2,c2 = img2_cropped.shape
-  img1_cropped = cv2.resize(img1_cropped, (max(w1,w2), max(h1,h2)), interpolation = cv2.INTER_CUBIC)
-  img2_cropped = cv2.resize(img2_cropped, (max(w1,w2), max(h1,h2)), interpolation = cv2.INTER_CUBIC)
-  img2_or = cv2.resize(img2_o_final, (max(w1,w2), max(h1,h2)), interpolation = cv2.INTER_CUBIC)
+    return img2_o_final
 
-  imgs = np.concatenate((img1_cropped,img2_cropped, img2_or),axis=1)
-  cv2.imwrite(os.path.join(patchdataset,'photometric-data/photometric-warped-image-{}-{}.png'.format(os.path.basename(im1), os.path.basename(im2))), img2_o_final)
-
-def calculate_photometric_error_histogram(errors, im1, im2, patchdataset, debug):
+def calculate_photometric_error_histogram(errors):
     histogram, bins = np.histogram(np.array(errors), bins=51, range=(0,250))
     epsilon = 0.000000001
-    if debug:
-        width = 0.9 * (bins[1] - bins[0])
-        center = (bins[:-1] + bins[1:]) / 2
+    # if debug:
+    #     width = 0.9 * (bins[1] - bins[0])
+    #     center = (bins[:-1] + bins[1:]) / 2
 
-        plt.bar(center, histogram, align='center', width=width)
-        plt.xlabel('L2 Error (LAB)', fontsize=16)
-        plt.ylabel('Error count', fontsize=16)
+    #     plt.bar(center, histogram, align='center', width=width)
+    #     plt.xlabel('L2 Error (LAB)', fontsize=16)
+    #     plt.ylabel('Error count', fontsize=16)
 
-        fig = plt.gcf()
-        fig.set_size_inches(18.5, 10.5)
-        plt.savefig(os.path.join(patchdataset,'photometric-data/photometric-histogram-{}-{}.png'.format(os.path.basename(im1), os.path.basename(im2))))
+    #     fig = plt.gcf()
+    #     fig.set_size_inches(18.5, 10.5)
+    #     plt.savefig(os.path.join(patchdataset,'photometric-data/photometric-histogram-{}-{}.png'.format(os.path.basename(im1), os.path.basename(im2))))
   # return histogram
     return histogram.tolist(), \
         np.cumsum(np.round((1.0 * histogram / (np.sum(histogram) + epsilon)), 2)).tolist(), \
         np.round((1.0 * histogram / (np.sum(histogram) + epsilon)), 2).tolist(), \
         bins.tolist()
 
-def calculate_convex_hull(img1_o, denormalized_p1_points, img2_o, denormalized_p2_points, debug):
-  try:
-    hull_img1 = ConvexHull( [ (x,y) for x,y in denormalized_p1_points[:,0:2].tolist()] )
-    hull_img2 = ConvexHull( [ (x,y) for x,y in denormalized_p2_points[:,0:2].tolist()] )
+def calculate_convex_hull(data, img1_o, denormalized_p1_points, img2_o, denormalized_p2_points, flags):
+    try:
+        hull_img1 = ConvexHull( [ (x,y) for x,y in denormalized_p1_points[:,0:2].tolist()] )
+        hull_img2 = ConvexHull( [ (x,y) for x,y in denormalized_p2_points[:,0:2].tolist()] )
 
-    if debug:
-      for v, vertex in enumerate(hull_img1.vertices):
-        if v == 0:
-          continue
-        cv2.line(img1_o, ( int(denormalized_p1_points[hull_img1.vertices[v-1], 0]), int(denormalized_p1_points[hull_img1.vertices[v-1], 1]) ), \
-          (  int(denormalized_p1_points[hull_img1.vertices[v], 0]), int(denormalized_p1_points[hull_img1.vertices[v], 1]) ), (255,0,0), 3)
+        if flags['draw_hull']:
+            for v, vertex in enumerate(hull_img1.vertices):
+                if v == 0:
+                    continue
+                cv2.line(img1_o, ( int(denormalized_p1_points[hull_img1.vertices[v-1], 0]), int(denormalized_p1_points[hull_img1.vertices[v-1], 1]) ), \
+                    ( int(denormalized_p1_points[hull_img1.vertices[v], 0]), int(denormalized_p1_points[hull_img1.vertices[v], 1]) ), (255,0,0), 3)
 
-      cv2.line(img1_o, ( int(denormalized_p1_points[hull_img1.vertices[v], 0]), int(denormalized_p1_points[hull_img1.vertices[v], 1]) ), \
-          (  int(denormalized_p1_points[hull_img1.vertices[0], 0]), int(denormalized_p1_points[hull_img1.vertices[0], 1]) ), (255,0,0), 3)
+            cv2.line(img1_o, ( int(denormalized_p1_points[hull_img1.vertices[v], 0]), int(denormalized_p1_points[hull_img1.vertices[v], 1]) ), \
+                (int(denormalized_p1_points[hull_img1.vertices[0], 0]), int(denormalized_p1_points[hull_img1.vertices[0], 1]) ), (255,0,0), 3)
 
-      for v, vertex in enumerate(hull_img2.vertices):
-        if v == 0:
-          continue
-        cv2.line(img2_o, ( int(denormalized_p2_points[hull_img2.vertices[v-1], 0]), int(denormalized_p2_points[hull_img2.vertices[v-1], 1]) ), \
-          (  int(denormalized_p2_points[hull_img2.vertices[v], 0]), int(denormalized_p2_points[hull_img2.vertices[v], 1]) ), (255,0,0), 5)
+            for v, vertex in enumerate(hull_img2.vertices):
+                if v == 0:
+                    continue
+                cv2.line(img2_o, ( int(denormalized_p2_points[hull_img2.vertices[v-1], 0]), int(denormalized_p2_points[hull_img2.vertices[v-1], 1]) ), \
+                    (int(denormalized_p2_points[hull_img2.vertices[v], 0]), int(denormalized_p2_points[hull_img2.vertices[v], 1]) ), (255,0,0), 5)
 
-      cv2.line(img2_o, ( int(denormalized_p2_points[hull_img2.vertices[v], 0]), int(denormalized_p2_points[hull_img2.vertices[v], 1]) ), \
-          (  int(denormalized_p2_points[hull_img2.vertices[0], 0]), int(denormalized_p2_points[hull_img2.vertices[0], 1]) ), (255,0,0), 5)
-  except:
-    hull_img1, hull_img2 = None, None    
+            cv2.line(img2_o, ( int(denormalized_p2_points[hull_img2.vertices[v], 0]), int(denormalized_p2_points[hull_img2.vertices[v], 1]) ), \
+                (int(denormalized_p2_points[hull_img2.vertices[0], 0]), int(denormalized_p2_points[hull_img2.vertices[0], 1]) ), (255,0,0), 5)
+    except:
+        hull_img1, hull_img2 = None, None    
 
-  return hull_img1, hull_img2
+    return hull_img1, hull_img2
 
 def get_photometric_error(f_img1, f_img2, sampled_points_img1, img1_original, sampled_points_transformed, img2_original, error_threshold):
   errors = []
@@ -612,188 +667,255 @@ def get_photometric_error(f_img1, f_img2, sampled_points_img1, img1_original, sa
     errors.append(error)
   return errors
 
-def PolyArea2D(pts):
-  lines = np.hstack([pts,np.roll(pts,-1,axis=0)])
-  area = 0.5*abs(sum(x1*y2-x2*y1 for x1,y1,x2,y2 in lines))
-  return area
+def tesselate_matches(ransac_count, grid_size, data, im1, im2, img1, img2, matches, p1, p2, patchdataset, flags, ii, jj):
+    n, outlier_threshold, debug, error_threshold, num_clusters, sample_matches = [flags['num_samples'], flags['outlier_threshold_percentage'], \
+        flags['debug'], flags['lab_error_threshold'], flags['kmeans_num_clusters'], flags['use_kmeans']]
 
-def tesselate_matches(im1, im2, matches, p1, p2, patchdataset, flags, ii, jj):
-  n, outlier_threshold, debug, error_threshold, num_clusters, sample_matches = [flags['num_samples'], flags['outlier_threshold_percentage'], \
-    flags['debug'], flags['lab_error_threshold'], flags['kmeans_num_clusters'], flags['use_kmeans']]
+    Ms = []
+    triangle_pts_img1 = []
+    triangle_pts_img2 = []
+    colors = [(int(random.random()*255), int(random.random()*255), int(random.random()*255)) for i in xrange(0,100)]
+    t_start_img_loading = timer()
 
-  # logger.info('Processing files: {} / {}'.format(im1, im2))
-  t_total_get_triangle_points = 0.0
-  t_total_photometric_error = 0.0
-  total_pts = 0
-  Ms = []
-  all_errors = []
-  triangle_pts_img1 = []
-  triangle_pts_img2 = []
-  colors = [(int(random.random()*255), int(random.random()*255), int(random.random()*255)) for i in xrange(0,100)]
-  t_start_img_loading = timer()
-  img1 = cv2.imread(im1,cv2.IMREAD_COLOR)
-  img2 = cv2.imread(im2,cv2.IMREAD_COLOR)
-  height_o, width_o, channels_o = img1.shape
- 
-  scale_factor = int(np.floor(width_o / 500.0))
+    if debug:
+        img1_o = img1.copy()
+        img2_o = img2.copy()
+        img1_w = img1.copy()
+        img2_w = img2.copy()
+        img1_original = img1.copy()
+        img2_original = img2.copy()
+    else:
+        img1_o = img1
+        img2_o = img2
+        img1_w = img1
+        img2_w = img2
+        img1_original = img1
+        img2_original = img2
 
-  img1_o = cv2.resize(img1, (width_o/scale_factor, height_o/scale_factor), interpolation = cv2.INTER_CUBIC)
-  img2_o = cv2.resize(img2, (width_o/scale_factor, height_o/scale_factor), interpolation = cv2.INTER_CUBIC)
-  if debug:
-    img1_w = cv2.resize(img1, (width_o/scale_factor, height_o/scale_factor), interpolation = cv2.INTER_CUBIC)
-    img2_w = cv2.resize(img2, (width_o/scale_factor, height_o/scale_factor), interpolation = cv2.INTER_CUBIC)
-  img1_original = cv2.cvtColor(img1_o, cv2.COLOR_BGR2LAB)
-  img2_original = cv2.cvtColor(img2_o, cv2.COLOR_BGR2LAB)
+    p1_points = p1[ matches[:,0].astype(np.int) ]
+    p2_points = p2[ matches[:,1].astype(np.int) ]
+    denormalized_p1_points = features.denormalized_image_coordinates(p1_points, grid_size, grid_size)
+    denormalized_p2_points = features.denormalized_image_coordinates(p2_points, grid_size, grid_size)
 
-  height, width, channels = img1_o.shape
-  if debug:
-    print '\t Images loading/reading time: {}'.format(timer()-t_start_img_loading)
-    print '\t Matches shape: {}  /  {}'.format(matches[:,0].shape, matches[:,1].shape)
-    print '\t p shape: {}  /  {}'.format(p1.shape, p2.shape)
-  p1_points = p1[ matches[:,0].astype(np.int) ]
-  p2_points = p2[ matches[:,1].astype(np.int) ]
+    hull_img1, hull_img2 = calculate_convex_hull(data, img1_o, denormalized_p1_points, img2_o, denormalized_p2_points, flags)
+    if hull_img1 is None or hull_img2 is None:
+        return None, None, 0, np.array([]), np.array([]), np.array([]), np.array([]), None, None, None
 
-  denormalized_p1_points = features.denormalized_image_coordinates(p1_points, width, height)
-  denormalized_p2_points = features.denormalized_image_coordinates(p2_points, width, height)
-
-  hull_img1, hull_img2 = calculate_convex_hull(img1_o, denormalized_p1_points, img2_o, denormalized_p2_points, debug)
-  if hull_img1 is None or hull_img2 is None:
-    return None, None, 0, np.array([]), np.array([]), np.array([]), np.array([])
-
-  if sample_matches:
-    indices = cluster_matches(denormalized_p1_points, k=num_clusters)
-    tesselation_vertices_im1 = denormalized_p1_points[indices,0:2]
-    tesselation_vertices_im2 = denormalized_p2_points[indices,0:2]
-  else:
     tesselation_vertices_im1 = denormalized_p1_points[:,0:2]
     tesselation_vertices_im2 = denormalized_p2_points[:,0:2]
 
-  if debug and flags['draw_matches']:
-    for i, cc in enumerate(tesselation_vertices_im1):
-      color_index = random.randint(0,len(colors)-1)
-      cv2.circle(img1_o, (int(cc[0]), int(cc[1])), 2, colors[color_index], 2)
-      cv2.circle(img2_o, (int(tesselation_vertices_im2[i, 0]), int(tesselation_vertices_im2[i, 1])), 2, colors[color_index], 2)
+    if debug and flags['draw_matches']:
+        for i, cc in enumerate(tesselation_vertices_im1):
+            color_index = random.randint(0,len(colors)-1)
+            cv2.circle(img1_o, (int(cc[0]), int(cc[1])), 5, colors[color_index], -1)
+            cv2.circle(img2_o, (int(tesselation_vertices_im2[i, 0]), int(tesselation_vertices_im2[i, 1])), 5, colors[color_index], -1)
 
-  try:
-    # if len(tesselation_vertices_im1) > 500:
-    #     logger.info('\tTesselation points: {}'.format(len(tesselation_vertices_im1)))
-    #     print tesselation_vertices_im1
-    triangles_img1 = Delaunay(tesselation_vertices_im1, qhull_options='Pp Qt')
-  except:
-    return None, None, 0, np.array([]), np.array([]), np.array([]), np.array([])
+    try:
+        triangles_img1 = Delaunay(tesselation_vertices_im1, qhull_options='Pp Qt', incremental=True)
+    except:
+        return None, None, 0, np.array([]), np.array([]), np.array([]), np.array([]), None, None, None
 
-  if flags['sampling_method'] == 'sample_polygon_uniformly':
-    t_start_sampling = timer()
-    polygon, sampled_points_polygon_img1 = sample_points_polygon(denormalized_p1_points, hull_img1.vertices, n)
+    x = np.linspace(0, grid_size - 1, grid_size).astype(int)
+    y = np.linspace(0, grid_size - 1, grid_size).astype(int)
+
+    z_img1 = [None] * 3
+    z_img2 = [None] * 3
+    f_img1 = [None] * 3
+    f_img2 = [None] * 3
+    for i in xrange(0,3):
+        z_img1[i] = img1_original[0:grid_size,0:grid_size,i]
+        z_img2[i] = img2_original[0:grid_size,0:grid_size,i]
+        f_img1[i] = interpolate.interp2d(x, y, z_img1[i], kind='cubic')
+        f_img2[i] = interpolate.interp2d(x, y, z_img2[i], kind='cubic')
+
+    t_start_triangle_loop = timer()
+    for s, simplex in enumerate(triangles_img1.simplices):
+        color_index = random.randint(0,len(colors)-1)
+        pts_img1_ = np.array([ 
+            tesselation_vertices_im1[simplex[0], 0:2], \
+            tesselation_vertices_im1[simplex[1], 0:2], \
+            tesselation_vertices_im1[simplex[2], 0:2], \
+            ])
+        pts_img2_ = np.array([ 
+            tesselation_vertices_im2[simplex[0], 0:2], \
+            tesselation_vertices_im2[simplex[1], 0:2], \
+            tesselation_vertices_im2[simplex[2], 0:2], \
+        ])
+        pts_img1 = pts_img1_.astype(np.int32).reshape((-1,1,2))
+        pts_img2 = pts_img2_.astype(np.int32).reshape((-1,1,2))
+
+        M = cv2.getAffineTransform(np.float32(pts_img1_),np.float32(pts_img2_))
+        triangle_pts_img1.append(pts_img1)
+        triangle_pts_img2.append(pts_img2)
+
+        Ms.append(M)
+
+        if debug and flags['draw_triangles']:
+            cv2.polylines(img1_o,[pts_img1],True,colors[color_index])
+            cv2.polylines(img2_o,[pts_img2],True,colors[color_index])
+
     if debug:
-      print '\t Sampling time: {}'.format(timer()-t_start_sampling)
+        imgs = np.concatenate((img1_o,img2_o),axis=1)
+        data.save_photometric_errors_map('{}-{}-d-{}-{}'.format(os.path.basename(im1), os.path.basename(im2), os.path.basename(im1), ransac_count), img1_o, size=grid_size)
+        data.save_photometric_errors_map('{}-{}-d-{}-{}'.format(os.path.basename(im1), os.path.basename(im2), os.path.basename(im2), ransac_count), img2_o, size=grid_size)
 
-  h, w, c = img2_original.shape
-  x = np.linspace(0, w - 1, w).astype(int)
-  y = np.linspace(0, h - 1, h).astype(int)
+    warped_image = warp_image(Ms, triangle_pts_img1, triangle_pts_img2, img1_w, img2_w, im1, im2, flags, colors)
+    masked_image = warp_image(Ms, triangle_pts_img1, triangle_pts_img2, 255*np.ones(img1_w.shape), np.zeros(img2_w.shape), im1, im2, flags, colors)
+    masked_image = masked_image[:,:,0]
+    masked_image[masked_image < 0] = 0
+    error_map = calculate_error_map(img2_w, warped_image)
+    cum_errors = get_l2_errors(error_map)
 
-  z_img1 = [None] * 3
-  z_img2 = [None] * 3
-  f_img1 = [None] * 3
-  f_img2 = [None] * 3
-  for i in xrange(0,3):
-    z_img1[i] = img1_original[0:h,0:w,i]
-    z_img2[i] = img2_original[0:h,0:w,i]
-    f_img1[i] = interpolate.interp2d(x, y, z_img1[i], kind='cubic')
-    f_img2[i] = interpolate.interp2d(x, y, z_img2[i], kind='cubic')
+    histogram_counts, histogram_cumsum, histogram, bins = calculate_photometric_error_histogram(cum_errors)
+    polygon_area, polygon_area_percentage = get_polygon_area(masked_image)
+    return polygon_area, polygon_area_percentage, len(triangles_img1.simplices), histogram_counts, histogram_cumsum, histogram, bins, error_map, masked_image, warped_image
 
-  t_start_triangle_loop = timer()
-  for s, simplex in enumerate(triangles_img1.simplices):
-    color_index = random.randint(0,len(colors)-1)
-    pts_img1_ = np.array([ 
-      tesselation_vertices_im1[simplex[0], 0:2], \
-      tesselation_vertices_im1[simplex[1], 0:2], \
-      tesselation_vertices_im1[simplex[2], 0:2], \
-      ])
-    pts_img2_ = np.array([ 
-      tesselation_vertices_im2[simplex[0], 0:2], \
-      tesselation_vertices_im2[simplex[1], 0:2], \
-      tesselation_vertices_im2[simplex[2], 0:2], \
-      ])
-    pts_img1 = pts_img1_.astype(np.int32).reshape((-1,1,2))
-    pts_img2 = pts_img2_.astype(np.int32).reshape((-1,1,2))
+def get_polygon_area(masked_image):
+    polygon_area =  1.0*len(np.where(masked_image > 0)[0])
+    polygon_area_percentage = polygon_area / (masked_image.shape[0] * masked_image.shape[1])
+    return polygon_area, polygon_area_percentage
 
-    M = cv2.getAffineTransform(np.float32(pts_img1_),np.float32(pts_img2_))
-    triangle_pts_img1.append(pts_img1)
-    triangle_pts_img2.append(pts_img2)
+def get_l2_errors(error_map):
+    ii,jj = np.where(error_map > 0)
+    cum_errors = []
+    for i,_ in enumerate(ii):
+        cum_errors.append(error_map[ii[i],jj[i]])
+    return cum_errors
 
-    Ms.append(M)
+def calculate_error_map(img_o, warped_image):
+    error_map = np.zeros((img_o.shape[0], img_o.shape[1])).astype(np.int)
+    ii,jj,kk = np.where(warped_image > -255)
+    for i,_ in enumerate(ii):
+        error = np.power( \
+            np.power(img_o[ii[i],jj[i],0] - warped_image[ii[i],jj[i],0], 2) + \
+            np.power(img_o[ii[i],jj[i],1] - warped_image[ii[i],jj[i],1], 2) + \
+            np.power(img_o[ii[i],jj[i],2] - warped_image[ii[i],jj[i],2], 2), \
+            0.5 )
+        error_map[ii[i],jj[i]] = min(error, 255)
+        # error_map[ii[i],jj[i]] = \
+        #     np.power(np.power(img_o[ii[i],jj[i],0] - warped_image[ii[i],jj[i],0], 2), 0.5) + \
+        #     np.power(np.power(img_o[ii[i],jj[i],1] - warped_image[ii[i],jj[i],1], 2), 0.5) + \
+        #     np.power(np.power(img_o[ii[i],jj[i],2] - warped_image[ii[i],jj[i],2], 2), 0.5)
     
-    if flags['sampling_method'] == 'sample_triangles_uniformly':
-      sampled_points_img1 = sample_points_triangle(pts_img1_, n)
-    elif flags['sampling_method'] == 'sample_polygon_uniformly':
-      t_start_get_triangle_points = timer()
-      sampled_points_img1 = get_triangle_points(pts_img1, sampled_points_polygon_img1)
-      t_total_get_triangle_points += timer()-t_start_get_triangle_points
-    total_pts += len(sampled_points_img1)
-    if len(sampled_points_img1) == 0:
-      continue
+    # error_map[error_map > 50] = 255
+    # error_map[error_map <= 50] = 0
+    return error_map
 
+def mkdir_p(path):
+    try:
+        os.makedirs(path)
+    except os.error as exc:
+        pass
 
-    sampled_points_transformed = (np.matrix(M) * np.matrix(np.concatenate((sampled_points_img1, np.ones((len(sampled_points_img1),1))), axis=1)).T).T
-    t_start_photometric_error = timer()
-    errors = get_photometric_error(f_img1, f_img2, sampled_points_img1.tolist(), img1_original, sampled_points_transformed.tolist(), img2_original, error_threshold=error_threshold)
-    t_total_photometric_error += timer()-t_start_photometric_error
-    all_errors.extend(errors)
+def get_image(data, im, grid_size):
+    if not os.path.exists(os.path.join(data.data_path,'images-resized',im)):
+        img = cv2.imread(os.path.join(data.data_path,'images',im),cv2.IMREAD_COLOR)
+        cv2.imwrite(os.path.join(data.data_path,'images-resized',im), cv2.resize(img, (grid_size, grid_size)))
+        with open(os.path.join(data.data_path,'images-resized',im + '.json'), 'w') as fout:
+            json.dump({'height': img.shape[0], 'width': img.shape[1]}, fout, sort_keys=True, indent=4, separators=(',', ': '))
 
-    if debug and (flags['draw_outliers'] or flags['draw_points']):
-      for i, sampled_pt_img1 in enumerate(sampled_points_img1):
-        color_index_ = random.randint(0,len(colors)-1)
-        if flags['draw_points']:
-          cv2.circle(img1_o, ( int( sampled_pt_img1[0] ), int( sampled_pt_img1[1] ) ), 1, colors[color_index_], 2)
-          cv2.circle(img2_o, ( int( sampled_points_transformed[i, 0] ), int( sampled_points_transformed[i, 1] ) ), 1, colors[color_index_], 2)
-        elif flags['draw_outliers']:
-          if not outliers[i]:
-            continue
-          cv2.circle(img1_o, ( int( sampled_pt_img1[0] ), int( sampled_pt_img1[1] ) ), 1, colors[color_index_], 2)
-          cv2.circle(img2_o, ( int( sampled_points_transformed[i, 0] ), int( sampled_points_transformed[i, 1] ) ), 1, colors[color_index_], 2)
-
-        
-    if debug and flags['draw_triangles']:
-      cv2.polylines(img1_o,[pts_img1],True,colors[color_index])
-      cv2.polylines(img2_o,[pts_img2],True,colors[color_index])
-
-  polygon_points = [( int(denormalized_p1_points[hull_img1.vertices[v], 0]), int(denormalized_p1_points[hull_img1.vertices[v], 1]) ) for v, vertex in enumerate(hull_img1.vertices)]
-  polygon_area = PolyArea2D(polygon_points)
-  polygon_area_percentage = 100.0 * polygon_area/(h * w)
-  if debug:
-    print '\t Getting triangle points time: {}'.format(t_total_get_triangle_points)
-    print '\t Photometric error time: {}'.format(t_total_photometric_error)
-    print '\t Main triangle loop time: {}'.format(timer()-t_start_triangle_loop)
-    print '\t Total points: {}  Total samples: {}  Polygon area: {}  Polygon %: {}'\
-      .format(total_pts, flags['num_samples'], polygon_area, polygon_area_percentage)
-    print '\n'
-
-  if debug:
-    imgs = np.concatenate((img1_o,img2_o),axis=1)
-    cv2.imwrite(os.path.join(patchdataset,'photometric-data/photometric-delaunay-{}-{}.png'.format(os.path.basename(im1), os.path.basename(im2))), imgs)
-
-  if debug:
-    warp_image(Ms, triangle_pts_img1, triangle_pts_img2, img1_w, img2_w, im1, im2, patchdataset, flags, colors)
-  # histogram = calculate_photometric_error_histogram(all_errors, im1, im2, patchdataset, debug)
-  histogram_counts, histogram_cumsum, histogram, bins = calculate_photometric_error_histogram(all_errors, im1, im2, patchdataset, debug)
-  # logger.info('Finished processing files: {}({}) / {}({})'.format(im1, ii, im2, jj))
-  return polygon_area, polygon_area_percentage, len(triangles_img1.simplices), histogram_counts, histogram_cumsum, histogram, bins
+    im_fn = os.path.join(data.data_path,'images-resized',im)
+    img = cv2.imread(im_fn,cv2.IMREAD_COLOR)
+    with open(os.path.join(im_fn + '.json'), 'r') as fin:
+        metadata = json.load(fin)
+    return img, im_fn, metadata
 
 def calculate_photometric_error_convex_hull(arg):
-  ii, jj, patchdataset, data, im1, im2, matches, flags = arg
+    ii, jj, patchdataset, data, im1, im2, matches, flags = arg
+    best_error = sys.float_info.max
+    start_t = timer()
+    grid_size = 112
+    logger.info('Starting to process {} / {}'.format(im1, im2))
+    if flags['masked_tags']:
+        p1, f1, c1 = data.load_features_masked(im1)
+        p2, f2, c2 = data.load_features_masked(im2)
+    else:
+        p1, f1, c1 = data.load_features(im1)
+        p2, f2, c2 = data.load_features(im2)
   
-  if flags['masked_tags']:
-    p1, f1, c1 = data.load_features_masked(im1)
-    p2, f2, c2 = data.load_features_masked(im2)
-  else:
-    p1, f1, c1 = data.load_features(im1)
-    p2, f2, c2 = data.load_features(im2)
-  
-  polygon_area, polygon_area_percentage, total_triangles, histogram_counts, histogram_cumsum, histogram, bins = \
-    tesselate_matches(os.path.join(data.data_path,'images',im1), \
-      os.path.join(data.data_path,'images',im2), matches, p1, p2, patchdataset, flags, ii, jj)
-  return im1, im2, polygon_area, polygon_area_percentage, total_triangles, histogram_counts, histogram_cumsum, histogram, bins
+    mkdir_p(os.path.join(data.data_path,'images-resized'))
+    img1, im1_fn, m1 = get_image(data, im1, grid_size)
+    img2, im2_fn, m2 = get_image(data, im2, grid_size)
+
+    denormalized_p1_points = features.denormalized_image_coordinates(p1[:,0:2], m1['width'], m1['height'])
+    denormalized_p2_points = features.denormalized_image_coordinates(p2[:,0:2], m2['width'], m2['height'])
+    w1_scale = 1.0 * grid_size / m1['width']
+    h1_scale = 1.0 * grid_size / m1['height']
+    w2_scale = 1.0 * grid_size / m2['width']
+    h2_scale = 1.0 * grid_size / m2['height']
+
+    denormalized_p1_points[:,0] = 1.0 * denormalized_p1_points[:,0] * w1_scale
+    denormalized_p1_points[:,1] = 1.0 * denormalized_p1_points[:,1] * h1_scale
+    denormalized_p2_points[:,0] = 1.0 * denormalized_p2_points[:,0] * w2_scale
+    denormalized_p2_points[:,1] = 1.0 * denormalized_p2_points[:,1] * h2_scale
+
+    renormalized_p1_points = features.normalized_image_coordinates(denormalized_p1_points, grid_size, grid_size)
+    renormalized_p2_points = features.normalized_image_coordinates(denormalized_p2_points, grid_size, grid_size)
+    
+    best_warped_image = None
+    best_error_map = None
+    best_masked_image = None
+    best_polygon_area, best_polygon_area_percentage, best_total_triangles, best_histogram_counts, best_histogram_cumsum, best_histogram, best_bins = \
+        None, None, 0, np.array([]), np.array([]), np.array([]), np.array([])
+
+    wi_fn = '{}-{}-wi'.format(os.path.basename(im1), os.path.basename(im2))
+    em_fn = '{}-{}-em'.format(os.path.basename(im1), os.path.basename(im2))
+    m_fn = '{}-{}-m'.format(os.path.basename(im1), os.path.basename(im2))
+    # print 'here-1'
+    if data.photometric_errors_map_exists(wi_fn):
+        best_warped_image = data.load_photometric_errors_map(wi_fn)
+        best_error_map = data.load_photometric_errors_map(em_fn, grayscale=True)
+        best_masked_image = data.load_photometric_errors_map(m_fn, grayscale=True)
+        cum_errors = get_l2_errors(best_error_map)
+        best_histogram_counts, best_histogram_cumsum, best_histogram, best_bins = calculate_photometric_error_histogram(cum_errors)
+        best_polygon_area, best_polygon_area_percentage = get_polygon_area(best_masked_image)
+    else:
+        # print 'here0'
+        for ransac_count in range(0,1):
+            # First iteration always has all matches
+            if ransac_count == 0:
+                rid = []
+            else:
+                random_match_count = np.random.randint(1,int(0.5 * len(matches)))
+                rid = np.sort(np.random.choice(len(matches), random_match_count, replace=False))
+
+            random_matches = np.ones(len(matches)).astype(np.bool)
+            random_matches[rid] = False
+            # print 'here'
+            polygon_area, polygon_area_percentage, total_triangles, histogram_counts, histogram_cumsum, histogram, bins, error_map, masked_image, warped_image = \
+                tesselate_matches(ransac_count, grid_size, data, \
+                    im1_fn, im2_fn, \
+                    img1, img2, \
+                    matches[random_matches], renormalized_p1_points, renormalized_p2_points, patchdataset, flags, ii, jj)
+            # print 'here2'
+            if warped_image is None or error_map is None or masked_image is None:
+                continue
+
+            error = np.sum(np.multiply(error_map, masked_image)) / np.sum(masked_image > 0)
+            if error < best_error:
+                best_rid = rid
+                best_warped_image = warped_image.copy()
+                best_error_map = error_map.copy()
+                best_masked_image = masked_image.copy()
+                best_polygon_area = polygon_area
+                best_polygon_area_percentage = polygon_area_percentage
+                best_total_triangles = total_triangles
+                best_histogram_counts = histogram_counts
+                best_histogram_cumsum = histogram_cumsum
+                best_histogram = histogram
+                best_bins = bins
+                best_error = error
+
+        # print np.sum(masked_image > 0)
+        if best_warped_image is not None and best_error_map is not None and best_masked_image is not None:
+            data.save_photometric_errors_map(wi_fn, best_warped_image, size=grid_size)
+            data.save_photometric_errors_map(em_fn, best_error_map, size=grid_size)
+            data.save_photometric_errors_map(m_fn, best_masked_image, size=grid_size)
+        logger.info('Best error: {} rid: {}'.format(best_error, best_rid))
+        end_t = timer()
+
+    # logger.info('Finished processing {} / {}'.format(im1, im2))
+    return im1, im2, best_polygon_area, best_polygon_area_percentage, best_total_triangles, best_histogram_counts, best_histogram_cumsum, best_histogram, best_bins
 
 def calculate_photometric_errors(ctx):
     data = ctx.data
@@ -804,7 +926,7 @@ def calculate_photometric_errors(ctx):
     processes = config['processes']
     args = []
     flags = {'masked_tags': False, 'num_samples': 500, 'outlier_threshold_percentage': 0.7, 'debug': False, 'lab_error_threshold': 50, \
-        'use_kmeans': False, 'sampling_method': 'sample_polygon_uniformly', 'draw_matches': False, 'draw_triangles': False, 'draw_points': False, \
+        'use_kmeans': False, 'sampling_method': 'sample_polygon_uniformly', 'draw_hull': False, 'draw_matches': False, 'draw_triangles': False, 'draw_points': False, \
         'processes': processes, 'draw_outliers': False, 'kmeans_num_clusters': None }
 
     if data.photometric_errors_exists():
@@ -813,19 +935,48 @@ def calculate_photometric_errors(ctx):
     logger.info('Calculating photometric errors...')
     for im1 in images:
         im1_all_matches, im1_valid_rmatches, im1_all_robust_matches = data.load_all_matches(im1)
-        for im2 in im1_all_matches:
-            rmatches = im1_all_matches[im2]
+        for im2 in im1_all_robust_matches:
+            rmatches = im1_all_robust_matches[im2]
             if len(rmatches) == 0:
                 continue
+            # if im1 == 'DSC_0286.JPG' and im2 == 'DSC_0289.JPG' or im1 == 'DSC_0286.JPG' and im2 == 'DSC_0288.JPG' or im1 == 'DSC_0286.JPG' and im2 == 'DSC_0287.JPG':
+            # if im1 == 'DSC_1744.JPG' and im2 == 'DSC_1746.JPG' or im1 == 'DSC_1744.JPG' and im2 == 'DSC_1800.JPG':
+            # if im1 == 'DSC_1773.JPG' and im2 == 'DSC_1778.JPG':
+
+            # if im1 == 'DSC_1744.JPG' and im2 == 'DSC_1800.JPG':
+                
+            # if im1 == 'DSC_1744.JPG' and im2 == 'DSC_1746.JPG':# or \
+            #     # im1 == 'DSC_1744.JPG' and im2 == 'DSC_1780.JPG' or \
+            #     # im1 == 'DSC_1744.JPG' and im2 == 'DSC_1800.JPG':
+            # if im1 == 'DSC_1761.JPG' and im2 == 'DSC_1762.JPG':
+
+            # if im1 == 'DSC_1744.JPG' and im2 == 'DSC_1746.JPG' or \
+            #     im1 == 'DSC_1744.JPG' and im2 == 'DSC_1800.JPG' or \
+            #     im1 == 'DSC_1773.JPG' and im2 == 'DSC_1778.JPG' or \
+            #     im1 == 'DSC_1744.JPG' and im2 == 'DSC_1780.JPG' or \
+            #     im1 == 'DSC_1761.JPG' and im2 == 'DSC_1762.JPG':
+                
+            #     args.append([0, 1, None, ctx.data, im1, im2, rmatches[:, 0:2].astype(int), flags])
+            #     args.append([0, 1, None, ctx.data, im2, im1, np.concatenate((rmatches[:, 1].reshape((-1,1)), rmatches[:, 0].reshape((-1,1))), axis=1).astype(int), flags])
+
+            # if im1 == 'DSC_1744.JPG' and im2 == 'DSC_1800.JPG':
+            #     args.append([0, 1, None, ctx.data, im1, im2, rmatches[:, 0:2].astype(int), flags])
+                # args.append([0, 1, None, ctx.data, im2, im1, np.concatenate((rmatches[:, 1].reshape((-1,1)), rmatches[:, 0].reshape((-1,1))), axis=1).astype(int), flags])
+            # if im1 == 'DSC_1770.JPG' and im2 == 'DSC_1779.JPG':
+            #     args.append([0, 1, None, ctx.data, im1, im2, rmatches[:, 0:2].astype(int), flags])
+            #     args.append([0, 1, None, ctx.data, im2, im1, np.concatenate((rmatches[:, 1].reshape((-1,1)), rmatches[:, 0].reshape((-1,1))), axis=1).astype(int), flags])
             args.append([0, 1, None, ctx.data, im1, im2, rmatches[:, 0:2].astype(int), flags])
+            args.append([0, 1, None, ctx.data, im2, im1, np.concatenate((rmatches[:, 1].reshape((-1,1)), rmatches[:, 0].reshape((-1,1))), axis=1).astype(int), flags])
+
     t_start = timer()
     p_results = []
     results = {}
     p = Pool(processes)
     logger.info('Using {} thread(s)'.format(processes))
+    # print args
     if processes == 1:
         for a, arg in enumerate(args):
-            logger.info('Finished processing photometric errors: {} / {} : {} / {}'.format(a, len(args), arg[4], arg[5]))
+            # logger.info('Finished processing photometric errors: {} / {} : {} / {}'.format(a, len(args), arg[4], arg[5]))
             p_results.append(calculate_photometric_error_convex_hull(arg))
     else:
         p_results = p.map(calculate_photometric_error_convex_hull, args)
@@ -854,9 +1005,9 @@ def calculate_nbvs(ctx):
     cached_p = {}
     nbvs = {}
     
-    if data.nbvs_exists():
-        logger.info('NBVS exist!')
-        return
+    # if data.nbvs_exists():
+    #     logger.info('NBVS exist!')
+    #     return
 
     logger.info('Calculating NBVS...')
     for im1 in images:
@@ -868,8 +1019,8 @@ def calculate_nbvs(ctx):
         else:
             p1 = cached_p[im1]
 
-        for im2 in im1_all_matches:
-            rmatches = im1_all_matches[im2]
+        for im2 in im1_all_robust_matches:
+            rmatches = im1_all_robust_matches[im2]
             
             p2, f2, c2 = ctx.data.load_features(im2)
             if im2 not in cached_p:
@@ -893,74 +1044,74 @@ def calculate_nbvs(ctx):
                 }
     data.save_nbvs(nbvs)
 
-def triplet_arguments(fns, Rs):
-    unique_filenames = sorted(list(set(fns[:,0]).union(set(fns[:,1]))))
-    for i, fn1 in enumerate(unique_filenames):
-        yield unique_filenames, fns, Rs, i, fn1
+# def triplet_arguments(fns, Rs):
+#     unique_filenames = sorted(list(set(fns[:,0]).union(set(fns[:,1]))))
+#     for i, fn1 in enumerate(unique_filenames):
+#         yield unique_filenames, fns, Rs, i, fn1
 
-def triplet_pairwise_arguments(fns, t_fns, t_errors, processes):
-    fns_ = []
-    args = []
-    for i, (im1,im2) in enumerate(fns):
-        fns_.append([im1, im2])
-        if len(fns_) >= math.ceil(len(fns) / processes):
-            args.append([None, fns_, t_fns, t_errors, False])
-            fns_ = []
+# def triplet_pairwise_arguments(fns, t_fns, t_errors, processes):
+#     fns_ = []
+#     args = []
+#     for i, (im1,im2) in enumerate(fns):
+#         fns_.append([im1, im2])
+#         if len(fns_) >= math.ceil(len(fns) / processes):
+#             args.append([None, fns_, t_fns, t_errors, False])
+#             fns_ = []
     
-    if len(fns_) > 0:
-        args.append([None, fns_, t_fns, t_errors, False])
+#     if len(fns_) > 0:
+#         args.append([None, fns_, t_fns, t_errors, False])
 
-    return args
+#     return args
 
-def calculate_rotation_triplet_errors(arg):
-  unique_filenames, fns, Rs, i, fn1 = arg
-  results = {}
+# def calculate_rotation_triplet_errors(arg):
+#   unique_filenames, fns, Rs, i, fn1 = arg
+#   results = {}
 
-  t_start = timer()
-  for j, fn2 in enumerate(unique_filenames):
-    if j <= i:
-      continue
+#   t_start = timer()
+#   for j, fn2 in enumerate(unique_filenames):
+#     if j <= i:
+#       continue
 
-    if fn2 not in results:
-      results[fn2] = {}
-    fn12_ris = np.where((fns[:,0] == fn1) & (fns[:,1] == fn2) | (fns[:,0] == fn2) & (fns[:,1] == fn1))[0]
-    if len(fn12_ris) == 0:
-      continue
+#     if fn2 not in results:
+#       results[fn2] = {}
+#     fn12_ris = np.where((fns[:,0] == fn1) & (fns[:,1] == fn2) | (fns[:,0] == fn2) & (fns[:,1] == fn1))[0]
+#     if len(fn12_ris) == 0:
+#       continue
 
-    if fns[fn12_ris, 0][0] == fn1:
-      R12 = np.matrix(Rs[fn12_ris].reshape(3,3))
-    else:
-      R12 = np.matrix(Rs[fn12_ris].reshape(3,3)).T
+#     if fns[fn12_ris, 0][0] == fn1:
+#       R12 = np.matrix(Rs[fn12_ris].reshape(3,3))
+#     else:
+#       R12 = np.matrix(Rs[fn12_ris].reshape(3,3)).T
 
-    for k, fn3 in enumerate(unique_filenames):
-      if k <= j:
-        continue
+#     for k, fn3 in enumerate(unique_filenames):
+#       if k <= j:
+#         continue
 
-      fn23_ris = np.where((fns[:,0] == fn2) & (fns[:,1] == fn3) | (fns[:,0] == fn3) & (fns[:,1] == fn2))[0]
-      if len(fn23_ris) == 0:
-        continue
+#       fn23_ris = np.where((fns[:,0] == fn2) & (fns[:,1] == fn3) | (fns[:,0] == fn3) & (fns[:,1] == fn2))[0]
+#       if len(fn23_ris) == 0:
+#         continue
 
-      if fns[fn23_ris, 0][0] == fn2:
-        R23 = np.matrix(Rs[fn23_ris].reshape(3,3))
-      else:
-        R23 = np.matrix(Rs[fn23_ris].reshape(3,3)).T
+#       if fns[fn23_ris, 0][0] == fn2:
+#         R23 = np.matrix(Rs[fn23_ris].reshape(3,3))
+#       else:
+#         R23 = np.matrix(Rs[fn23_ris].reshape(3,3)).T
 
-      fn13_ris = np.where((fns[:,0] == fn1) & (fns[:,1] == fn3) | (fns[:,0] == fn3) & (fns[:,1] == fn1))[0]
+#       fn13_ris = np.where((fns[:,0] == fn1) & (fns[:,1] == fn3) | (fns[:,0] == fn3) & (fns[:,1] == fn1))[0]
 
-      if len(fn13_ris) == 0:
-        continue
-      if fns[fn13_ris, 0][0] == fn1:
-        R13 = np.matrix(Rs[fn13_ris].reshape(3,3))
-      else:
-        R13 = np.matrix(Rs[fn13_ris].reshape(3,3)).T
+#       if len(fn13_ris) == 0:
+#         continue
+#       if fns[fn13_ris, 0][0] == fn1:
+#         R13 = np.matrix(Rs[fn13_ris].reshape(3,3))
+#       else:
+#         R13 = np.matrix(Rs[fn13_ris].reshape(3,3)).T
 
-      R11 = R12 * R23 * R13.T
-      error = np.arccos((np.trace(R11) - 1.0)/2.0)
-      if np.isnan(error):
-        error = -1.0
+#       R11 = R12 * R23 * R13.T
+#       error = np.arccos((np.trace(R11) - 1.0)/2.0)
+#       if np.isnan(error):
+#         error = -1.0
 
-      results[fn2][fn3] = {'error': math.fabs(error), 'R11': R11.tolist(), 'triplet': '{}--{}--{}'.format(fn1,fn2,fn3)}
-  return fn1, results
+#       results[fn2][fn3] = {'error': math.fabs(error), 'R11': R11.tolist(), 'triplet': '{}--{}--{}'.format(fn1,fn2,fn3)}
+#   return fn1, results
 
 def calculate_triplet_error_histogram(errors, im1, im2, output_dir, debug):
     histogram, bins = np.histogram(np.array(errors), bins=80, range=(0.0,np.pi/4.0))
@@ -970,42 +1121,211 @@ def calculate_triplet_error_histogram(errors, im1, im2, output_dir, debug):
         np.round((1.0 * histogram / (np.sum(histogram) + epsilon)), 2).tolist(), \
         bins.tolist()
 
-def flatten_triplets(triplets):
-  flattened_triplets = {}
-  fns1 = []
-  fns2 = []
-  fns3 = []
-  errors = []
-  for t1 in triplets:
-      for t2 in triplets[t1]:
-        for t3 in triplets[t1][t2]:
-          triplet = [t1, t2, t3]
-          flattened_triplets['--'.join(triplet)] = triplets[t1][t2][t3]['error']
-          fns1.append(t1)
-          fns2.append(t2)
-          fns3.append(t3)
-          errors.append(triplets[t1][t2][t3]['error'])
+# def flatten_triplets(triplets):
+#   flattened_triplets = {}
+#   fns1 = []
+#   fns2 = []
+#   fns3 = []
+#   errors = []
+#   for t1 in triplets:
+#       for t2 in triplets[t1]:
+#         for t3 in triplets[t1][t2]:
+#           triplet = [t1, t2, t3]
+#           flattened_triplets['--'.join(triplet)] = triplets[t1][t2][t3]['error']
+#           fns1.append(t1)
+#           fns2.append(t2)
+#           fns3.append(t3)
+#           errors.append(triplets[t1][t2][t3]['error'])
 
-  return np.array(fns1), np.array(fns2), np.array(fns3), np.array(errors)
+#   return np.array(fns1), np.array(fns2), np.array(fns3), np.array(errors)
 
-def calculate_triplet_pairwise_errors(arg):
-  output_dir, fns, t_fns, t_errors, debug = arg
-  errors = {}
-  histograms = {}
-  histograms_list = []
-  stime = timer()
-  for i, (im1,im2) in enumerate(fns):
-    relevant_indices = np.where((t_fns[:,0] == im1) & (t_fns[:,1] == im2) | (t_fns[:,0] == im1) & (t_fns[:,2] == im2) | \
-      (t_fns[:,1] == im1) & (t_fns[:,2] == im2))[0]
+# def calculate_triplet_pairwise_errors(arg):
+#   output_dir, fns, t_fns, t_errors, debug = arg
+#   errors = {}
+#   histograms = {}
+#   histograms_list = []
+#   stime = timer()
+#   for i, (im1,im2) in enumerate(fns):
+#     relevant_indices = np.where((t_fns[:,0] == im1) & (t_fns[:,1] == im2) | (t_fns[:,0] == im1) & (t_fns[:,2] == im2) | \
+#       (t_fns[:,1] == im1) & (t_fns[:,2] == im2))[0]
 
-    histogram_counts, histogram_cumsum, histogram, bins = calculate_triplet_error_histogram(t_errors[relevant_indices], im1, im2, output_dir, debug=debug)
-    if im1 not in histograms:
-        histograms[im1] = {}
-    histograms[im1][im2] = { 'im1': im1, 'im2': im2, 'histogram': histogram, 'histogram-cumsum': histogram_cumsum, 'histogram-counts': histogram_counts, 'bins': bins }
-    histograms_list.append({ 'im1': im1, 'im2': im2, 'histogram': histogram, 'histogram-cumsum': histogram_cumsum, 'histogram-counts': histogram_counts, 'bins': bins })
-  return histograms, histograms_list
+#     histogram_counts, histogram_cumsum, histogram, bins = calculate_triplet_error_histogram(t_errors[relevant_indices], im1, im2, output_dir, debug=debug)
+#     if im1 not in histograms:
+#         histograms[im1] = {}
+#     histograms[im1][im2] = { 'im1': im1, 'im2': im2, 'histogram': histogram, 'histogram-cumsum': histogram_cumsum, 'histogram-counts': histogram_counts, 'bins': bins }
+#     histograms_list.append({ 'im1': im1, 'im2': im2, 'histogram': histogram, 'histogram-cumsum': histogram_cumsum, 'histogram-counts': histogram_counts, 'bins': bins })
+#   return histograms, histograms_list
 
-def calculate_triplet_errors(ctx):
+# def calculate_triplet_errors(ctx):
+#     data = ctx.data
+#     cameras = data.load_camera_models()
+#     images = data.images()
+#     exifs = ctx.exifs
+#     config = data.config
+#     processes = ctx.data.config['processes']
+#     threshold = config['robust_matching_threshold']
+#     cached_p = {}
+#     fns = []
+#     Rs = []
+#     transformations = {}
+    
+#     if data.triplet_errors_exists():
+#         logger.info('Triplet errors exist!')
+#         return
+
+#     if data.transformations_exists():
+#         transformations = data.load_transformations()
+#     else:
+#         transformations, t_num_pairs = calculate_transformations(ctx)
+
+#     for im1 in transformations:
+#         for im2 in transformations[im1]:
+#             R = transformations[im1][im2]['rotation']
+#             fns.append(np.array([im1, im2]))
+#             Rs.append(np.array(R).reshape((1,-1)))
+    
+#     logger.info('Calculating triplet errors...')
+#     args = triplet_arguments(np.array(fns), np.array(Rs))
+#     triplet_results = {}
+#     p = Pool(processes)
+#     if processes > 1:
+#         t_results = p.map(calculate_rotation_triplet_errors, args)
+#     else:
+#         t_results = []
+#         for arg in args:
+#             t_results.append(calculate_rotation_triplet_errors(arg))
+#     for r in t_results:
+#         fn1, triplets = r
+#         triplet_results[fn1] = triplets
+#     data.save_triplet_errors(triplet_results)
+
+#     logger.info('Calculating triplet pairwise errors...')
+#     t_fns1, t_fns2, t_fns3, t_errors = flatten_triplets(triplet_results)
+#     t_fns = np.concatenate((t_fns1.reshape(-1,1), t_fns2.reshape(-1,1), t_fns3.reshape(-1,1)), axis=1)
+#     args = triplet_pairwise_arguments(np.array(fns), t_fns, t_errors, processes)
+#     p = Pool(processes)
+#     p_results = []
+#     t_start = timer()
+#     if processes == 1:
+#       for arg in args:
+#         p_results.append(calculate_triplet_pairwise_errors(arg))
+#     else:
+#       p_results = p.map(calculate_triplet_pairwise_errors, args)
+#     p.close()
+#     triplet_pairwise_results = {}
+#     for i, r in enumerate(p_results):
+#       histograms, histograms_list = r
+#       for k in histograms:
+#         if k not in triplet_pairwise_results:
+#             triplet_pairwise_results[k] = histograms[k]
+#         else:
+#             triplet_pairwise_results[k].update(histograms[k])
+#     data.save_triplet_pairwise_errors(triplet_pairwise_results)
+
+def get_rotation_matrix(transformations, im1, im2):
+    R = None
+    if im1 in transformations and im2 in transformations[im1]:
+        R = np.matrix(np.array(transformations[im1][im2]['rotation']).reshape((1,-1)).reshape(3,3))
+    if im2 in transformations and im1 in transformations[im2]:
+        R = np.matrix(np.array(transformations[im2][im1]['rotation']).reshape((1,-1)).reshape(3,3)).T
+    return R
+
+def calculate_consistency_errors_per_node(arg):
+    ctx, i, transformations, n1, G, cutoff, debug = arg
+    n1_histograms = {}
+    # print sorted(G.nodes())
+    G = ctx.data.load_graph('rm', 15)
+    for j, n2 in enumerate(sorted(G.nodes())):
+        errors = []
+        if j <= i:
+            continue
+        paths = nx.all_simple_paths(G, n1, n2, cutoff=cutoff)
+        # if n2 != 'DSC_1800.JPG':
+        #     continue
+        # print ('\t\t\t**************{} - {} : rm={}**************'.format(n1, n2, nx.shortest_path(G_rm_cost, n1, n2, weight='weight') ))
+        for path_counter, p in enumerate(paths):
+            if len(p) == 2:
+                continue
+            # print ('cutoff: {}    p: {}'.format(cutoff, p))
+            # import sys; sys.exit(1)
+            if debug:
+                print ('\t\t{}'.format(p))
+            R_ = np.identity(3)
+            complete_chain = True
+            for step, n in enumerate(p):
+                if step == 0:
+                    continue
+                im1 = p[step-1]
+                im2 = p[step]
+                edge_data = G.get_edge_data(im1, im2)
+                R = get_rotation_matrix(transformations, im1, im2)
+                if edge_data is not None and R is not None:
+                    if debug:
+                        print ('\t\t\t{} - {} : rm={}'.format(im1, im2, edge_data['weight']))
+                    R_ = R_ * R
+                else:
+                    if debug:
+                        print ('\t\t\t{} - {} : rm=-'.format(im1, im2))
+                    complete_chain = False
+                    break
+
+            im1 = p[-1]
+            im2 = p[0]
+            edge_data = G.get_edge_data(im1, im2)
+            R = get_rotation_matrix(transformations, im1, im2)
+            if complete_chain and edge_data is not None and R is not None:
+                if debug:
+                    print ('\t\t\t{} - {} : rm={}'.format(im1, im2, edge_data['weight']))
+                R_ = R_ * R
+                error = np.arccos((np.trace(R_) - 1.0)/2.0) / len(p)
+                errors.append(error)
+                if debug:
+                    print ('\t\tConsistency error: {}'.format(error * 180.0/np.pi))
+            else:
+                if debug:
+                    print ('\t\tConsistency error: path invalid')
+
+        histogram_counts, histogram_cumsum, histogram, bins = calculate_triplet_error_histogram(errors, n1, n2, output_dir=None, debug=debug)
+        n1_histograms[n2] = { 'im1': n1, 'im2': n2, 'histogram': histogram, 'histogram-cumsum': histogram_cumsum, 'histogram-counts': histogram_counts, 'bins': bins }
+        # histograms_list.append({ 'im1': n1, 'im2': n2, 'histogram': histogram, 'histogram-cumsum': histogram_cumsum, 'histogram-counts': histogram_counts, 'bins': bins })
+
+    # if debug:
+    logger.info('\tProcessed file #{}/{}'.format(i, len(G.nodes())))
+    return n1, n1_histograms
+
+def formulate_paths(ctx, transformations, cutoff, edge_threshold):
+    data = ctx.data
+    processes = ctx.data.config['processes']
+    graph_label = 'rm'
+    debug = False
+    histograms = {}
+
+    if data.graph_exists('rm', edge_threshold):
+        G = data.load_graph('rm', edge_threshold)
+    else:
+        num_rmatches, _ = rmatches_adapter(data)
+        G = opensfm.commands.formulate_graphs.formulate_graph([data, data.images(), num_rmatches, graph_label, edge_threshold])
+        data.save_graph(G, 'rm', edge_threshold)
+
+    args = []
+    for i, n1 in enumerate(sorted(G.nodes())):
+        # if n1 == 'DSC_1744.JPG':
+        args.append([ctx, i, transformations, n1, G, cutoff, debug])
+
+    p = Pool(processes)
+    p_results = []
+    if processes == 1:    
+        for arg in args:
+            p_results.append(calculate_consistency_errors_per_node(arg))
+    else:
+        p_results = p.map(calculate_consistency_errors_per_node, args)
+
+    for n1, histogram in p_results:
+        histograms[n1] = histogram
+
+    return histograms
+
+def calculate_consistency_errors(ctx):
     data = ctx.data
     cameras = data.load_camera_models()
     images = data.images()
@@ -1013,63 +1333,97 @@ def calculate_triplet_errors(ctx):
     config = data.config
     processes = ctx.data.config['processes']
     threshold = config['robust_matching_threshold']
-    cached_p = {}
     fns = []
     Rs = []
     transformations = {}
-    
-    if data.triplet_errors_exists():
-        logger.info('Triplet errors exist!')
+    cutoffs = [2, 3]
+    # graph_rm_thresholds = [15, 24, 30, 50, 100]
+    graph_rm_thresholds = [15]
+    all_cutoffs_exist = True
+    for edge_threshold in graph_rm_thresholds:
+        for cutoff in cutoffs:
+            if not data.consistency_errors_exists(cutoff, edge_threshold):
+                all_cutoffs_exist = False
+
+    if all_cutoffs_exist:
+        logger.info('Consistency errors for all cutoffs exist!')
         return
 
     if data.transformations_exists():
         transformations = data.load_transformations()
     else:
         transformations, t_num_pairs = calculate_transformations(ctx)
-
-    for im1 in transformations:
-        for im2 in transformations[im1]:
-            R = transformations[im1][im2]['rotation']
-            fns.append(np.array([im1, im2]))
-            Rs.append(np.array(R).reshape((1,-1)))
     
-    logger.info('Calculating triplet errors...')
-    args = triplet_arguments(np.array(fns), np.array(Rs))
-    triplet_results = {}
-    p = Pool(processes)
-    if processes > 1:
-        t_results = p.map(calculate_rotation_triplet_errors, args)
-    else:
-        t_results = []
-        for arg in args:
-            t_results.append(calculate_rotation_triplet_errors(arg))
-    for r in t_results:
-        fn1, triplets = r
-        triplet_results[fn1] = triplets
-    data.save_triplet_errors(triplet_results)
+    logger.info('Calculating consistency errors...')
+    for edge_threshold in graph_rm_thresholds:
+        for cutoff in cutoffs:#
+            if data.consistency_errors_exists(cutoff, edge_threshold):
+                continue
+            s_time = timer()
+            logger.info('Starting to formulate consistency errors - Cutoff: {} Edge threshold: {}'.format(cutoff, edge_threshold))
+            histograms = formulate_paths(ctx, transformations, cutoff=cutoff, edge_threshold=edge_threshold)
+            logger.info('Finished formulating consistency errors - Cutoff: {} Edge threshold: {}   Time: {}'.format(cutoff, edge_threshold, timer() - s_time))
+            data.save_consistency_errors(histograms, cutoff=cutoff, edge_threshold=edge_threshold)
 
-    logger.info('Calculating triplet pairwise errors...')
-    t_fns1, t_fns2, t_fns3, t_errors = flatten_triplets(triplet_results)
-    t_fns = np.concatenate((t_fns1.reshape(-1,1), t_fns2.reshape(-1,1), t_fns3.reshape(-1,1)), axis=1)
-    args = triplet_pairwise_arguments(np.array(fns), t_fns, t_errors, processes)
+def get_rmatches_from_edge_costs(G, im1, im2):
+    edge_data = G.get_edge_data(im1, im2)
+    if edge_data and edge_data['weight'] <= 1:
+        rmatches = 1.0 / edge_data['weight']
+    else:
+        rmatches = 0
+    return rmatches
+
+def shortest_path_per_image(arg):
+    shortest_paths = {}
+    data, i, im1, images, G = arg
+    
+    for j,im2 in enumerate(images):
+        if j <= i:
+            continue
+        rmatches = get_rmatches_from_edge_costs(G, im1, im2)
+        shortest_path = nx.shortest_path(G, im1, im2, weight='weight')
+        path = {}
+        for k, _ in enumerate(shortest_path):
+            if k == 0:
+                continue
+            node_rmatches = get_rmatches_from_edge_costs(G, shortest_path[k-1], shortest_path[k])
+            path['{}---{}'.format(shortest_path[k-1], shortest_path[k])] = {'rmatches': node_rmatches}
+
+        shortest_paths[im2] = {'rmatches': rmatches, 'path': path, 'shortest_path': shortest_path}
+    return im1, shortest_paths
+
+def calculate_shortest_paths(ctx):
+    data = ctx.data
+    processes = ctx.data.config['processes']
+    images = sorted(data.images())
+    shortest_paths = {}
+    edge_threshold = 0
+    graph_label = 'rm-cost'
+
+    if data.graph_exists(graph_label, edge_threshold):
+        G = data.load_graph(graph_label, edge_threshold)
+    else:
+        num_rmatches, num_rmatches_cost = rmatches_adapter(data)
+        G = opensfm.commands.formulate_graphs.formulate_graph([data, images, num_rmatches_cost, graph_label, edge_threshold])
+        data.save_graph(G, graph_label, edge_threshold)
+
+
+    args = []
+    for i,im1 in enumerate(images):
+        args.append([data, i, im1, images, G])
+    
     p = Pool(processes)
     p_results = []
-    t_start = timer()
-    if processes == 1:
-      for arg in args:
-        p_results.append(calculate_triplet_pairwise_errors(arg))
+    if processes == 1:    
+        for arg in args:
+            p_results.append(shortest_path_per_image(arg))
     else:
-      p_results = p.map(calculate_triplet_pairwise_errors, args)
-    p.close()
-    triplet_pairwise_results = {}
-    for i, r in enumerate(p_results):
-      histograms, histograms_list = r
-      for k in histograms:
-        if k not in triplet_pairwise_results:
-            triplet_pairwise_results[k] = histograms[k]
-        else:
-            triplet_pairwise_results[k].update(histograms[k])
-    data.save_triplet_pairwise_errors(triplet_pairwise_results)
+        p_results = p.map(shortest_path_per_image, args)
+
+    for im, im_shortest_paths in p_results:
+        shortest_paths[im] = im_shortest_paths    
+
+    data.save_shortest_paths(shortest_paths)
 
 def calculate_sequence_ranks(ctx):
     data = ctx.data
@@ -1231,6 +1585,9 @@ def compute_gt_inliers(data, gt_poses, im1, im2, p1, p2, camera1, camera2, match
    
     R_ = gt_poses['R2'].dot(gt_poses['R1'].T)
     t_ = gt_poses['R1'].dot(-gt_poses['R2'].T.dot(gt_poses['t2']) + gt_poses['R1'].T.dot(gt_poses['t1']))
+    
+    # R_ = gt_poses['R2'].dot(gt_poses['R1'].T)
+    # t_ = gt_poses['R2'].dot(-gt_poses['R2'].T.dot(gt_poses['t2']) + gt_poses['R1'].T.dot(gt_poses['t1']))
 
     T_ = np.empty((3, 4))
     T_[0:3,0:3] = R_.T
@@ -1293,7 +1650,8 @@ def compute_matches_using_gt_reconstruction(args):
         for im2 in im_all_matches.keys():
             if im2 not in recon.shots.keys():
                 continue
-
+            # if im2 != 'DSC_1804.JPG' and im2 != 'DSC_1762.JPG':
+            #     continue
             d2 = data.load_exif(im2)
             camera2 = get_camera(d2, cameras, reconstruction_gt)
             R2 = recon.shots[im2].pose.get_rotation_matrix()
@@ -1357,6 +1715,8 @@ def create_feature_matching_dataset(ctx):
 
     args = []
     for im in images:
+        # if im != 'DSC_1761.JPG':
+        #     continue
         element = [data, im, data.load_reconstruction('reconstruction_gt.json'), 1.0,\
             config.get('error_inlier_threshold'), config.get('error_outlier_threshold')]
         args.append(element)
@@ -1386,10 +1746,12 @@ def create_image_matching_dataset(ctx):
         return
 
     data.save_image_matching_dataset(robust_matches_threshold=15)
+    data.save_image_matching_dataset(robust_matches_threshold=20)
 
 def rmatches_adapter(data, options={}):
     im_all_rmatches = {}
     im_num_rmatches = {}
+    im_num_rmatches_cost = {}
 
     for img in data.images():
         _, _, rmatches = data.load_all_matches(img)
@@ -1398,10 +1760,15 @@ def rmatches_adapter(data, options={}):
     for im1 in im_all_rmatches:
         if im1 not in im_num_rmatches:
             im_num_rmatches[im1] = {}
+            im_num_rmatches_cost[im1] = {}
         for im2 in im_all_rmatches[im1]:
             im_num_rmatches[im1][im2] = len(im_all_rmatches[im1][im2])
+            if len(im_all_rmatches[im1][im2]) == 0:
+                im_num_rmatches_cost[im1][im2] = 1000.0
+            else:
+                im_num_rmatches_cost[im1][im2] = 1.0 / len(im_all_rmatches[im1][im2])
 
-    return im_num_rmatches
+    return im_num_rmatches, im_num_rmatches_cost
 
 def vocab_tree_adapter(data, options={}):
     vtranks, vtscores = data.load_vocab_ranks_and_scores()
@@ -1436,11 +1803,13 @@ def vocab_tree_adapter(data, options={}):
 
 def triplet_errors_adapter(data, options={}):
     triplet_errors = data.load_triplet_pairwise_errors()
-    triplet_scores = {}
+    triplet_scores_counts = {}
+    triplet_scores_cumsum = {}
 
     for im1 in triplet_errors:
-        if im1 not in triplet_scores:
-            triplet_scores[im1] = {}
+        if im1 not in triplet_scores_counts:
+            triplet_scores_counts[im1] = {}
+            triplet_scores_cumsum[im1] = {}
         for im2 in triplet_errors[im1]:
             # cum_error = \
             #     np.sum( \
@@ -1464,12 +1833,23 @@ def triplet_errors_adapter(data, options={}):
             #         np.power(2.0, 0.5 * np.array(triplet_errors[im1][im2]['bins'][2:-1])) \
             #     )
 
-            hist_counts = np.array(triplet_errors[im1][im2]['histogram-counts'][0:])
-            hist_bins = np.array(triplet_errors[im1][im2]['bins'][0:-1])
-            hist_cumsum = np.array(triplet_errors[im1][im2]['histogram-cumsum'][0:])
-            cum_error = np.sum( hist_cumsum[0:] )
+            if False:
+                hist_counts = np.array(triplet_errors[im1][im2]['histogram-counts'][0:])
+                hist_bins = np.array(triplet_errors[im1][im2]['bins'][0:-1])
+                hist_cumsum = np.array(triplet_errors[im1][im2]['histogram-cumsum'][0:])
+                cum_error = np.sum( hist_cumsum[0:] )
+
+
+            te_histogram = np.array(triplet_errors[im1][im2]['histogram-cumsum'])
+            mu, sigma = scipy.stats.norm.fit(te_histogram)
             # cum_error = np.sum( hist_counts * hist_bins )
-            triplet_scores[im1][im2] = cum_error
+            triplet_scores_cumsum[im1][im2] = mu
+
+            te_histogram = np.array(triplet_errors[im1][im2]['histogram-counts'])
+            mu, sigma = scipy.stats.norm.fit(te_histogram)
+            # cum_error = np.sum( hist_counts * hist_bins )
+            triplet_scores_counts[im1][im2] = mu
+
             # triplet_scores[im1][im2] = 1.0 / (cum_error + 1.0)
 
             # if im1 == 'DSC_1140.JPG':# and im2 == 'DSC_1159.JPG':
@@ -1485,7 +1865,27 @@ def triplet_errors_adapter(data, options={}):
             #     print np.array(triplet_errors[im1][im2]['bins'][0:])
             #     import sys;sys.exit(1)
 
-    return triplet_scores
+    return triplet_scores_counts, triplet_scores_cumsum
+
+def photometric_errors_adapter(data, options={}):
+    photometric_errors = data.load_photometric_errors()
+    photometric_scores_counts = {}
+    photometric_scores_cumsum = {}
+
+    for im1 in photometric_errors:
+        if im1 not in photometric_scores_counts:
+            photometric_scores_counts[im1] = {}
+            photometric_scores_cumsum[im1] = {}
+        for im2 in photometric_errors[im1]:
+            pe_histogram = np.array(photometric_errors[im1][im2]['histogram-cumsum'])
+            mu, sigma = scipy.stats.norm.fit(pe_histogram)
+            photometric_scores_cumsum[im1][im2] = mu
+
+            pe_histogram = np.array(photometric_errors[im1][im2]['histogram-counts'])
+            mu, sigma = scipy.stats.norm.fit(pe_histogram)
+            photometric_scores_counts[im1][im2] = mu
+
+    return photometric_scores_counts, photometric_scores_cumsum
 
 def groundtruth_image_matching_results_adapter(data):
     gt_results = data.load_groundtruth_image_matching_results()
@@ -1496,3 +1896,45 @@ def groundtruth_image_matching_results_adapter(data):
         for im2 in gt_results[im1]:
             scores_gt[im1][im2] = gt_results[im1][im2]['score']
     return scores_gt
+
+def calculate_lccs(ctx):
+    data = ctx.data
+    images = data.images()
+    lccs = {}
+    edge_threshold = 15
+
+    num_rmatches, _ = rmatches_adapter(data)
+    G = opensfm.commands.formulate_graphs.formulate_graph([data, images, num_rmatches, 'rm', edge_threshold])
+    for threshold in [15, 20, 25, 30, 35, 40]:
+        G_thresholded = opensfm.commands.formulate_graphs.threshold_graph_edges(G, threshold, key='weight')
+        for i,im1 in enumerate(sorted(G_thresholded.nodes())):
+            if im1 not in lccs:
+                lccs[im1] = {}
+            lccs[im1][threshold] = round(G_thresholded.node[im1]['lcc'], 3)
+
+    # print lccs
+    data.save_lccs(lccs)
+    # return lccs
+    # # cameras = data.load_camera_models()
+    # exifs = ctx.exifs
+    # config = data.config
+    # processes = config['processes']
+    # args = []
+    # color_image = True
+    # num_histogram_images = 4
+    # histogram_size = 32 * num_histogram_images
+
+    # im_all_rmatches = {}
+    # im_num_rmatches = {}
+
+    # for img in data.images():
+    #     _, _, rmatches = data.load_all_matches(img)
+    #     im_all_rmatches[img] = rmatches
+
+    # for im1 in im_all_rmatches:
+    #     if im1 not in im_num_rmatches:
+    #         im_num_rmatches[im1] = {}
+    #     for im2 in im_all_rmatches[im1]:
+    #         im_num_rmatches[im1][im2] = len(im_all_rmatches[im1][im2])
+
+    # return im_num_rmatches

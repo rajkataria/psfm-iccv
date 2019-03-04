@@ -128,7 +128,8 @@ class Command:
 
     def load_gt_matches(self, data):
         matches = {}
-        im_matching_results = data.load_groundtruth_image_matching_results()
+        image_matching_classifier_thresholds = data.config.get('image_matching_classifier_thresholds')
+        im_matching_results = data.load_groundtruth_image_matching_results(image_matching_classifier_thresholds)
         for im1 in data.images():
             try:
                 _, _, im1_matches = data.load_all_matches(im1)
