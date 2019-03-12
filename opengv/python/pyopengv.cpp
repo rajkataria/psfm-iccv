@@ -725,8 +725,8 @@ PYBIND11_MODULE(pyopengv, m) {
         py::arg("p"),
         py::arg("algo_name"),
         py::arg("threshold"),
-        py::arg("iterations") = 1000,
-        py::arg("probability") = 0.99
+        py::arg("iterations") = 10000,
+        py::arg("probability") = 0.999
   );
   m.def("absolute_pose_lmeds", pyopengv::absolute_pose::lmeds,
         py::arg("v"),
@@ -752,8 +752,8 @@ PYBIND11_MODULE(pyopengv, m) {
         py::arg("b2"),
         py::arg("algo_name"),
         py::arg("threshold"),
-        py::arg("iterations") = 1000,
-        py::arg("probability") = 0.99
+        py::arg("iterations") = 10000,
+        py::arg("probability") = 0.999
   );
   m.def("relative_pose_lmeds", pyopengv::relative_pose::lmeds,
         py::arg("b1"),

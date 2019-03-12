@@ -24,33 +24,59 @@ class Command:
         features, colors = self.load_features(data)
         features_end = timer()
 
+        matches_pruned = self.load_pruned_matches(data, spl=2)
         matches_all = self.load_all_matches(data)
         matches_thresholded = self.load_thresholded_matches(data)
+        matches_pruned_thresholded = self.load_pruned_thresholded_matches(data, spl=2)
         matches_all_weighted = self.load_all_weighted_matches(data)
         matches_thresholded_weighted = self.load_thresholded_weighted_matches(data)
+        matches_pruned_thresholded_weighted = self.load_pruned_thresholded_weighted_matches(data, spl=2)
         if data.reconstruction_exists('reconstruction_gt.json'):
             matches_gt = self.load_gt_matches(data)
+            matches_gt_pruned = self.load_gt_pruned_matches(data, spl=2)
 
         matches_end = timer()
+        logger.info('Creating tracks graph using pruned rmatches')
+        tracks_graph_pruned = matching.create_tracks_graph(features, colors, matches_pruned,
+                                                    data.config)
+
+        logger.info('Creating tracks graph using all matches')
         tracks_graph_all = matching.create_tracks_graph(features, colors, matches_all,
                                                     data.config)
+        logger.info('Creating tracks graph using thresholded matches')
         tracks_graph_thresholded = matching.create_tracks_graph(features, colors, matches_thresholded,
                                                     data.config)
+        logger.info('Creating tracks graph using pruned thresholded matches')
+        tracks_graph_pruned_thresholded = matching.create_tracks_graph(features, colors, matches_pruned_thresholded,
+                                                    data.config)
+        logger.info('Creating tracks graph using all weighted matches')
         tracks_graph_all_weighted = matching.create_tracks_graph(features, colors, matches_all_weighted,
                                                     data.config)
+        logger.info('Creating tracks graph using thresholded weighted matches')
         tracks_graph_thresholded_weighted = matching.create_tracks_graph(features, colors, matches_thresholded_weighted,
+                                                    data.config)
+        logger.info('Creating tracks graph using pruned thresholded weighted matches')
+        tracks_graph_pruned_thresholded_weighted = matching.create_tracks_graph(features, colors, matches_pruned_thresholded_weighted,
                                                     data.config)
 
         if data.reconstruction_exists('reconstruction_gt.json'):
+            logger.info('Creating tracks graph using ground-truth matches')
             tracks_graph_gt = matching.create_tracks_graph(features, colors, matches_gt,
                                                         data.config)
+            logger.info('Creating tracks graph using pruned ground-truth matches')
+            tracks_graph_gt_pruned = matching.create_tracks_graph(features, colors, matches_gt_pruned,
+                                                        data.config)
         tracks_end = timer()
+        data.save_tracks_graph(tracks_graph_pruned, 'tracks-pruned-matches.csv')
         data.save_tracks_graph(tracks_graph_all, 'tracks-all-matches.csv')
         data.save_tracks_graph(tracks_graph_thresholded, 'tracks-thresholded-matches.csv')
+        data.save_tracks_graph(tracks_graph_pruned_thresholded, 'tracks-pruned-thresholded-matches.csv')
         data.save_tracks_graph(tracks_graph_all_weighted, 'tracks-all-weighted-matches.csv')
         data.save_tracks_graph(tracks_graph_thresholded_weighted, 'tracks-thresholded-weighted-matches.csv')
+        data.save_tracks_graph(tracks_graph_pruned_thresholded_weighted, 'tracks-pruned-thresholded-weighted-matches.csv')
         if data.reconstruction_exists('reconstruction_gt.json'):
             data.save_tracks_graph(tracks_graph_gt, 'tracks-gt-matches.csv')
+            data.save_tracks_graph(tracks_graph_gt_pruned, 'tracks-gt-matches-pruned.csv')
         end = timer()
 
         with open(data.profile_log(), 'a') as fout:
@@ -71,6 +97,34 @@ class Command:
             features[im] = p[:, :2]
             colors[im] = c
         return features, colors
+
+    # Original
+    def load_matches(self, data):
+        matches = {}
+        for im1 in data.images():
+            try:
+                im1_matches = data.load_matches(im1)
+            except IOError:
+                continue
+            for im2 in im1_matches:
+                matches[im1, im2] = im1_matches[im2]
+        return matches
+
+    def load_pruned_matches(self, data, spl):
+        matches = {}
+        shortest_path_rmatches_threshold = data.config['shortest_path_rmatches_threshold']
+        im_matching_results = data.load_image_matching_results()
+        for im1 in data.images():
+            try:
+                im1_matches = data.load_matches(im1)
+            except IOError:
+                continue
+            for im2 in im1_matches:
+                if im1 in im_matching_results and im2 in im_matching_results[im1] \
+                    and (im_matching_results[im1][im2]['shortest_path_length'] == spl or \
+                        im_matching_results[im1][im2]['num_rmatches'] >= shortest_path_rmatches_threshold):
+                    matches[im1, im2] = im1_matches[im2]
+        return matches
 
     def load_all_matches(self, data):
         matches = {}
@@ -93,11 +147,36 @@ class Command:
             except IOError:
                 continue
             for im2 in im1_matches:
-                if im1 in im_matching_results and im2 in im_matching_results[im1] and im_matching_results[im1][im2]['score'] >= image_matching_classifier_threshold:
+                if im1 in im_matching_results and im2 in im_matching_results[im1] \
+                    and im_matching_results[im1][im2]['score'] >= image_matching_classifier_threshold:
                     matches[im1, im2] = im1_matches[im2]
-                elif im2 in im_matching_results and im1 in im_matching_results[im2] and im_matching_results[im2][im1]['score'] >= image_matching_classifier_threshold:
+                elif im2 in im_matching_results and im1 in im_matching_results[im2] \
+                    and im_matching_results[im2][im1]['score'] >= image_matching_classifier_threshold:
                     matches[im1, im2] = im1_matches[im2]
         return matches
+
+    def load_pruned_thresholded_matches(self, data, spl):
+        matches = {}
+        shortest_path_rmatches_threshold = data.config['shortest_path_rmatches_threshold']
+        image_matching_classifier_threshold = data.config.get('image_matching_classifier_threshold')
+        im_matching_results = data.load_image_matching_results()
+        for im1 in data.images():
+            try:
+                _, _, im1_matches = data.load_all_matches(im1)
+            except IOError:
+                continue
+            for im2 in im1_matches:
+                if im1 in im_matching_results and im2 in im_matching_results[im1] \
+                    and im_matching_results[im1][im2]['score'] >= image_matching_classifier_threshold \
+                    and (im_matching_results[im1][im2]['shortest_path_length'] == spl or \
+                        im_matching_results[im1][im2]['num_rmatches'] >= shortest_path_rmatches_threshold):
+                    matches[im1, im2] = im1_matches[im2]
+                elif im2 in im_matching_results and im1 in im_matching_results[im2] \
+                    and im_matching_results[im2][im1]['score'] >= image_matching_classifier_threshold \
+                    and (im_matching_results[im2][im1]['shortest_path_length'] == spl or \
+                        im_matching_results[im2][im1]['num_rmatches'] >= shortest_path_rmatches_threshold):
+                    matches[im1, im2] = im1_matches[im2]
+        return matches    
 
     def load_all_weighted_matches(self, data):
         matches = {}
@@ -120,24 +199,76 @@ class Command:
             except IOError:
                 continue
             for im2 in im1_matches:
-                if im1 in im_matching_results and im2 in im_matching_results[im1] and im_matching_results[im1][im2]['score'] >= image_matching_classifier_threshold:
+                if im1 in im_matching_results and im2 in im_matching_results[im1] \
+                    and im_matching_results[im1][im2]['score'] >= image_matching_classifier_threshold:
                     matches[im1, im2] = im1_matches[im2]
-                elif im2 in im_matching_results and im1 in im_matching_results[im2] and im_matching_results[im2][im1]['score'] >= image_matching_classifier_threshold:
+                elif im2 in im_matching_results and im1 in im_matching_results[im2] \
+                    and im_matching_results[im2][im1]['score'] >= image_matching_classifier_threshold:
+                    matches[im1, im2] = im1_matches[im2]
+        return matches
+
+    def load_pruned_thresholded_weighted_matches(self, data, spl):
+        # Pruning refers to shortest path length (=2)
+        matches = {}
+        shortest_path_rmatches_threshold = data.config['shortest_path_rmatches_threshold']
+        image_matching_classifier_threshold = data.config.get('image_matching_classifier_threshold')
+        im_matching_results = data.load_image_matching_results()
+        for im1 in data.images():
+            try:
+                im1_matches = data.load_weighted_matches(im1)
+            except IOError:
+                continue
+            for im2 in im1_matches:
+                if im1 in im_matching_results and im2 in im_matching_results[im1] \
+                    and im_matching_results[im1][im2]['score'] >= image_matching_classifier_threshold \
+                    and (im_matching_results[im1][im2]['shortest_path_length'] == spl or \
+                        im_matching_results[im1][im2]['num_rmatches'] >= shortest_path_rmatches_threshold):
+                    matches[im1, im2] = im1_matches[im2]
+                elif im2 in im_matching_results and im1 in im_matching_results[im2] \
+                    and im_matching_results[im2][im1]['score'] >= image_matching_classifier_threshold \
+                    and (im_matching_results[im2][im1]['shortest_path_length'] == spl or \
+                        im_matching_results[im2][im1]['num_rmatches'] >= shortest_path_rmatches_threshold):
                     matches[im1, im2] = im1_matches[im2]
         return matches
 
     def load_gt_matches(self, data):
         matches = {}
-        im_matching_results = data.load_groundtruth_image_matching_results()
+        image_matching_classifier_thresholds = data.config.get('image_matching_classifier_thresholds')
+        im_matching_results = data.load_groundtruth_image_matching_results(image_matching_classifier_thresholds)
         for im1 in data.images():
             try:
                 _, _, im1_matches = data.load_all_matches(im1)
             except IOError:
                 continue
             for im2 in im1_matches:
-                if im1 in im_matching_results and im2 in im_matching_results[im1] and im_matching_results[im1][im2]['score'] == 1.0:
+                if im1 in im_matching_results and im2 in im_matching_results[im1] \
+                    and im_matching_results[im1][im2]['score'] == 1.0:
                     matches[im1, im2] = im1_matches[im2]
-                elif im2 in im_matching_results and im1 in im_matching_results[im2] and im_matching_results[im2][im1]['score'] == 1.0:
+                elif im2 in im_matching_results and im1 in im_matching_results[im2] \
+                    and im_matching_results[im2][im1]['score'] == 1.0:
+                    matches[im1, im2] = im1_matches[im2]
+        return matches
+
+    def load_gt_pruned_matches(self, data, spl):
+        matches = {}
+        shortest_path_rmatches_threshold = data.config['shortest_path_rmatches_threshold']
+        image_matching_classifier_thresholds = data.config.get('image_matching_classifier_thresholds')
+        im_matching_results = data.load_groundtruth_image_matching_results(image_matching_classifier_thresholds)
+        for im1 in data.images():
+            try:
+                _, _, im1_matches = data.load_all_matches(im1)
+            except IOError:
+                continue
+            for im2 in im1_matches:
+                if im1 in im_matching_results and im2 in im_matching_results[im1] \
+                    and im_matching_results[im1][im2]['score'] == 1.0 \
+                    and (im_matching_results[im1][im2]['shortest_path_length'] == spl or \
+                        im_matching_results[im1][im2]['rmatches'] >= shortest_path_rmatches_threshold):
+                    matches[im1, im2] = im1_matches[im2]
+                elif im2 in im_matching_results and im1 in im_matching_results[im2] \
+                    and im_matching_results[im2][im1]['score'] == 1.0 \
+                    and (im_matching_results[im2][im1]['shortest_path_length'] == spl or \
+                        im_matching_results[im2][im1]['rmatches'] >= shortest_path_rmatches_threshold):
                     matches[im1, im2] = im1_matches[im2]
         return matches
 

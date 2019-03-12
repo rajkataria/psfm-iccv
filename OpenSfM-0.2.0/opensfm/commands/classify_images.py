@@ -40,13 +40,16 @@ class Command:
         logger.info('Loading features...')        
         transformations = data.load_transformations()
         photometric_errors = data.load_photometric_errors()
-        triplet_pairwise_errors = data.load_triplet_pairwise_errors()
+        # triplet_pairwise_errors = data.load_triplet_pairwise_errors()
+        consistency_errors = data.load_consistency_errors(cutoff=3, edge_threshold=15)
+        shortest_paths = data.load_shortest_paths()
         spatial_entropies = data.load_spatial_entropies()
         color_histograms = data.load_color_histograms()
         nbvs = data.load_nbvs()
         vt_ranks, vt_scores = data.load_vocab_ranks_and_scores()
         sequence_scores_mean, sequence_scores_min, sequence_scores_max, sequence_distance_scores = \
             data.sequence_rank_adapter()
+        lccs = data.load_lccs()
 
         logger.info('Classifying images...')
         args = []
@@ -67,7 +70,8 @@ class Command:
                 se = spatial_entropies[im1][im2]
                 pe = np.array(photometric_errors[im1][im2]['histogram'])
                 pe_percentage = np.array(photometric_errors[im1][im2]['polygon_area_percentage'])
-                te = np.array(triplet_pairwise_errors[im1][im2]['histogram'])
+                # te = np.array(triplet_pairwise_errors[im1][im2]['histogram'])
+                te = np.array(consistency_errors[im1][im2]['histogram'])
                 colmap = nbvs[im1][im2]
 
                 chist_im1 = np.array([color_histograms[im1]['histogram']])
@@ -94,16 +98,17 @@ class Command:
                     te, chist_im1, chist_im2, \
                     vt_rank_percentage_im1_im2, vt_rank_percentage_im2_im1, \
                     sq_scores_mean, sq_scores_min, sq_scores_max, sq_distance_scores, \
-                    [0], \
+                    np.array([lccs[im1][15]]), np.array([lccs[im2][15]]), np.array([min(lccs[im1][15],lccs[im2][15])]), np.array([max(lccs[im1][15],lccs[im2][15])]), \
+                    np.array([lccs[im1][20]]), np.array([lccs[im2][20]]), np.array([min(lccs[im1][20],lccs[im2][20])]), np.array([max(lccs[im1][20],lccs[im2][20])]), \
+                    np.array([lccs[im1][25]]), np.array([lccs[im2][25]]), np.array([min(lccs[im1][25],lccs[im2][25])]), np.array([max(lccs[im1][25],lccs[im2][25])]), \
+                    np.array([lccs[im1][30]]), np.array([lccs[im2][30]]), np.array([min(lccs[im1][30],lccs[im2][30])]), np.array([max(lccs[im1][30],lccs[im2][30])]), \
+                    np.array([lccs[im1][35]]), np.array([lccs[im2][35]]), np.array([min(lccs[im1][35],lccs[im2][35])]), np.array([max(lccs[im1][35],lccs[im2][35])]), \
+                    np.array([lccs[im1][40]]), np.array([lccs[im2][40]]), np.array([min(lccs[im1][40],lccs[im2][40])]), np.array([max(lccs[im1][40],lccs[im2][40])]), \
+                    np.array([len(shortest_paths[im1][im2]["shortest_path"])]), \
+                    [0], [0], \
                     False, regr, \
                     { 'classifier': 'BDT', 'max_depth': -1, 'n_estimators': -1} \
                     ])
-                # args.append([ \
-                #     im1, im2, regr, T['rotation'][2][2], len(rmatches), len(matches), \
-                #     se['entropy_im1_8'], se['entropy_im2_8'], se['entropy_im1_16'], se['entropy_im2_16'], \
-                #     pe, pe_percentage, feature_matching_scores, feature_matching_rmatch_scores, \
-                #     te, colmap, timedelta, chist \
-                #     ])
                 num_pairs = num_pairs + 1
         logger.info('Classifying {} total image pairs...'.format(num_pairs))
 
@@ -118,7 +123,7 @@ class Command:
             p.close()
 
         for r in p_results:
-            fns, num_rmatches, _, score, _ = r
+            fns, num_rmatches, _, score, shortest_path_length, _ = r
             im1, im2 = fns
 
             if num_rmatches < image_matching_classifier_thresholds[0]:
@@ -131,8 +136,8 @@ class Command:
             if im2 not in results:
                 results[im2] = {}
 
-            results[im1][im2] = {'im1': im1, 'im2': im2, 'score': score[0], 'num_rmatches': num_rmatches[0]}
-            results[im2][im1] = {'im1': im2, 'im2': im1, 'score': score[0], 'num_rmatches': num_rmatches[0]}
+            results[im1][im2] = {'im1': im1, 'im2': im2, 'score': score[0], 'num_rmatches': num_rmatches[0], 'shortest_path_length': shortest_path_length[0]}
+            results[im2][im1] = {'im1': im2, 'im2': im1, 'score': score[0], 'num_rmatches': num_rmatches[0], 'shortest_path_length': shortest_path_length[0]}
             num_pairs = num_pairs + 1
 
         # print results

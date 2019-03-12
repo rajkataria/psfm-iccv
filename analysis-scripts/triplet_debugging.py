@@ -2,15 +2,22 @@ import cv2
 import glob
 import gzip
 import json
+import logging
+import matplotlib.pyplot as plt
+import networkx as nx
 import numpy as np
 import os
 import pickle
 import random
+import scipy
 import sys
 from argparse import ArgumentParser
+from timeit import default_timer as timer
 
 from multiprocessing import Pool
 # from patchdataset import load_feature_matching_dataset, load_datasets
+logger = logging.getLogger(__name__)
+# logger.setLevel(logging.INFO)
 
 def mkdir_p(path):
   '''Make a directory including parent directories.
@@ -102,6 +109,67 @@ def debug_triplet_error(dset, options):
         im1, im2 = im2, im1
 
     print json.dumps(triplet_pairwise_results[im1][im2], sort_keys=True, indent=4, separators=(',', ': '))
+
+def plot_consistency_errors(data, im1, im2):
+    cutoffs = [2, 3, 4]
+    edge_threshold = 30
+    offset = 0
+    plt.clf()
+    visualization_gt_fn = os.path.join(data.data_path, 'match_visualizations_gt/{}---{}.jpeg'.format(im1.split('.')[0], im2.split('.')[0]))
+    visualization_fn = os.path.join(data.data_path, 'match_visualizations/{}---{}.jpeg'.format(im1.split('.')[0], im2.split('.')[0]))
+    if os.path.exists(visualization_fn):
+        img_gt = cv2.cvtColor(cv2.imread(visualization_gt_fn), cv2.COLOR_BGR2RGB)
+        img = cv2.cvtColor(cv2.imread(visualization_fn), cv2.COLOR_BGR2RGB)
+        plt.subplot(len(cutoffs) + 1, 2, 1)
+        # plt.imshow(img[:,:(img.shape[1]/2),:])
+        plt.imshow(img_gt)
+        plt.title ('Ground-truth visualization')
+        plt.subplot(len(cutoffs) + 1, 2, 2)
+        # plt.imshow(img[:,(img.shape[1]/2 - 1):,:])
+        plt.imshow(img)
+        plt.title ('Robust matches visualization')
+        offset = 1
+    for c, cutoff in enumerate(cutoffs):
+        print ('{} : {}    cutoff: {}'.format(im1, im2, cutoff))
+        consistency_errors = data.load_consistency_errors(cutoff=cutoff, edge_threshold=edge_threshold)
+
+        histogram = np.array(consistency_errors[im1][im2]['histogram-counts'])
+        bins = np.array(consistency_errors[im1][im2]['bins']) * 180.0 / np.pi
+        width = 0.9 * (bins[1] - bins[0])
+        center = (bins[:-1] + bins[1:]) / 2
+
+        errors = []
+        for i in range(0,len(histogram)):
+            v = [(bins[i] + bins[i+1])/2.0] * histogram[i]
+            errors.extend(v)
+        if len(errors) == 0:
+            print ('\tCutoff: {}  Edge threshold: {} - No histogram counts'.format(cutoff, edge_threshold))
+            continue
+        # mu, sigma = scipy.stats.norm.fit(errors)
+
+        # mu, sigma = scipy.stats.norm.fit(errors)
+        # mu = np.mean(errors)
+        # sigma = 0.0
+
+        plt.subplot(len(cutoffs) + offset, 2, 2*c + 1 + 2*offset)
+        plt.cla()
+        plt.bar(center, histogram, align='center', width=width)
+        plt.xlabel('R11 angle error', fontsize=16)
+        plt.ylabel('Error count', fontsize=16)
+        plt.title('Graph edge threshold: {} Cycle length: {}'.format(edge_threshold, cutoff))
+
+        histogram_cumsum = np.array(consistency_errors[im1][im2]['histogram-cumsum'])
+        plt.subplot(len(cutoffs) + offset, 2, 2*c + 2 + 2*offset)
+        plt.cla()
+        plt.bar(center, histogram_cumsum, align='center', width=width)
+        plt.xlabel('R11 angle error', fontsize=16)
+        plt.ylabel('Error count', fontsize=16)
+        plt.title('Graph edge threshold: {} Cycle length: {}'.format(edge_threshold, cutoff))
+
+    fig = plt.gcf()
+    fig.set_size_inches(37, 21)
+    plt.savefig('consistency-error-{}-{}.png'.format(os.path.basename(im1), os.path.basename(im2)))
+
     
 def main():
     parser = ArgumentParser(
@@ -117,7 +185,8 @@ def main():
     if not parser_options.opensfm_path in sys.path:
         sys.path.insert(1, parser_options.opensfm_path)
     from opensfm import dataset, matching, classifier, reconstruction, types, io
-    global matching, classifier, dataset
+    from opensfm.commands import formulate_graphs
+    global matching, classifier, dataset, formulate_graphs
 
     mkdir_p(os.path.join(parser_options.dataset,'triplet_debugging'))
 
@@ -127,7 +196,32 @@ def main():
       'filter': None
     }
     
-    debug_triplet_error(parser_options.dataset, options)
+    # debug_triplet_error(parser_options.dataset, options)
+
+
+    data = dataset.DataSet(parser_options.dataset)
+    images = data.images()
+
+    exifs = {im: data.load_exif(im) for im in images}
+    ctx = Context()
+    ctx.data = data
+    ctx.cameras = ctx.data.load_camera_models()
+    ctx.exifs = exifs
+
+
+    # im1s = ['DSC_1744.JPG', 'DSC_1761.JPG', 'DSC_1744.JPG', 'DSC_1761.JPG', \
+    #     'DSC_1745.JPG', 'DSC_1800.JPG', 'DSC_1800.JPG', 'DSC_1770.JPG', \
+    #     'DSC_1770.JPG', 'DSC_1770.JPG', 'DSC_1755.JPG']
+    # im2s = ['DSC_1760.JPG', 'DSC_1780.JPG', 'DSC_1780.JPG', 'DSC_1762.JPG', \
+    #     'DSC_1802.JPG', 'DSC_1807.JPG', 'DSC_1812.JPG', 'DSC_1773.JPG', \
+    #     'DSC_1812.JPG', 'DSC_1794.JPG', 'DSC_1795.JPG']
+
+    im1s = ['DSC_1744.JPG']
+    im2s = ['DSC_1800.JPG']
+
+    for i, _ in enumerate(im1s):
+        plot_consistency_errors (data, im1s[i], im2s[i])
+    
  
 if __name__ == '__main__':
     main()

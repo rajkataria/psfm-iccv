@@ -1,4 +1,4 @@
-for dataset in ./data/*/;
+for dataset in /hdd/Research/psfm-iccv/data/completed-test-datasets/*/*/;
 do 
 	echo $dataset;
 	bash ./scripts/run_reconstructions.sh $dataset > $dataset/output.log 2>&1;

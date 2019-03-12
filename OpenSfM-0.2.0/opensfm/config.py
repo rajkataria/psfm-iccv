@@ -133,20 +133,24 @@ depthmap_save_debug_files: no         # Save debug files with partial reconstruc
 # Other params
 processes: 72                          # Number of threads to use
 
-# Classifier params
+# Classifier/new params
+# relative_pose_method: fivept_stewenius           # ransac, eightpt, sevenpt, fivept_kneip, fivept_nister, fivept_stewenius
 use_gt_matches: no
 use_image_matching_classifier: no
 use_image_matching_thresholding: no
 use_weighted_feature_matches: no
 use_weighted_resectioning: no
+use_colmap_resectioning: no
+use_shortest_path_pruning: no
+shortest_path_rmatches_threshold: 1000
 feature_matching_classifier: Barn+Caterpillar+Church+Ignatius+3-50.pkl
 error_inlier_threshold: 0.01
 error_outlier_threshold: 0.08
 image_matching_classifier_threshold: 0.3
-image_matching_classifier: RM+TE+PE+Barn+Caterpillar+Church+Courthouse+Ignatius+6-50-thresholds-15-50.pkl
+image_matching_classifier: RM+PE+SE+TE+ETH3D+TUM_RGBD_SLAM+TanksAndTemples+6-50-thresholds-15-50.pkl
 image_matching_classifier_thresholds: 
     - 15
-    - 150
+    - 50
 
 # Params for submodel split and merge
 submodel_size: 80                                                   # Average number of images per submodel

@@ -41,29 +41,36 @@ class Command:
         data = dataset.DataSet(args.dataset)
         images = data.images()
         processes = 4 #data.config['processes']
+        edge_threshold = 0
 
         start = timer()
         # ground-truth match graph
         scores_gt = classifier.groundtruth_image_matching_results_adapter(data)
-        G_gt = formulate_graph([data, images, scores_gt, 'gt'])
+        G_gt = formulate_graph([data, images, scores_gt, 'gt', edge_threshold])
         auc_gt = calculate_graph_auc(G_gt, G_gt)
 
         # Criterias for match graph edges
-        num_rmatches = classifier.rmatches_adapter(data)
+        num_rmatches, num_rmatches_cost = classifier.rmatches_adapter(data)
         vt_rank_scores_mean, vt_rank_scores_min, vt_rank_scores_max, vt_scores_mean, vt_scores_min, vt_scores_max = classifier.vocab_tree_adapter(data)
-        triplet_scores = classifier.triplet_errors_adapter(data, options={'scores_gt': scores_gt})
+        triplet_scores_counts, triplet_scores_cumsum = classifier.triplet_errors_adapter(data, options={'scores_gt': scores_gt})
+        photometric_scores_counts, photometric_scores_cumsum = classifier.photometric_errors_adapter(data, options={'scores_gt': scores_gt})
+        
         sequence_scores_mean, sequence_scores_min, sequence_scores_max, sequence_distance_scores = \
             data.sequence_rank_adapter()
 
         graphs = [
             [num_rmatches, 'rm'],
+            [num_rmatches_cost, 'rm-cost'],
             [vt_rank_scores_min, 'vt-rank-min'],
             [vt_rank_scores_max, 'vt-rank-max'],
             [vt_rank_scores_mean, 'vt-rank-mean'],
             [vt_scores_min, 'vt-scores-min'],
             [vt_scores_max, 'vt-scores-max'],
             [vt_scores_mean, 'vt-scores-mean'],
-            [triplet_scores, 'te'],
+            [triplet_scores_counts, 'te-counts'],
+            [triplet_scores_cumsum, 'te-cumsum'],
+            [photometric_scores_counts, 'pe-counts'],
+            [photometric_scores_cumsum, 'pe-cumsum'],
             [sequence_scores_min, 'sq-min'],
             [sequence_scores_max, 'sq-max'],
             [sequence_scores_mean, 'sq-mean'],
@@ -100,8 +107,9 @@ class Command:
 def evaluate_metric(arg):
     data, images, criteria, label, G_gt = arg
     results = {}
+    edge_threshold = 0
 
-    G = formulate_graph([data, images, criteria, label])            
+    G = formulate_graph([data, images, criteria, label, edge_threshold])            
     auc = calculate_graph_auc(G, G_gt)
     if False:
         draw_graph(G, \
@@ -111,6 +119,7 @@ def evaluate_metric(arg):
             title='{} match graph'.format(label))
 
     results[label] = round(auc,2)
+    data.save_graph(G, label, edge_threshold)
     return results
 
 def calculate_graph_auc(G, G_gt):
@@ -215,7 +224,7 @@ def draw_graph(G, filename, highlighted_nodes=[], layout='shell', title=None):
 def formulate_graph(args):
     log.setup()
 
-    data, images, scores, criteria = args
+    data, images, scores, criteria, edge_threshold = args
     start = timer()
     G = nx.Graph()
     for i,img1 in enumerate(sorted(images)):
@@ -223,7 +232,8 @@ def formulate_graph(args):
             if j <= i:
                 continue
             if img1 in scores and img2 in scores[img1]:
-                G.add_edge(img1, img2, weight=scores[img1][img2])
+                if scores[img1][img2] > edge_threshold:
+                    G.add_edge(img1, img2, weight=scores[img1][img2])
 
     try:
         pagerank = nx.pagerank(G, alpha=0.9)
@@ -231,7 +241,7 @@ def formulate_graph(args):
         pagerank = {}
         for n in G.nodes():
             pagerank[n] = 1.0
-    lcc = nx.clustering(G, nodes=G.nodes())
+    lcc = nx.clustering(G, nodes=G.nodes(), weight='weight')
 
     for n in G.nodes():
         G.node[n]['pagerank'] = pagerank[n]
@@ -244,6 +254,30 @@ def formulate_graph(args):
     data.save_report(io.json_dumps(report),
                      'similarity-graphs.json')
     return G
+
+def threshold_graph_edges(G, threshold, key='weight'):
+    G_thresholded = nx.Graph()
+    for i,(n1,n2,d) in enumerate(G.edges(data=True)):
+        if d[key] >= threshold:
+            G_thresholded.add_edge(n1,n2)
+
+    for n in G.nodes():
+        if not G_thresholded.has_node(n):
+            G_thresholded.add_node(n)
+
+    try:
+        pagerank = nx.pagerank(G_thresholded, alpha=0.9)
+    except:
+        pagerank = {}
+        for n in G_thresholded.nodes():
+            pagerank[n] = 1.0
+    lcc = nx.clustering(G_thresholded, nodes=G_thresholded.nodes())
+
+    for n in G_thresholded.nodes():
+        G_thresholded.node[n]['pagerank'] = pagerank[n]
+        G_thresholded.node[n]['lcc'] = lcc[n]
+
+    return G_thresholded
 
 def invert_graph(G):
     S = nx.Graph()

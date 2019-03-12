@@ -40,6 +40,18 @@ class Command:
         # _, num_pairs = classifier.calculate_transformations(ctx)
         # classifier.create_feature_matching_dataset(ctx)
         # classifier.calculate_photometric_errors(ctx)
+        # classifier.calculate_nbvs(ctx)
+        # classifier.calculate_lccs(ctx)
+        
+        # classifier.calculate_spatial_entropies(ctx)
+        
+        # classifier.create_feature_matching_dataset(ctx)
+        # classifier.calculate_shortest_paths(ctx)
+        # classifier.calculate_consistency_errors(ctx)
+        # classifier.calculate_shortest_paths(ctx)
+        # classifier.calculate_nbvs(ctx)
+        
+        # classifier.create_feature_matching_dataset(ctx)
         # classifier.create_image_matching_dataset(ctx)
         # import sys; sys.exit(1)
 
@@ -51,9 +63,13 @@ class Command:
         classifier.calculate_photometric_errors(ctx)
         e_photometric_errors = timer()
 
-        s_triplets = timer()
-        classifier.calculate_triplet_errors(ctx)
-        e_triplets = timer()
+        # s_triplets = timer()
+        # classifier.calculate_triplet_errors(ctx)
+        # e_triplets = timer()
+
+        s_consistency = timer()
+        classifier.calculate_consistency_errors(ctx)
+        e_consistency = timer()
 
         s_seq = timer()
         classifier.calculate_sequence_ranks(ctx)
@@ -71,6 +87,14 @@ class Command:
         classifier.calculate_nbvs(ctx)
         e_nbvs = timer()
 
+        s_lccs = timer()
+        classifier.calculate_lccs(ctx)
+        e_lccs = timer()
+
+        s_shortest_paths = timer()
+        classifier.calculate_shortest_paths(ctx)
+        e_shortest_paths = timer()
+
         s_feature_matching_dataset = timer()
         classifier.create_feature_matching_dataset(ctx)
         e_feature_matching_dataset = timer()
@@ -84,12 +108,13 @@ class Command:
         report = {
             "num_pairs": num_pairs,
             "transformations_wall_time": e_transformations - s_transformations,
-            "triplet_errors_wall_time": e_triplets - s_triplets,
+            "consistency_errors_wall_time": e_consistency - s_consistency,
             "spatial_entropies_wall_time": e_spatial_entropies - s_spatial_entropies,
             "color_histograms_wall_time": e_color_histograms - s_color_histograms,
             "photometric_errors_wall_time": e_photometric_errors - s_photometric_errors,
             "transformations_wall_time": e_transformations - s_transformations,
             "nbvs_wall_time": e_nbvs - s_nbvs,
+            "lccs_wall_time": e_lccs - s_lccs,
             "feature_matching_dataset_wall_time": e_feature_matching_dataset - s_feature_matching_dataset,
             "image_matching_dataset_wall_time": e_image_matching_dataset - s_image_matching_dataset,
             "total_wall_time": end - start,
