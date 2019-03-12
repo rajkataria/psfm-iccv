@@ -1,4 +1,4 @@
-import gflags
+#import gflags
 from PIL import Image
 import torch
 import torch.nn as nn
