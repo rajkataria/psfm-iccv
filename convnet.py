@@ -510,7 +510,7 @@ def convnet_accuracy(y, y_gt, all_im1s, all_im2s, color, ls, epoch, thresholds):
 
 def inference(data_loader, model, epoch, run_dir, logger, opts, mode=None, optimizer=None):
     # switch to train/eval mode
-    print '#'*100
+    print ('#'*100)
     if mode == 'train':
         model.train()
     else:
@@ -648,16 +648,16 @@ def inference(data_loader, model, epoch, run_dir, logger, opts, mode=None, optim
         logger.log_value('TRAIN-LR', optimizer.param_groups[0]['lr'])
         logger.log_value('TRAIN-ACCURACY', accuracy)
         logger.log_value('TRAIN-LOSS', cum_loss)
-        print '{} Epoch: {}  Correct: {}  Accuracy: {}  Loss: {}'.format(mode.upper(), epoch, correct_counts, \
-            round(accuracy, 2), round(cum_loss,2))
+        print ('{} Epoch: {}  Correct: {}  Accuracy: {}  Loss: {}'.format(mode.upper(), epoch, correct_counts, \
+            round(accuracy, 2), round(cum_loss,2)))
         # do checkpointing
         if (epoch + 1) % 1 == 0:
             torch.save({'epoch': epoch + 1, 'state_dict': model.state_dict(), 'optimizer': optimizer.state_dict()},
                '{}/checkpoint_{}.pth'.format(run_dir, epoch))
     else:
         logger.log_value('TEST-ACCURACY', accuracy)
-        print '{} Epoch: {}  Correct: {}  Accuracy: {}\n'.format(mode.upper(), epoch, correct_counts, \
-            round(accuracy, 2))
+        print ('{} Epoch: {}  Correct: {}  Accuracy: {}\n'.format(mode.upper(), epoch, correct_counts, \
+            round(accuracy, 2)))
 
     # print ('-'*100)
     # score_thresholds = np.linspace(0, 1.0, 21)
@@ -883,14 +883,11 @@ def classify_convnet_image_match_training(arg, arg_te):
         batch_size=opts['batch_size'], shuffle=opts['shuffle'], **kwargs
         )
 
-    print '#'*50 + ' Training Data ' + '#'*50
-    # print '\tSubsample Ratio: {}'.format(opts['subsample_ratio'])
-    print '\tInliers: {}'.format(len(np.where(train_loader.dataset.labels == 1)[0]))
-    print '\tOutliers: {}'.format(len(np.where(train_loader.dataset.labels == 0)[0]))
-    print '\tTotal: {}'.format(train_loader.dataset.__len__())
-    # print '\tBias: {}'.format(100.0*bias_train/train_loader.dataset.__len__())
-    # print '\tBaseline: {} - {}'.format(thresholds, baseline_train)
-    print '#'*100
+    print ('#'*50 + ' Training Data ' + '#'*50)
+    print ('\tInliers: {}'.format(len(np.where(train_loader.dataset.labels == 1)[0])))
+    print ('\tOutliers: {}'.format(len(np.where(train_loader.dataset.labels == 0)[0])))
+    print ('\tTotal: {}'.format(train_loader.dataset.__len__()))
+    print ('#'*100)
 
     opts = arg[-1]
     test_loader = torch.utils.data.DataLoader(
@@ -898,14 +895,11 @@ def classify_convnet_image_match_training(arg, arg_te):
         batch_size=opts['batch_size'], shuffle=opts['shuffle'], **kwargs
         )
 
-    print '#'*50 + ' Testing Data ' + '#'*50
-    # print '\tSubsample Ratio: {}'.format(opts['subsample_ratio'])
-    print '\tInliers: {}'.format(len(np.where(test_loader.dataset.labels == 1)[0]))
-    print '\tOutliers: {}'.format(len(np.where(test_loader.dataset.labels == 0)[0]))
-    print '\tTotal: {}'.format(test_loader.dataset.__len__())
-    # print '\tBias: {}'.format(100.0*bias_test/test_loader.dataset.__len__())
-    # print '\tBaseline: {} - {}'.format(thresholds, baseline_test)
-    print '#'*110
+    print ('#'*50 + ' Testing Data ' + '#'*50)
+    print ('\tInliers: {}'.format(len(np.where(test_loader.dataset.labels == 1)[0])))
+    print ('\tOutliers: {}'.format(len(np.where(test_loader.dataset.labels == 0)[0])))
+    print ('\tTotal: {}'.format(test_loader.dataset.__len__()))
+    print ('#'*110)
 
 
     model, training_scores = classify_convnet_image_match_initialization(train_loader, test_loader, run_dir, opts)
