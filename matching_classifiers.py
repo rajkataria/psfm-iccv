@@ -334,7 +334,6 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
         #     = data.load_image_matching_dataset(robust_matches_threshold=15, rmatches_min_threshold=options['image_match_classifier_min_match'], \
         #         rmatches_max_threshold=options['image_match_classifier_max_match'])
         training_min_threshold = 0 if options['use_all_training_data'] else options['image_match_classifier_min_match']
-
         training_max_threshold = 10000 if options['use_all_training_data'] else options['image_match_classifier_max_match']
         _fns, [_R11s, _R12s, _R13s, _R21s, _R22s, _R23s, _R31s, _R32s, _R33s, _num_rmatches, _num_matches, _spatial_entropy_1_8x8, \
             _spatial_entropy_2_8x8, _spatial_entropy_1_16x16, _spatial_entropy_2_16x16, _pe_histogram, _pe_polygon_area_percentage, \
@@ -349,7 +348,7 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
             _shortest_path_length, \
             _num_gt_inliers, _labels] \
             = data.load_image_matching_dataset(robust_matches_threshold=options['image_matching_gt_threshold'], rmatches_min_threshold=training_min_threshold, \
-                rmatches_max_threshold=training_max_threshold)
+                rmatches_max_threshold=training_max_threshold, spl=options['shortest_path_length'])
 
         if i == 0:
             fns_tr, R11s_tr, R12s_tr, R13s_tr, R21s_tr, R22s_tr, R23s_tr, R31s_tr, R32s_tr, R33s_tr, num_rmatches_tr, num_matches_tr, spatial_entropy_1_8x8_tr, \
@@ -460,7 +459,7 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
             _shortest_path_length, \
             _num_gt_inliers, _labels] \
             = data.load_image_matching_dataset(robust_matches_threshold=options['image_matching_gt_threshold'], rmatches_min_threshold=options['image_match_classifier_min_match'], \
-                rmatches_max_threshold=options['image_match_classifier_max_match'])
+                rmatches_max_threshold=options['image_match_classifier_max_match'], spl=options['shortest_path_length'])
 
         if i == 0:
             fns_te, R11s_te, R12s_te, R13s_te, R21s_te, R22s_te, R23s_te, R31s_te, R32s_te, R33s_te, num_rmatches_te, num_matches_te, spatial_entropy_1_8x8_te, \
@@ -614,34 +613,41 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
 
     exps = [
         ['RM'],
-        ['PE'],
-        ['SP'],
-        ['SE'],
-        ['TE'],
-        ['NBVS'],
-        ['VD'],
-        ['TM'],
-        ['VT'],
-        ['HIST'],
-        ['LCC'],
-        ['SQ'],
-        ['RM', 'PE'],
-        ['RM', 'SP'],
-        ['RM', 'SE'],
-        ['RM', 'TE'],
-        ['RM', 'NBVS'],
-        ['RM', 'VD'],
-        ['RM', 'TM'],
-        ['RM', 'VT'],
-        ['RM', 'HIST'],
-        ['RM', 'LCC'],
-        ['RM', 'SQ'],
+        # ['PE'],
+        # ['SP'],
+        # ['SE'],
+        # ['TE'],
+        # ['NBVS'],
+        # ['VD'],
+        # ['TM'],
+        # ['VT'],
+        # ['HIST'],
+        # ['LCC'],
+        # ['SQ'],
+        # ['RM', 'PE'],
+        # ['RM', 'SP'],
+        # ['RM', 'SE'],
+        # ['RM', 'TE'],
+        # ['RM', 'NBVS'],
+        # ['RM', 'VD'],
+        # ['RM', 'TM'],
+        # ['RM', 'VT'],
+        # ['RM', 'HIST'],
+        # ['RM', 'LCC'],
+        # ['RM', 'SQ'],
+        ['RM', 'PE', 'SE'],
         ['RM', 'PE', 'SE', 'TE'],
         ['RM', 'PE', 'NBVS', 'TE'],
         ['RM', 'TE', 'PE', 'NBVS', 'SE'],
         ['RM', 'TE', 'PE', 'NBVS', 'SE', 'VD'],
         ['RM', 'TE', 'PE', 'NBVS', 'SE', 'TM'],
         ['RM', 'TE', 'PE', 'NBVS', 'SE', 'VD', 'TM'],
+        # ['PE', 'SE', 'TE'],
+        # ['PE', 'NBVS', 'TE'],
+        # ['TE', 'PE', 'NBVS', 'SE'],
+        # ['TE', 'PE', 'NBVS', 'SE', 'VD'],
+        # ['TE', 'PE', 'NBVS', 'SE', 'TM'],
+        # ['TE', 'PE', 'NBVS', 'SE', 'VD', 'TM'],
 
         # ['RM'],
         # ['RM', 'SE', 'PE'],
@@ -988,7 +994,7 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
             ]
 
             if options['classifier'] == 'BDT':
-                _, _, regr, scores, _ = classifier.classify_boosted_dts_image_match(arg)
+                _, _, regr, scores, _, _ = classifier.classify_boosted_dts_image_match(arg)
                 print ("\t\tFinished Learning/Classifying Boosted Decision Tree")  
             elif options['classifier'] == 'NN':
                 if mode == 'train':
@@ -1106,6 +1112,12 @@ def main(argv):
     parser.add_argument('-c', '--classifier', help='')
     parser.add_argument('-a', '--use_all_training_data', help='')
     parser.add_argument('-s', '--use_small_weights', help='')
+
+    parser.add_argument('--convnet_batch_size', help='8, 16, 32, ...')
+    parser.add_argument('--convnet_resnet_model', help='18, 34, 50, 101, 152')
+    parser.add_argument('--convnet_loss', help='ce, t, cet')
+    parser.add_argument('--convnet_features', help='RM, RM+TE, RM+NBVS, RM+TE+NBVS')
+    
     
     # parser.set_defaults(use_all_training_data=False)
   
@@ -1131,6 +1143,9 @@ def main(argv):
                 '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/ETH3D/facade',
                 '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/ETH3D/kicker',
                 '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/ETH3D/meadow',
+            ],
+            'SMALL': [
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/ETH3D/courtyard',
             ],
             'TUM_RGBD_SLAM': [
                 '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_360',
@@ -1189,6 +1204,9 @@ def main(argv):
                 '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/ETH3D/lecture_room',
                 '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/ETH3D/living_room',
             ],
+            'SMALL': [
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/ETH3D/lecture_room',
+            ],
             'TUM_RGBD_SLAM': [
                 '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_cabinet',
                 '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_large_cabinet',
@@ -1222,10 +1240,32 @@ def main(argv):
         }
     }
 
+    if parser_options.convnet_loss == 'cet':
+        convnet_loss = 'cross-entropy+triplet'
+    elif parser_options.convnet_loss == 'ce':
+        convnet_loss = 'cross-entropy'
+    elif parser_options.convnet_loss == 't':
+        convnet_loss = 'triplet'
+    else:
+        convnet_loss = 'cross-entropy'
+
+    if parser_options.convnet_resnet_model == '18':
+        convnet_resnet_model = 'resnet18'
+    elif parser_options.convnet_resnet_model == '34':
+        convnet_resnet_model = 'resnet34'
+    elif parser_options.convnet_resnet_model == '50':
+        convnet_resnet_model = 'resnet50'
+    elif parser_options.convnet_resnet_model == '101':
+        convnet_resnet_model = 'resnet101'
+    elif parser_options.convnet_resnet_model == '152':
+        convnet_resnet_model = 'resnet152'
+    else:
+        convnet_resnet_model = 'resnet50'
+
     options = {
         'feature_matching_data_folder': 'data/feature-matching-classifiers-results',
         'image_matching_data_folder': 'data/image-matching-classifiers-results',
-        'image_matching_gt_threshold': 15,
+        'image_matching_gt_threshold': 20,
         'use_all_training_data': True if parser_options.use_all_training_data == 'yes' else False,
         'use_small_weights': True if parser_options.use_small_weights == 'yes' else False,
         # 'classifier': 'BDT',
@@ -1236,12 +1276,13 @@ def main(argv):
         'n_estimators': int(parser_options.n_estimators),
         'image_match_classifier_min_match': int(parser_options.image_match_classifier_min_match),
         'image_match_classifier_max_match': int(parser_options.image_match_classifier_max_match),
+        'shortest_path_length': 200000,
         # 'feature_selection': False, \
         # NN options
         # 'batch_size': 128,
         # 'batch_size': 1,
         # 'batch_size': 1024 if parser_options.classifier.upper() != 'GCN' else 1,
-        'batch_size': 48 if parser_options.classifier.upper() != 'GCN' else 1,
+        'batch_size': int(parser_options.convnet_batch_size) if parser_options.classifier.upper() != 'GCN' else 1,
         # 'shuffle': True,
         'shuffle': True,
         'lr': 0.01,
@@ -1268,9 +1309,11 @@ def main(argv):
         # 'num_workers': 4,
         'num_workers': 6 if parser_options.classifier.upper() != 'GCN' else 0,
         # 'num_workers': 10,
-        'use_image_features': True,
+        # 'use_image_features': True,
         # 'use_image_features': False,
-        'loss': 'cross-entropy'
+        'loss': convnet_loss,
+        'model': convnet_resnet_model,
+        'features': parser_options.convnet_features
         # 'loss': 'triplet'
         # 'loss': 'cross-entropy+triplet'
     }
@@ -1280,17 +1323,21 @@ def main(argv):
 
     dataset_experiments = [
         # {
-        #     'training': ['TanksAndTemples'], 
-        #     'testing': ['TanksAndTemples']
+        #     'training': ['SMALL'], 
+        #     'testing': ['SMALL']
+        # },
+        {
+            'training': ['TanksAndTemples'], 
+            'testing': ['TanksAndTemples']
+        },
+        # {
+        #     'training': ['TanksAndTemples', 'ETH3D'], 
+        #     'testing': ['TanksAndTemples', 'ETH3D']
         # },
         # {
         #     'training': ['TanksAndTemples', 'ETH3D', 'TUM_RGBD_SLAM'], 
         #     'testing': ['TanksAndTemples', 'ETH3D', 'TUM_RGBD_SLAM']
         # },
-        {
-            'training': ['TanksAndTemples', 'ETH3D', 'TUM_RGBD_SLAM'], 
-            'testing': ['TanksAndTemples', 'ETH3D', 'TUM_RGBD_SLAM']
-        },
     ]
     for dataset_exp in dataset_experiments:
         print ('#'*200)

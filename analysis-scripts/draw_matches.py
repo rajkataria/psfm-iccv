@@ -18,7 +18,7 @@ def mkdir_p(path):
   except os.error as exc:
     pass
 
-def draw_matches(im1, p1, im2, p2, rmatches, colors, label=None):
+def draw_matches(im1, p1, im2, p2, rmatches, colors, features=None, label=None):
     height,width,channels = im1.shape
     font                   = cv2.FONT_HERSHEY_SIMPLEX
     bottomLeftCornerOfText = (10,height-50)
@@ -49,11 +49,18 @@ def draw_matches(im1, p1, im2, p2, rmatches, colors, label=None):
         fontColor,
         lineType)
 
-def iterate_gt_matches(dset, colors, im1_filters, im2_filters):
+def iterate_gt_matches_(dset, im1_filters, im2_filters):
+  colors = [(int(random.random()*255), int(random.random()*255), int(random.random()*255)) for i in xrange(0,30)]
+  data = dataset.DataSet(dset)
+  iterate_gt_matches(data, colors, im1_filters, im2_filters, features=features)
+
+def iterate_gt_matches(data, colors, im1_filters, im2_filters, features=None):
   # fm_dsets, fm_fns, [fm_np_indices_1, fm_np_indices_2, fm_np_distances, fm_np_errors, fm_np_size1, fm_np_size2, \
   #   fm_np_angle1, fm_np_angle2, fm_np_rerr1, fm_np_rerr2, fm_np_labels] = \
   #   load_datasets(load_feature_matching_dataset, [patchdataset], load_file_names=True)  
-  data = dataset.DataSet(dset)
+  # data = dataset.DataSet(dset)
+  dset = data.data_path
+  mkdir_p(os.path.join(dset,'match_visualizations_gt'))
   fm_fns, [fm_indices_1, fm_indices_2, fm_lowes_ratio_1, fm_lowes_ratio_2, fm_errors, fm_size1, fm_size2, fm_angle1, fm_angle2, fm_rerr1, \
     fm_rerr2, fm_labels] = data.load_feature_matching_dataset(lowes_threshold=0.8)
 
@@ -113,7 +120,7 @@ def iterate_gt_matches(dset, colors, im1_filters, im2_filters):
       matches = np.concatenate((im1_indices.reshape(-1,1), im2_indices.reshape(-1,1)), axis=1)
       im1 = cv2.imread(os.path.join(dset,'images',im1_fn))
       im2 = cv2.imread(os.path.join(dset,'images',im2_fn))
-      draw_matches(im1, p1, im2, p2, matches, colors)
+      draw_matches(im1, p1, im2, p2, matches, colors, features=features)
       viz_filename = os.path.join(dset, 'match_visualizations_gt', '{}---{}.jpeg'.format(os.path.basename(im1_fn).split('.')[0], \
         os.path.basename(im2_fn).split('.')[0]))
       # imgs = np.concatenate((cv2.resize(im1, (225, 225)),cv2.resize(im2, (225, 225))),axis=1)
@@ -122,17 +129,19 @@ def iterate_gt_matches(dset, colors, im1_filters, im2_filters):
       imgs = np.concatenate((im1,im2),axis=1)
       cv2.imwrite(viz_filename, cv2.resize(imgs, (2560, 960)) )
 
-def iterate_matches(dset, colors, im1_filters, im2_filters):
+def iterate_matches_(dset, im1_filters, im2_filters):
+  colors = [(int(random.random()*255), int(random.random()*255), int(random.random()*255)) for i in xrange(0,30)]
   data = dataset.DataSet(dset)
-  for matches_filename in glob.glob(os.path.join(dset,'matches','*')):
-    # if os.path.basename(matches_filename) not in ['2017-11-22_17-51-50_494.jpeg_matches.pkl.gz', \
-    #     '2017-11-22_17-51-47_591.jpeg_matches.pkl.gz', '2017-11-22_17-51-07_202.jpeg_matches.pkl.gz']:
-    #     continue
-    # if os.path.basename(matches_filename) not in ['2017-11-22_17-53-35_744.jpeg_matches.pkl.gz', \
-    #     '2017-11-22_17-54-40_215.jpeg_matches.pkl.gz', '2017-11-22_17-52-56_108.jpeg_matches.pkl.gz',
-    #     '2017-11-22_17-53-28_363.jpeg_matches.pkl.gz', '2017-11-22_17-54-32_708.jpeg_matches.pkl.gz']:
-    #     continue
-    im1_fn = os.path.basename(matches_filename).split('_matches.')[0]
+  iterate_matches(data, colors, im1_filters, im2_filters, features=features)
+
+def iterate_matches(data, colors, im1_filters, im2_filters, features=None):
+  dset = data.data_path
+  mkdir_p(os.path.join(dset,'match_visualizations'))
+  for matches_filename in glob.glob(os.path.join(dset,'all_matches','*')):
+  # for matches_filename in glob.glob(os.path.join(dset,'matches','*')):
+    # im1_fn = os.path.basename(matches_filename).split('_matches.')[0]
+    im1_fn = os.path.basename(matches_filename).split('_robust_matches.')[0]
+    
     if len(im1_filters) != 0:
       if os.path.basename(im1_fn) not in im1_filters:
           continue
@@ -147,7 +156,7 @@ def iterate_matches(dset, colors, im1_filters, im2_filters):
         im1 = cv2.imread(os.path.join(dset,'images',im1_fn))
         im2 = cv2.imread(os.path.join(dset,'images',im2_fn))
         p2, f2, c2 = data.load_features(im2_fn)
-        draw_matches(im1, p1, im2, p2, matches[im2_fn], colors)
+        draw_matches(im1, p1, im2, p2, matches[im2_fn], colors, features=features)
         viz_filename = os.path.join(dset, 'match_visualizations', '{}---{}.jpeg'.format(os.path.basename(im1_fn).split('.')[0], \
           os.path.basename(im2_fn).split('.')[0]))
         # imgs = np.concatenate((cv2.resize(im1, (225, 225)),cv2.resize(im2, (225, 225))),axis=1)
@@ -173,10 +182,7 @@ def main():
     from opensfm import features, dataset, matching, classifier, reconstruction, types, io
     global features, matching, classifier, dataset
 
-    mkdir_p(os.path.join(parser_options.dataset,'match_visualizations'))
-    mkdir_p(os.path.join(parser_options.dataset,'match_visualizations_gt'))
-
-    colors = [(int(random.random()*255), int(random.random()*255), int(random.random()*255)) for i in xrange(0,30)]
+    
     
     # filters = [
     #   '2017-11-22_17-51-36_646.jpeg', '2017-11-22_17-51-55_732.jpeg', '2017-11-22_17-52-00_904.jpeg','2017-11-22_17-51-24_734.jpeg', # FNs
@@ -198,8 +204,8 @@ def main():
     # exhibition_hall
     # im1_filters = ['DSC_1761.JPG', 'DSC_1770.JPG']
     # im2_filters = ['DSC_1762.JPG', 'DSC_1804.JPG']
-    im1_filters = ['DSC_1744.JPG']
-    im2_filters = ['DSC_1760.JPG', 'DSC_1780.JPG', 'DSC_1800.JPG', 'DSC_1811.JPG']
+    # im1_filters = ['DSC_1744.JPG']
+    # im2_filters = ['DSC_1760.JPG', 'DSC_1780.JPG', 'DSC_1800.JPG', 'DSC_1811.JPG']
     # im1_filters = ['DSC_1745.JPG']
     # im2_filters = ['DSC_1802.JPG']
     # im1_filters = ['DSC_1800.JPG']
@@ -218,18 +224,26 @@ def main():
 
     # im1_filters = ['DSC_1744.JPG', 'DSC_1803.JPG', 'DSC_1746.JPG', 'DSC_1785.JPG']
     # im2_filters = ['DSC_1803.JPG', 'DSC_1746.JPG', 'DSC_1785.JPG', 'DSC_1800.JPG']
-    im1_filters = ['DSC_1744.JPG', 'DSC_1784.JPG']
-    im2_filters = ['DSC_1784.JPG', 'DSC_1800.JPG']
+    # im1_filters = ['DSC_1744.JPG', 'DSC_1784.JPG']
+    # im2_filters = ['DSC_1784.JPG', 'DSC_1800.JPG']
 
-    im1_filters = ['DSC_1744.JPG', u'DSC_1766.JPG', u'DSC_1785.JPG', u'DSC_1803.JPG', u'DSC_1802.JPG', 'DSC_1800.JPG']
-    im2_filters = [u'DSC_1766.JPG', u'DSC_1785.JPG', u'DSC_1803.JPG', u'DSC_1802.JPG', u'DSC_1800.JPG']
+    # im1_filters = ['DSC_1744.JPG', u'DSC_1766.JPG', u'DSC_1785.JPG', u'DSC_1803.JPG', u'DSC_1802.JPG', 'DSC_1800.JPG']
+    # im2_filters = [u'DSC_1766.JPG', u'DSC_1785.JPG', u'DSC_1803.JPG', u'DSC_1802.JPG', u'DSC_1800.JPG']
+    # im1_filters = ['DSC_1787.JPG']
+    # im2_filters = ['DSC_1796.JPG']
+    im2_filters = ['DSC_1773.JPG']
+    im1_filters = ['DSC_1745.JPG']
+
 
     # courtyard
     # im1_filters = ['DSC_0291.JPG']
     # im2_filters = ['DSC_0309.JPG']
 
-    iterate_gt_matches(parser_options.dataset, colors, im1_filters, im2_filters)
-    iterate_matches(parser_options.dataset, colors, im1_filters, im2_filters)
+    # ece_floor5_wall
+    im1_filters = ['2017-11-22_19-46-21_218.jpeg']
+    im2_filters = ['2017-11-22_19-46-33_796.jpeg']
+    # iterate_gt_matches_(parser_options.dataset, im1_filters, im2_filters)
+    iterate_matches_(parser_options.dataset, im1_filters, im2_filters)
  
 if __name__ == '__main__':
     main()

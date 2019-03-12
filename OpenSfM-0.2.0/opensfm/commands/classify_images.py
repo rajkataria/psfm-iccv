@@ -109,12 +109,6 @@ class Command:
                     False, regr, \
                     { 'classifier': 'BDT', 'max_depth': -1, 'n_estimators': -1} \
                     ])
-                # args.append([ \
-                #     im1, im2, regr, T['rotation'][2][2], len(rmatches), len(matches), \
-                #     se['entropy_im1_8'], se['entropy_im2_8'], se['entropy_im1_16'], se['entropy_im2_16'], \
-                #     pe, pe_percentage, feature_matching_scores, feature_matching_rmatch_scores, \
-                #     te, colmap, timedelta, chist \
-                #     ])
                 num_pairs = num_pairs + 1
         logger.info('Classifying {} total image pairs...'.format(num_pairs))
 
@@ -129,7 +123,7 @@ class Command:
             p.close()
 
         for r in p_results:
-            fns, num_rmatches, _, score, _ = r
+            fns, num_rmatches, _, score, shortest_path_length, _ = r
             im1, im2 = fns
 
             if num_rmatches < image_matching_classifier_thresholds[0]:
@@ -142,8 +136,8 @@ class Command:
             if im2 not in results:
                 results[im2] = {}
 
-            results[im1][im2] = {'im1': im1, 'im2': im2, 'score': score[0], 'num_rmatches': num_rmatches[0]}
-            results[im2][im1] = {'im1': im2, 'im2': im1, 'score': score[0], 'num_rmatches': num_rmatches[0]}
+            results[im1][im2] = {'im1': im1, 'im2': im2, 'score': score[0], 'num_rmatches': num_rmatches[0], 'shortest_path_length': shortest_path_length[0]}
+            results[im2][im1] = {'im1': im2, 'im2': im1, 'score': score[0], 'num_rmatches': num_rmatches[0], 'shortest_path_length': shortest_path_length[0]}
             num_pairs = num_pairs + 1
 
         # print results

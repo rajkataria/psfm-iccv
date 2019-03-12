@@ -33,10 +33,12 @@ def classify_images(datasets, options={}):
             _lcc_im1_30, _lcc_im2_30, _min_lcc_30, _max_lcc_30, \
             _lcc_im1_35, _lcc_im2_35, _min_lcc_35, _max_lcc_35, \
             _lcc_im1_40, _lcc_im2_40, _min_lcc_40, _max_lcc_40, \
+            _shortest_path_length, \
             _num_gt_inliers, _labels] \
             = data.load_image_matching_dataset(robust_matches_threshold=15, rmatches_min_threshold=options['image_match_classifier_min_match'], \
-                rmatches_max_threshold=options['image_match_classifier_max_match'])
+                rmatches_max_threshold=options['image_match_classifier_max_match'], spl=2)
 
+        print len(_fns)
         if len(_labels) == 0:
             continue
         fns_te, R11s_te, R12s_te, R13s_te, R21s_te, R22s_te, R23s_te, R31s_te, R32s_te, R33s_te, num_rmatches_te, num_matches_te, spatial_entropy_1_8x8_te, \
@@ -49,6 +51,7 @@ def classify_images(datasets, options={}):
             lcc_im1_30_te, lcc_im2_30_te, min_lcc_30_te, max_lcc_30_te, \
             lcc_im1_35_te, lcc_im2_35_te, min_lcc_35_te, max_lcc_35_te, \
             lcc_im1_40_te, lcc_im2_40_te, min_lcc_40_te, max_lcc_40_te, \
+            shortest_path_length_te, \
             num_gt_inliers_te, labels_te \
             = _fns, _R11s, _R12s, _R13s, _R21s, _R22s, _R23s, _R31s, _R32s, _R33s, _num_rmatches, _num_matches, _spatial_entropy_1_8x8, \
             _spatial_entropy_2_8x8, _spatial_entropy_1_16x16, _spatial_entropy_2_16x16, _pe_histogram, _pe_polygon_area_percentage, \
@@ -60,6 +63,7 @@ def classify_images(datasets, options={}):
             _lcc_im1_30, _lcc_im2_30, _min_lcc_30, _max_lcc_30, \
             _lcc_im1_35, _lcc_im2_35, _min_lcc_35, _max_lcc_35, \
             _lcc_im1_40, _lcc_im2_40, _min_lcc_40, _max_lcc_40, \
+            _shortest_path_length, \
             _num_gt_inliers, _labels
 
         dsets_te = np.tile(t, (len(labels_te),))
@@ -77,11 +81,12 @@ def classify_images(datasets, options={}):
             lcc_im1_30_te, lcc_im2_30_te, min_lcc_30_te, max_lcc_30_te, \
             lcc_im1_35_te, lcc_im2_35_te, min_lcc_35_te, max_lcc_35_te, \
             lcc_im1_40_te, lcc_im2_40_te, min_lcc_40_te, max_lcc_40_te, \
-            labels_te, \
+            shortest_path_length_te, \
+            labels_te, np.ones((len(labels_te))), \
             False, trained_classifier, options
         ]
 
-        _, _, regr_bdt, scores, _ = classifier.classify_boosted_dts_image_match(arg)
+        _, _, regr_bdt, scores, spl, _ = classifier.classify_boosted_dts_image_match(arg)
         print ("\tFinished classifying data for {} using {}".format(t.split('/')[-1], options['classifier']))  
 
         analysis_data = np.concatenate(( \
@@ -690,8 +695,9 @@ def main(argv):
     ]
     datasets = [
         # '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/ETH3D/exhibition_hall',
-        '/hdd/Research/psfm-iccv/data/exhibition_hall',
-        # '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/ETH3D/exhibition_hall',
+        '/hdd/Research/psfm-iccv/data/completed-test-datasets/ETH3D/exhibition_hall',
+        # '/hdd/Research/psfm-iccv/data/completed-test-datasets/UIUCTag/ece_floor3_loop_cw',
+
     ]
     classify_images(datasets, options)
     # analyze_datasets(datasets, options)

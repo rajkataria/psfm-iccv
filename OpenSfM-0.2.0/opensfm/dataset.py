@@ -506,6 +506,18 @@ class DataSet:
         """File for flags indicating whether calibrated robust matching occured"""
         return os.path.join(self.__results_path(), 'reconstruction_results.{}'.format(ext))
 
+    def __resectioning_order_file(self, run):
+        """File for flags indicating whether calibrated robust matching occured"""
+        return os.path.join(self.__results_path(), 'resectioning_order-{}'.format(run))
+
+    def __resectioning_order_attempted_file(self, run):
+        """File for flags indicating whether calibrated robust matching occured"""
+        return os.path.join(self.__results_path(), 'resectioning_order_attempted-{}'.format(run))
+
+    def __resectioning_order_common_tracks_file(self, run):
+        """File for flags indicating whether calibrated robust matching occured"""
+        return os.path.join(self.__results_path(), 'resectioning_order_common_tracks-{}'.format(run))
+
     def graph_exists(self, graph_label, edge_threshold):
         return os.path.isfile(self.__graph_file(graph_label, edge_threshold))
 
@@ -811,22 +823,20 @@ class DataSet:
             lcc_im1_40, lcc_im2_40, min_lcc_40, max_lcc_40, \
             shortest_path_length, \
             num_gt_inliers, labels] \
-            = self.load_image_matching_dataset(robust_matches_threshold=15)
+            = self.load_image_matching_dataset(robust_matches_threshold=20)
 
         gt_results = {}
         for idx, _ in enumerate(fns[:,0]):
             im1 = fns[idx,0]
             im2 = fns[idx,1]
-            if labels[idx] == 1:
+            if labels[idx] >= 1.0:
                 if im1 not in gt_results:
                     gt_results[im1] = {}
                 if im2 not in gt_results:
                     gt_results[im2] = {}
 
-                if num_rmatches[idx] > image_matching_classifier_thresholds[-1] or shortest_path_length[idx] == 2:
-                    gt_results[im1][im2] = {"im1": im1, "im2": im2, "score": 1.0, "rmatches": num_rmatches[idx]}
-                    gt_results[im2][im1] = {"im1": im2, "im2": im1, "score": 1.0, "rmatches": num_rmatches[idx]}
-
+                gt_results[im1][im2] = {"im1": im1, "im2": im2, "score": 1.0, "rmatches": num_rmatches[idx], 'shortest_path_length': shortest_path_length[idx]}
+                gt_results[im2][im1] = {"im1": im2, "im2": im1, "score": 1.0, "rmatches": num_rmatches[idx], 'shortest_path_length': shortest_path_length[idx]}
         return gt_results
 
     def save_unthresholded_matches(self, image, matches):
@@ -851,6 +861,9 @@ class DataSet:
         with gzip.open(self.__unthresholded_inliers_file(image), 'rb') as fin:
             inliers = pickle.load(fin)
         return inliers
+
+    def unthresholded_inliers_exists(self, image):
+        return os.path.isfile(self.__unthresholded_inliers_file(image))
 
     def save_unthresholded_outliers(self, image, outliers):
         io.mkdir_p(self.__classifier_dataset_unthresholded_outliers_path())
@@ -899,7 +912,7 @@ class DataSet:
     def save_feature_matching_dataset(self, lowes_threshold):
         with open(self.__feature_matching_dataset_file(suffix=lowes_threshold), 'w') as fout:
             fout.write('image 1,image 2, index 1, index 2, lowe\'s ratio 1, lowe\'s ratio 2, max reprojection error, size 1, angle 1, size 2, angle 2, reproj error 1, reproj error 2, label\n')
-            for im1 in self.images():
+            for im1 in sorted(self.images()):
                 # if im1 != 'DSC_1761.JPG':
                 #     continue
                 if not self.unthresholded_matches_exists(im1):
@@ -1021,11 +1034,16 @@ class DataSet:
         counter = 0
         with open(self.__image_matching_dataset_file(suffix=robust_matches_threshold), 'w') as fout:
             
-            for im1 in self.images():
+            for im1 in sorted(self.images()):
                 if im1 not in transformations:
                     continue
                 im_all_matches, _, im_all_rmatches = self.load_all_matches(im1)
-                im_unthresholded_inliers = self.load_unthresholded_inliers(im1)
+                
+                if self.unthresholded_inliers_exists(im1):
+                    im_unthresholded_inliers = self.load_unthresholded_inliers(im1)
+                else:
+                    continue
+                    
                 for im2 in im_all_rmatches:#transformations[im1]:
                     if im2 not in transformations[im1]:
                         continue
@@ -1232,7 +1250,12 @@ class DataSet:
         gt_inliers = data[:,948]
         labels = data[:,949]
 
-        ri = np.where((num_rmatches >= rmatches_min_threshold) & (num_rmatches <= rmatches_max_threshold) & (shortest_path_length <= spl))[0]
+        ri = np.where( \
+            (num_rmatches >= rmatches_min_threshold) & \
+            (num_rmatches <= rmatches_max_threshold) & \
+            (shortest_path_length <= spl)
+        )[0]
+        
         return fns[ri], [R11s[ri], R12s[ri], R13s[ri], R21s[ri], R22s[ri], R23s[ri], R31s[ri], R32s[ri], R33s[ri], \
           num_rmatches[ri], num_matches[ri], \
           spatial_entropy_1_8x8[ri], spatial_entropy_2_8x8[ri], spatial_entropy_1_16x16[ri], spatial_entropy_2_16x16[ri], \
@@ -1285,6 +1308,21 @@ class DataSet:
             pickle.dump(results, fout)
         with open(self.__match_graph_results_file('json'), 'w') as fout:
             json.dump(results, fout, sort_keys=True, indent=4, separators=(',', ': '))
+
+    def save_resectioning_order(self, resectioning_order, run):
+        io.mkdir_p(self.__results_path())
+        with open(self.__resectioning_order_file(run), 'w') as fout:
+            json.dump(resectioning_order, fout, sort_keys=True, indent=4, separators=(',', ': '))
+
+    def save_resectioning_order_attempted(self, resectioning_order_attempted, run):
+        io.mkdir_p(self.__results_path())
+        with open(self.__resectioning_order_attempted_file(run), 'w') as fout:
+            json.dump(resectioning_order_attempted, fout, sort_keys=True, indent=4, separators=(',', ': '))
+
+    def save_resectioning_order_common_tracks(self, resectioning_order_common_tracks, run):
+        io.mkdir_p(self.__results_path())
+        with open(self.__resectioning_order_common_tracks_file(run), 'w') as fout:
+            json.dump(resectioning_order_common_tracks, fout, sort_keys=True, indent=4, separators=(',', ': '))
 
     def save_reconstruction_results(self, results):
         io.mkdir_p(self.__results_path())

@@ -50,6 +50,8 @@ class Command:
         # classifier.calculate_consistency_errors(ctx)
         # classifier.calculate_shortest_paths(ctx)
         # classifier.calculate_nbvs(ctx)
+        
+        # classifier.create_feature_matching_dataset(ctx)
         # classifier.create_image_matching_dataset(ctx)
         # import sys; sys.exit(1)
 

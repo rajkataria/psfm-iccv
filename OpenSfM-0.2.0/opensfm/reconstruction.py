@@ -13,6 +13,7 @@ from timeit import default_timer as timer
 from six import iteritems
 
 from opensfm import align
+from opensfm import classifier
 from opensfm import csfm
 from opensfm import geo
 from opensfm import log
@@ -392,8 +393,36 @@ def compute_image_pairs(track_dict, data):
     pairs = [(im1, im2) for im1, im2, r in result if r > 0]
     score = [r for im1, im2, r in result if r > 0]
     order = np.argsort(-np.array(score))
+    # print [pairs[o] for o in order]
+    # import sys;sys.exit(1);
     return [pairs[o] for o in order]
 
+def compute_image_pairs_colmap(track_dict, data):
+    """All matched image pairs sorted by colmap scores."""
+    pairs = []
+    scores = []
+    # pairs_and_scores = []
+    unique_pairs = {}
+    # nbvs_scores = data.load_nbvs()
+    # spatial_entropies = data.load_spatial_entropies()
+    # for im1 in sorted(nbvs_scores.keys()):
+    #     for im2 in sorted(nbvs_scores[im1].keys()):
+    for (im1, im2), (tracks, p1, p2) in iteritems(track_dict):
+        pair_key = '{}---{}'.format(im1,im2) if im1 < im2 else '{}---{}'.format(im2,im1)
+        if pair_key not in unique_pairs:
+            unique_pairs[pair_key] = True
+            pairs.append((im1, im2))
+            nbvs_im1 = classifier.next_best_view_score(p1)
+            nbvs_im2 = classifier.next_best_view_score(p2)
+            score = min(nbvs_im1, nbvs_im2)
+            # score = min(spatial_entropies[im1][im2]['entropy_im1_16'], spatial_entropies[im1][im2]['entropy_im2_16'])
+            scores.append(score)
+            # pairs_and_scores.append((im1, im2, nbvs_scores[im1][im2]['nbvs_im1'], nbvs_scores[im1][im2]['nbvs_im2'], score))
+    order = np.argsort(-np.array(scores))
+    # print pairs_and_scores
+    # print [pairs[o] for o in order]
+    # import sys;sys.exit(1);
+    return [pairs[o] for o in order]
 
 def _pair_reconstructability_arguments(track_dict, data):
     threshold = 4 * data.config['five_point_algo_threshold']
@@ -519,7 +548,24 @@ def two_view_reconstruction_plane_based(p1, p2, camera1, camera2, threshold):
     return cv2.Rodrigues(R)[0].ravel(), t, inliers
 
 
-def two_view_reconstruction(p1, p2, camera1, camera2, threshold):
+def groundtruth_pose(data, im1, im2):
+    gt_recons = data.load_reconstruction('reconstruction_gt.json')
+    for recon in gt_recons:
+        if im1 in recon.shots and im2 in recon.shots:
+            R1 = recon.shots[im1].pose.get_rotation_matrix()
+            t1 = recon.shots[im1].pose.translation
+            R2 = recon.shots[im2].pose.get_rotation_matrix()
+            t2 = recon.shots[im2].pose.translation
+            # gt_poses = {'R1': R1, 't1': t1, 'R2': R2, 't2': t2}
+            R_ = R2.dot(R1.T)
+            t_ = R1.dot(-R2.T.dot(t2) + R1.T.dot(t1))
+    
+            T_ = np.empty((3, 4))
+            T_[0:3,0:3] = R_.T
+            T_[0:3,3] = t_[0:3]
+            return T_
+
+def two_view_reconstruction(data, im1, im2, p1, p2, camera1, camera2, threshold):
     """Reconstruct two views using the 5-point method.
 
     Args:
@@ -539,16 +585,23 @@ def two_view_reconstruction(p1, p2, camera1, camera2, threshold):
     # Here we arbitrarily assume that the threshold is given for a camera of
     # focal length 1.  Also, arctan(threshold) \approx threshold since
     # threshold is small
-    T = run_relative_pose_ransac(
-        b1, b2, "STEWENIUS", 1 - np.cos(threshold), 1000)
-    R = T[:, :3]
-    t = T[:, 3]
-    inliers = _two_view_reconstruction_inliers(b1, b2, R, t, threshold)
+    if False: #data.config['use_gt_matches']:
+        T = groundtruth_pose(data, im1, im2)
+        R = T[:, :3]
+        t = T[:, 3]
+        inliers = _two_view_reconstruction_inliers(b1, b2, R, t, threshold)
+    else:
+        T = run_relative_pose_ransac(
+            b1, b2, "STEWENIUS", 1 - np.cos(threshold), 10000)
+        
+        R = T[:, :3]
+        t = T[:, 3]
+        inliers = _two_view_reconstruction_inliers(b1, b2, R, t, threshold)
 
-    T = run_relative_pose_optimize_nonlinear(b1[inliers], b2[inliers], t, R)
-    R = T[:, :3]
-    t = T[:, 3]
-    inliers = _two_view_reconstruction_inliers(b1, b2, R, t, threshold)
+        T = run_relative_pose_optimize_nonlinear(b1[inliers], b2[inliers], t, R)
+        R = T[:, :3]
+        t = T[:, 3]
+        inliers = _two_view_reconstruction_inliers(b1, b2, R, t, threshold)
 
     return cv2.Rodrigues(R.T)[0].ravel(), -R.T.dot(t), inliers
 
@@ -580,7 +633,7 @@ def two_view_reconstruction_rotation_only(p1, p2, camera1, camera2, threshold):
     return cv2.Rodrigues(R.T)[0].ravel(), inliers
 
 
-def two_view_reconstruction_general(p1, p2, camera1, camera2, threshold):
+def two_view_reconstruction_general(data, im1, im2, p1, p2, camera1, camera2, threshold):
     """Reconstruct two views from point correspondences.
 
     These will try different reconstruction methods and return the
@@ -595,7 +648,7 @@ def two_view_reconstruction_general(p1, p2, camera1, camera2, threshold):
         rotation, translation and inlier list
     """
     R_5p, t_5p, inliers_5p = two_view_reconstruction(
-        p1, p2, camera1, camera2, threshold)
+        data, im1, im2, p1, p2, camera1, camera2, threshold)
 
     R_plane, t_plane, inliers_plane = two_view_reconstruction_plane_based(
         p1, p2, camera1, camera2, threshold)
@@ -628,7 +681,7 @@ def bootstrap_reconstruction(data, graph, im1, im2, p1, p2):
     threshold = data.config['five_point_algo_threshold']
     min_inliers = data.config['five_point_algo_min_inliers']
     R, t, inliers, report['two_view_reconstruction'] = \
-        two_view_reconstruction_general(p1, p2, camera1, camera2, threshold)
+        two_view_reconstruction_general(data, im1, im2, p1, p2, camera1, camera2, threshold)
 
     logger.info("Two-view reconstruction inliers: {} / {}".format(
         len(inliers), len(p1)))
@@ -692,6 +745,29 @@ def reconstructed_points_for_images(graph, reconstruction, images):
                 if track in reconstruction.points:
                     common_tracks += 1
             res.append((image, common_tracks))
+    return sorted(res, key=lambda x: -x[1])
+
+def next_best_view_score_for_images(graph, reconstruction, images):
+    """Number of reconstructed points visible on each image.
+
+    Returns:
+        A list of (image, num_point) pairs sorted by decreasing number
+        of points.
+    """
+    res = []
+    for image in images:
+        if image not in reconstruction.shots:
+            visible_feature_coords = []
+            for track in graph[image]:
+                if track in reconstruction.points:
+                    visible_feature_coords.append(graph[image][track]['feature'])
+                    # common_tracks += 1
+
+            if len(visible_feature_coords) > 0:
+                nbvs = classifier.next_best_view_score(np.array(visible_feature_coords))
+            else:
+                nbvs = 0.0
+            res.append((image, nbvs))
     return sorted(res, key=lambda x: -x[1])
 
 def reconstructed_weighted_points_for_images(data, graph, reconstruction, images):#, im_matches, im_match_scores):
@@ -797,7 +873,7 @@ def resect(data, graph, reconstruction, shot_id):
 
     threshold = data.config['resection_threshold']
     T = pyopengv.absolute_pose_ransac(
-        bs, Xs, "KNEIP", 1 - np.cos(threshold), 1000)
+        bs, Xs, "KNEIP", 1 - np.cos(threshold), 10000)
 
     R = T[:, :3]
     t = T[:, 3]
@@ -1076,6 +1152,9 @@ class ShouldRetriangulate:
 
 def grow_reconstruction(data, graph, reconstruction, images, gcp):
     """Incrementally add shots to an initial reconstruction."""
+    resectioning_order = reconstruction.shots.keys() # Start with initial pair
+    resectioning_order_attempted = reconstruction.shots.keys() # Start with initial pair
+    resectioning_order_common_tracks = []
     bundle(graph, reconstruction, None, data.config)
     align.align_reconstruction(reconstruction, gcp, data.config)
 
@@ -1091,20 +1170,24 @@ def grow_reconstruction(data, graph, reconstruction, images, gcp):
                 [reconstruction], 'reconstruction.{}.json'.format(
                     datetime.datetime.now().isoformat().replace(':', '_')))
 
-        if data.config.get('use_weighted_resectioning', False):
+        if data.config.get('use_colmap_resectioning', False):
+            common_tracks = next_best_view_score_for_images(graph, reconstruction, images)
+        elif data.config.get('use_weighted_resectioning', False):
             common_tracks = reconstructed_weighted_points_for_images(data, graph, reconstruction, images)
         else:
             common_tracks = reconstructed_points_for_images(graph, reconstruction, images)
 
-
+        resectioning_order_common_tracks.append(common_tracks)
         if not common_tracks:
             break
 
         logger.info("-------------------------------------------------------")
         for image, num_tracks in common_tracks:
             ok, resrep = resect(data, graph, reconstruction, image)
+            resectioning_order_attempted.append(image)
             if ok:
                 logger.info("Adding {0} to the reconstruction".format(image))
+                resectioning_order.append(image)
                 step = {
                     'image': image,
                     'resection': resrep,
@@ -1147,6 +1230,19 @@ def grow_reconstruction(data, graph, reconstruction, images, gcp):
 
     logger.info("-------------------------------------------------------")
 
+    run_name = 'imc-{}-wr-{}-colmapr-{}-gm-{}-wfm-{}-imt-{}-spp-{}.json'.format(\
+        data.config['use_image_matching_classifier'], \
+        data.config['use_weighted_resectioning'], \
+        data.config['use_colmap_resectioning'], \
+        data.config['use_gt_matches'], \
+        data.config['use_weighted_feature_matches'], \
+        data.config['use_image_matching_thresholding'] , \
+        data.config['use_shortest_path_pruning']
+        )
+    data.save_resectioning_order(resectioning_order, run=run_name)
+    data.save_resectioning_order_attempted(resectioning_order_attempted, run=run_name)
+    data.save_resectioning_order_common_tracks(resectioning_order_common_tracks, run=run_name)
+    
     bundle(graph, reconstruction, gcp, data.config)
     align.align_reconstruction(reconstruction, gcp, data.config)
     paint_reconstruction(data, graph, reconstruction)
@@ -1162,21 +1258,21 @@ def incremental_reconstruction(data):
         data.invent_reference_lla()
     
     if data.config.get('use_gt_matches', False):
-        graph = data.load_tracks_graph('tracks-gt-matches.csv')
-    elif data.config.get('use_image_matching_classifier', False) and \
-        data.config.get('use_weighted_feature_matches', False) and \
-        data.config.get('use_image_matching_thresholding', False):
-        graph = data.load_tracks_graph('tracks-thresholded-weighted-matches.csv')
-    elif data.config.get('use_image_matching_classifier', False) and \
-        data.config.get('use_weighted_feature_matches', False):
-        graph = data.load_tracks_graph('tracks-all-weighted-matches.csv')
-    elif data.config.get('use_image_matching_classifier', False) and \
-        data.config.get('use_image_matching_thresholding', False):
-        graph = data.load_tracks_graph('tracks-thresholded-matches.csv')
+        if data.config.get('use_shortest_path_pruning', False):
+            graph = data.load_tracks_graph('tracks-gt-matches-pruned.csv')
+        else:
+            graph = data.load_tracks_graph('tracks-gt-matches.csv')
     elif data.config.get('use_image_matching_classifier', False):
-        graph = data.load_tracks_graph('tracks-all-matches.csv')
+        if data.config.get('use_image_matching_thresholding', False):
+            graph = data.load_tracks_graph('tracks-thresholded-matches.csv')
+        else:
+            graph = data.load_tracks_graph('tracks-all-matches.csv')
     else:
-        graph = data.load_tracks_graph('tracks.csv')
+        if data.config.get('use_shortest_path_pruning', False):
+            graph = data.load_tracks_graph('tracks-pruned-matches.csv')
+        else:
+            # original baseline
+            graph = data.load_tracks_graph('tracks.csv')
 
     tracks, images = matching.tracks_and_images(graph)
     chrono.lap('load_tracks_graph')
@@ -1186,7 +1282,10 @@ def incremental_reconstruction(data):
         gcp = data.load_ground_control_points()
     common_tracks = matching.all_common_tracks(graph, tracks)
     reconstructions = []
-    pairs = compute_image_pairs(common_tracks, data)
+    if data.config.get('use_colmap_resectioning', False):
+        pairs = compute_image_pairs_colmap(common_tracks, data)
+    else:
+        pairs = compute_image_pairs(common_tracks, data)
     chrono.lap('compute_image_pairs')
     report['num_candidate_image_pairs'] = len(pairs)
     report['reconstructions'] = []
@@ -1207,12 +1306,14 @@ def incremental_reconstruction(data):
                 reconstructions = sorted(reconstructions,
                                          key=lambda x: -len(x.shots))
                 
-                reconstruction_fn = 'reconstruction-imc-{}-wr-{}-gm-{}-wfm-{}-imt-{}.json'.format(\
+                reconstruction_fn = 'reconstruction-imc-{}-wr-{}-colmapr-{}-gm-{}-wfm-{}-imt-{}-spp-{}.json'.format(\
                     data.config['use_image_matching_classifier'], \
                     data.config['use_weighted_resectioning'], \
+                    data.config['use_colmap_resectioning'], \
                     data.config['use_gt_matches'], \
                     data.config['use_weighted_feature_matches'], \
-                    data.config['use_image_matching_thresholding']
+                    data.config['use_image_matching_thresholding'] , \
+                    data.config['use_shortest_path_pruning']
                     )
                 data.save_reconstruction(reconstructions, filename=reconstruction_fn)
 

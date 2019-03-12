@@ -146,7 +146,7 @@ def calculate_spatial_entropy(image_coordinates, grid_size):
 def next_best_view_score(image_coordinates):
   # Based on the paper Structure-from-Motion Revisited - https://demuc.de/papers/schoenberger2016sfm.pdf
   # Get a score based on number of common tracks and spatial distribution of the tracks in the image
-  grid_sizes = [2, 4, 8, 16, 32, 64]
+  grid_sizes = [2, 4, 8]
   score = 0
 
   for grid_size in grid_sizes:
@@ -157,7 +157,7 @@ def next_best_view_score(image_coordinates):
     indx = denormalized_image_coordinates[:,0].astype(np.int32)
     indy = denormalized_image_coordinates[:,1].astype(np.int32)
     dmap[indy*grid_size + indx] = 1
-    score += np.sum(dmap) * grid_size
+    score += np.sum(dmap) * grid_size * grid_size
   return score
 
 def classify_boosted_dts_feature_match(arg):
@@ -284,7 +284,7 @@ def classify_boosted_dts_image_match(arg):
 
     # Predict
     y_ = regr.predict_proba(X)[:,1]
-    return fns, num_rmatches, regr, y_, labels
+    return fns, num_rmatches, regr, y_, shortest_path_length, labels
 
 def relative_pose(arg):
     im1, im2, p1, p2, cameras, exifs, rmatches, threshold = arg
@@ -761,6 +761,13 @@ def tesselate_matches(ransac_count, grid_size, data, im1, im2, img1, img2, match
 
     warped_image = warp_image(Ms, triangle_pts_img1, triangle_pts_img2, img1_w, img2_w, im1, im2, flags, colors)
     masked_image = warp_image(Ms, triangle_pts_img1, triangle_pts_img2, 255*np.ones(img1_w.shape), np.zeros(img2_w.shape), im1, im2, flags, colors)
+
+    # try:
+    #     warped_image = warp_image(Ms, triangle_pts_img1, triangle_pts_img2, img1_w, img2_w, im1, im2, flags, colors)
+    #     masked_image = warp_image(Ms, triangle_pts_img1, triangle_pts_img2, 255*np.ones(img1_w.shape), np.zeros(img2_w.shape), im1, im2, flags, colors)
+    # except:
+    #     # TODO(raj): debug error with ece_floor5_wall images: 2017-11-22_19-46-21_218.jpeg ---2017-11-22_19-46-33_796.jpeg
+    #     return None, None, 0, np.array([]), np.array([]), np.array([]), np.array([]), None, None, None
     masked_image = masked_image[:,:,0]
     masked_image[masked_image < 0] = 0
     error_map = calculate_error_map(img2_w, warped_image)
@@ -844,14 +851,16 @@ def calculate_photometric_error_convex_hull(arg):
     w2_scale = 1.0 * grid_size / m2['width']
     h2_scale = 1.0 * grid_size / m2['height']
 
-    denormalized_p1_points[:,0] = 1.0 * denormalized_p1_points[:,0] * w1_scale
-    denormalized_p1_points[:,1] = 1.0 * denormalized_p1_points[:,1] * h1_scale
-    denormalized_p2_points[:,0] = 1.0 * denormalized_p2_points[:,0] * w2_scale
-    denormalized_p2_points[:,1] = 1.0 * denormalized_p2_points[:,1] * h2_scale
+    scaled_denormalized_p1_points = np.zeros(denormalized_p1_points.shape)
+    scaled_denormalized_p2_points = np.zeros(denormalized_p2_points.shape)
+    scaled_denormalized_p1_points[:,0] = 1.0 * denormalized_p1_points[:,0] * w1_scale
+    scaled_denormalized_p1_points[:,1] = 1.0 * denormalized_p1_points[:,1] * h1_scale
+    scaled_denormalized_p2_points[:,0] = 1.0 * denormalized_p2_points[:,0] * w2_scale
+    scaled_denormalized_p2_points[:,1] = 1.0 * denormalized_p2_points[:,1] * h2_scale
 
-    renormalized_p1_points = features.normalized_image_coordinates(denormalized_p1_points, grid_size, grid_size)
-    renormalized_p2_points = features.normalized_image_coordinates(denormalized_p2_points, grid_size, grid_size)
-    
+    renormalized_p1_points = features.normalized_image_coordinates(scaled_denormalized_p1_points, grid_size, grid_size)
+    renormalized_p2_points = features.normalized_image_coordinates(scaled_denormalized_p2_points, grid_size, grid_size)
+
     best_warped_image = None
     best_error_map = None
     best_masked_image = None
@@ -1701,6 +1710,11 @@ def compute_matches_using_gt_reconstruction(args):
         data.save_unthresholded_outliers(im1, im1_unthresholded_outliers)
         data.save_unthresholded_features(im1, im1_unthresholded_features)
 
+    del im1_unthresholded_matches
+    del im1_unthresholded_inliers
+    del im1_unthresholded_outliers
+    del im1_unthresholded_features
+
 def create_feature_matching_dataset(ctx):
     data = ctx.data
     cameras = data.load_camera_models()
@@ -1721,12 +1735,13 @@ def create_feature_matching_dataset(ctx):
             config.get('error_inlier_threshold'), config.get('error_outlier_threshold')]
         args.append(element)
 
-    p = Pool(processes)
+    p = Pool(processes, maxtasksperchild=2)
     if processes == 1:    
         for arg in args:
             compute_matches_using_gt_reconstruction(arg)
     else:
         p.map(compute_matches_using_gt_reconstruction, args)
+    p.close()
 
     data.save_feature_matching_dataset(lowes_threshold=0.8)
     # data.save_feature_matching_dataset(lowes_threshold=0.85)

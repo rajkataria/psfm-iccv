@@ -66,60 +66,81 @@ class Command:
             'reconstruct'
         ]
 
+        # if data.tracks_graph_exists('tracks.csv'):
+        #     graph_ = data.load_tracks_graph('tracks.csv')
+        # if data.tracks_graph_exists('tracks-thresholded-matches.csv'):
+        #     graph_thresholded_matches = data.load_tracks_graph('tracks-thresholded-matches.csv')
+        # if data.tracks_graph_exists('tracks-all-matches.csv'):
+        #     graph_all_matches = data.load_tracks_graph('tracks-all-matches.csv')
+        # if data.tracks_graph_exists('tracks-thresholded-weighted-matches.csv'):
+        #     graph_thresholded_weighted_matches = data.load_tracks_graph('tracks-thresholded-weighted-matches.csv')
+        # if data.tracks_graph_exists('tracks-all-weighted-matches.csv'):
+        #     graph_all_weighted_matches = data.load_tracks_graph('tracks-all-weighted-matches.csv')
+        # if data.tracks_graph_exists('tracks-gt-matches.csv'):
+        #     graph_gt_matches = data.load_tracks_graph('tracks-gt-matches.csv')
+
         if data.tracks_graph_exists('tracks.csv'):
-            graph_ = data.load_tracks_graph('tracks.csv')
-        if data.tracks_graph_exists('tracks-thresholded-matches.csv'):
-            graph_thresholded_matches = data.load_tracks_graph('tracks-thresholded-matches.csv')
+            tracks_graph = data.load_tracks_graph('tracks.csv')    
+        if data.tracks_graph_exists('tracks-pruned-matches.csv'):
+            tracks_graph_pruned = data.load_tracks_graph('tracks-pruned-matches.csv')
         if data.tracks_graph_exists('tracks-all-matches.csv'):
-            graph_all_matches = data.load_tracks_graph('tracks-all-matches.csv')
-        if data.tracks_graph_exists('tracks-thresholded-weighted-matches.csv'):
-            graph_thresholded_weighted_matches = data.load_tracks_graph('tracks-thresholded-weighted-matches.csv')
+            tracks_graph_all = data.load_tracks_graph('tracks-all-matches.csv')
+        if data.tracks_graph_exists('tracks-thresholded-matches.csv'):
+            tracks_graph_thresholded = data.load_tracks_graph('tracks-thresholded-matches.csv')
+        if data.tracks_graph_exists('tracks-pruned-thresholded-matches.csv'):
+            tracks_graph_pruned_thresholded = data.load_tracks_graph('tracks-pruned-thresholded-matches.csv')
         if data.tracks_graph_exists('tracks-all-weighted-matches.csv'):
-            graph_all_weighted_matches = data.load_tracks_graph('tracks-all-weighted-matches.csv')
+            tracks_graph_all_weighted = data.load_tracks_graph('tracks-all-weighted-matches.csv')
+        if data.tracks_graph_exists('tracks-thresholded-weighted-matches.csv'):
+            tracks_graph_thresholded_weighted = data.load_tracks_graph('tracks-thresholded-weighted-matches.csv')
+        if data.tracks_graph_exists('tracks-pruned-thresholded-weighted-matches.csv'):
+            tracks_graph_pruned_thresholded_weighted = data.load_tracks_graph('tracks-pruned-thresholded-weighted-matches.csv')
         if data.tracks_graph_exists('tracks-gt-matches.csv'):
-            graph_gt_matches = data.load_tracks_graph('tracks-gt-matches.csv')
+            tracks_graph_gt = data.load_tracks_graph('tracks-gt-matches.csv')
+        if data.tracks_graph_exists('tracks-gt-matches-pruned.csv'):
+            tracks_graph_gt_pruned = data.load_tracks_graph('tracks-gt-matches-pruned.csv')
 
         # Get results for baselines
         if data.reconstruction_exists('reconstruction.json'):
             logger.info('Computing reconstruction results for baseline...')
             stats_label = 'baseline'
             reconstruction_baseline = data.load_reconstruction('reconstruction.json')[0]
-            relevant_reconstructions.append([graph_, reconstruction_baseline, baseline_command_keys, stats_label])
+            relevant_reconstructions.append([tracks_graph, reconstruction_baseline, baseline_command_keys, stats_label])
 
         if data.reconstruction_exists('reconstruction_colmap.json'):
             logger.info('Computing reconstruction results for colmap...')
             stats_label = 'colmap'
             reconstruction_colmap = data.load_reconstruction('reconstruction_colmap.json')[0]
-            relevant_reconstructions.append([graph_, reconstruction_colmap, {}, stats_label])
+            relevant_reconstructions.append([tracks_graph, reconstruction_colmap, {}, stats_label])
 
         for imc in [True, False]:
             for wr in [True, False]:
-                for gm in [True, False]:
-                    for wfm in [True, False]:
-                        for imt in [True, False]:
-                            reconstruction_fn = 'reconstruction-imc-{}-wr-{}-gm-{}-wfm-{}-imt-{}.json'.format(imc, wr, gm, wfm, imt)
-                            if data.reconstruction_exists(reconstruction_fn):
-                                logger.info('Computing reconstruction results - imc-{}-wr-{}-gm-{}-wfm-{}-imt-{}.json'.format(imc, wr, gm, wfm, imt))
-                                if imc is False and wr is False and gm is False and wfm is False and imt is False:
-                                    stats_label = 'baseline'
-                                else:
-                                    stats_label = 'imc-{}-wr-{}-gm-{}-wfm-{}-imt-{}'.format(imc, wr, gm, wfm, imt)
-                                reconstruction_ = data.load_reconstruction(reconstruction_fn)[0]
+                for colmapr in [True, False]:
+                    for gm in [True, False]:
+                        for wfm in [True, False]:
+                            for imt in [True, False]:
+                                for spp in [True, False]:
+                                    stats_label = 'imc-{}-wr-{}-colmapr-{}-gm-{}-wfm-{}-imt-{}-spp-{}'.format(imc, wr, colmapr, gm, wfm, imt, spp)
+                                    reconstruction_fn = 'reconstruction-{}.json'.format(stats_label)
+                                    if data.reconstruction_exists(reconstruction_fn):
+                                        logger.info('Computing reconstruction results - {}'.format(reconstruction_fn))
+                                        reconstruction_ = data.load_reconstruction(reconstruction_fn)[0]
 
-                                if gm is True:
-                                    graph = data.load_tracks_graph('tracks-gt-matches.csv')
-                                elif imc is True and wfm is True and imt is True:
-                                    graph = graph_thresholded_weighted_matches
-                                elif imc is True and wfm is True:
-                                    graph = graph_all_weighted_matches
-                                elif imc is True and imt is True:
-                                    graph = graph_thresholded_matches
-                                elif imc is True:
-                                    graph = graph_all_matches
-                                else:
-                                    graph = graph_
+                                        if gm is True and spp is True:
+                                            graph = tracks_graph_gt_pruned
+                                        elif gm is True and spp is False:
+                                            graph = tracks_graph_gt
+                                        elif imc is False and wfm is False and imt is False and spp is False:
+                                            graph = tracks_graph
+                                        elif imc is False and wfm is False and imt is False and spp is True:
+                                            graph = tracks_graph_pruned
+                                        elif imc is True and wfm is False and imt is True and spp is False:
+                                            graph = tracks_graph_thresholded
+                                        elif imc is True and wfm is False and imt is True and spp is True:
+                                            graph = tracks_graph_pruned_thresholded
 
-                                relevant_reconstructions.append([graph, reconstruction_, classifier_command_keys, stats_label])
+
+                                        relevant_reconstructions.append([graph, reconstruction_, classifier_command_keys, stats_label])
 
         for datum in relevant_reconstructions:
             g, r, k, l = datum
@@ -150,24 +171,24 @@ class Command:
                 self.intersect_reconstructions(data, reconstruction_colmap_gt, reconstruction_colmap)
                 relevant_reconstructions.append([reconstruction_colmap_gt, reconstruction_colmap, stats_label])
 
-            for imc in [True, False]:
-                for wr in [True, False]:
+        for imc in [True, False]:
+            for wr in [True, False]:
+                for colmapr in [True, False]:
                     for gm in [True, False]:
                         for wfm in [True, False]:
                             for imt in [True, False]:
-                                reconstruction_fn = 'reconstruction-imc-{}-wr-{}-gm-{}-wfm-{}-imt-{}.json'.format(imc, wr, gm, wfm, imt)
-                                if data.reconstruction_exists(reconstruction_fn):
-                                    logger.info('Computing reconstruction results - imc-{}-wr-{}-gm-{}-wfm-{}-imt-{}.json'.format(imc, wr, gm, wfm, imt))
-                                    if imc is False and wr is False and gm is False and wfm is False and imt is False:
-                                        stats_label = 'baseline'
-                                    else:
-                                        stats_label = 'imc-{}-wr-{}-gm-{}-wfm-{}-imt-{}'.format(imc, wr, gm, wfm, imt)
+                                for spp in [True, False]:
+                                    stats_label = 'imc-{}-wr-{}-colmapr-{}-gm-{}-wfm-{}-imt-{}-spp-{}'.format(imc, wr, colmapr, gm, wfm, imt, spp)
+                                    reconstruction_fn = 'reconstruction-{}.json'.format(stats_label)
+                                    if data.reconstruction_exists(reconstruction_fn):
+                                        logger.info('Computing reconstruction results - {}'.format(reconstruction_fn))
+                                        reconstruction_ = data.load_reconstruction(reconstruction_fn)[0]
 
-                                    reconstruction_gt = data.load_reconstruction('reconstruction_gt.json')[0]
-                                    reconstruction_ = data.load_reconstruction(reconstruction_fn)[0]
-                                    self.intersect_reconstructions(data, reconstruction_gt, reconstruction_)
+                                        reconstruction_gt = data.load_reconstruction('reconstruction_gt.json')[0]
+                                        reconstruction_ = data.load_reconstruction(reconstruction_fn)[0]
+                                        self.intersect_reconstructions(data, reconstruction_gt, reconstruction_)
 
-                                    relevant_reconstructions.append([reconstruction_gt, reconstruction_, stats_label])
+                                        relevant_reconstructions.append([reconstruction_gt, reconstruction_, stats_label])
 
             for datum in relevant_reconstructions:
                 r_gt, r, label = datum
