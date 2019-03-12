@@ -1,4 +1,3 @@
-import gflags
 from PIL import Image
 import torch
 import torch.nn as nn
@@ -209,9 +208,6 @@ class GCN(nn.Module):
         # print image_features.size()
         # print '='*100
         feature_shape = image_features.size()
-        print '&'*100
-        print feature_shape
-        print '&'*100
         # print '^'*100
         # print image_features
         node_features = image_features.view(1, feature_shape[0], feature_shape[1])
@@ -228,8 +224,8 @@ class GCN(nn.Module):
             # print '*'*100
             
             # print A
-            print '*'*100
-            print node_features.size()
+            # print '*'*100
+            # print node_features.size()
             
             # print '*'*100
             
@@ -248,31 +244,21 @@ class GCN(nn.Module):
             elif i == 4:
                 node_features_result = self.gcn_layer_5(node_features)
 
-            print node_features_result.size()
-            print '#'*100
             node_features_result = torch.bmm(A, node_features_result)
             node_features_result = torch.bmm(D_normalizer, node_features_result)
             node_features_result = self.relu(node_features_result)
             node_features = node_features_result
         
-        print '$'*100
-        print '$'*100
-        print node_features.size()
-        print '@'*100
-        print '@'*100
-        print node_indices.size()
-        print '!'*100
-        print '!'*100
-        
+       
         for n in node_indices[0].data.cpu().numpy():
-            print n
+
             # pdb.set_trace()
             n1, n2 = n
             a = node_features[0][n1]
             b = node_features[0][n2]
-            print '{}  /  {}'.format(a.size(), b.size())
+
             # x = toch
-        import sys; sys.exit(1)
+
         result = self.mlp(node_features)
         # print product.size()
         # print '*'*100
@@ -674,7 +660,7 @@ def nn_accuracy(y, y_gt, all_im1s, all_im2s, color, ls, epoch, thresholds):
 
 def inference(data_loader, model, epoch, run_dir, logger, opts, mode=None, optimizer=None):
     # switch to train/eval mode
-    print '#'*100
+    print ('#'*100)
     if mode == 'train':
         model.train()
     else:
@@ -923,16 +909,16 @@ def inference(data_loader, model, epoch, run_dir, logger, opts, mode=None, optim
         logger.log_value('TRAIN-LR', optimizer.param_groups[0]['lr'])
         logger.log_value('TRAIN-ACCURACY', accuracy)
         logger.log_value('TRAIN-LOSS', cum_loss)
-        print '{} Epoch: {}  Correct: {}  Accuracy: {}  Loss: {}'.format(mode.upper(), epoch, correct_counts, \
-            round(accuracy, 2), round(cum_loss,2))
+        print ('{} Epoch: {}  Correct: {}  Accuracy: {}  Loss: {}'.format(mode.upper(), epoch, correct_counts, \
+            round(accuracy, 2), round(cum_loss,2)))
         # do checkpointing
         if (epoch + 1) % 3 == 0:
             torch.save({'epoch': epoch + 1, 'state_dict': model.state_dict(), 'optimizer': optimizer.state_dict()},
                '{}/checkpoint_{}.pth'.format(run_dir, epoch))
     else:
         logger.log_value('TEST-ACCURACY', accuracy)
-        print '{} Epoch: {}  Correct: {}  Accuracy: {}\n'.format(mode.upper(), epoch, correct_counts, \
-            round(accuracy, 2))
+        print ('{} Epoch: {}  Correct: {}  Accuracy: {}\n'.format(mode.upper(), epoch, correct_counts, \
+            round(accuracy, 2)))
 
     print ('-'*100)
     # score_thresholds = np.linspace(0, 1.0, 21)
@@ -1180,11 +1166,11 @@ def classify_gcn_image_match_training(arg, arg_te):
         batch_size=opts['batch_size'], shuffle=opts['shuffle'], **kwargs
         )
 
-    print '#'*50 + ' Training Data ' + '#'*50
-    print '\tInliers: {}'.format(len(np.where(train_loader.dataset.labels == 1)[0]))
-    print '\tOutliers: {}'.format(len(np.where(train_loader.dataset.labels == 0)[0]))
-    print '\tTotal: {}'.format(train_loader.dataset.__len__())
-    print '#'*100
+    print ('#'*50 + ' Training Data ' + '#'*50)
+    print ('\tInliers: {}'.format(len(np.where(train_loader.dataset.labels == 1)[0])))
+    print ('\tOutliers: {}'.format(len(np.where(train_loader.dataset.labels == 0)[0])))
+    print ('\tTotal: {}'.format(train_loader.dataset.__len__()))
+    print ('#'*100)
 
     opts = arg[-1]
     test_loader = torch.utils.data.DataLoader(
@@ -1192,11 +1178,11 @@ def classify_gcn_image_match_training(arg, arg_te):
         batch_size=opts['batch_size'], shuffle=opts['shuffle'], **kwargs
         )
 
-    print '#'*50 + ' Testing Data ' + '#'*50
-    print '\tInliers: {}'.format(len(np.where(test_loader.dataset.labels == 1)[0]))
-    print '\tOutliers: {}'.format(len(np.where(test_loader.dataset.labels == 0)[0]))
-    print '\tTotal: {}'.format(test_loader.dataset.__len__())
-    print '#'*110
+    print ('#'*50 + ' Testing Data ' + '#'*50)
+    print ('\tInliers: {}'.format(len(np.where(test_loader.dataset.labels == 1)[0])))
+    print ('\tOutliers: {}'.format(len(np.where(test_loader.dataset.labels == 0)[0])))
+    print ('\tTotal: {}'.format(test_loader.dataset.__len__()))
+    print ('#'*110)
 
 
     model, training_scores = classify_gcn_image_match_initialization(train_loader, test_loader, run_dir, opts)
