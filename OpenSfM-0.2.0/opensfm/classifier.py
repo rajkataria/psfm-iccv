@@ -831,7 +831,7 @@ def calculate_photometric_error_convex_hull(arg):
     ii, jj, patchdataset, data, im1, im2, matches, flags = arg
     best_error = sys.float_info.max
     start_t = timer()
-    grid_size = 112
+    grid_size = 224
     logger.info('Starting to process {} / {}'.format(im1, im2))
     if flags['masked_tags']:
         p1, f1, c1 = data.load_features_masked(im1)
@@ -880,7 +880,7 @@ def calculate_photometric_error_convex_hull(arg):
         best_polygon_area, best_polygon_area_percentage = get_polygon_area(best_masked_image)
     else:
         # print 'here0'
-        for ransac_count in range(0,1):
+        for ransac_count in range(0,10):
             # First iteration always has all matches
             if ransac_count == 0:
                 rid = []

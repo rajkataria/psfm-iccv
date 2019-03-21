@@ -437,7 +437,7 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
 
     labels_tr[labels_tr < 0] = 0
     weights_tr = get_sample_weights(num_rmatches_tr, labels_tr)
-    print ('\tTraining datasets loaded - Tuples: {}'.format(len(labels_tr)))
+    print ('\tTraining datasets loaded - Tuples: {}  --  Inliers: {}  |  Outliers: {}'.format(len(labels_tr), len(np.where(labels_tr >= 1.0)[0]), len(np.where(labels_tr < 1.0)[0])))
 
     #################################################################################################################################
     #################################################################################################################################
@@ -547,7 +547,7 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
             dsets_te = np.concatenate((dsets_te, np.tile(t, (len(_labels),))), axis=0)
     labels_te[labels_te < 0] = 0
     weights_te = np.zeros((len(labels_te),))
-    print ('\tTesting datasets loaded - Tuples: {}'.format(len(labels_te)))
+    print ('\tTesting datasets loaded - Tuples: {}  --  Inliers: {}  |  Outliers: {}'.format(len(labels_te), len(np.where(labels_te >= 1.0)[0]), len(np.where(labels_te < 1.0)[0])))
     #################################################################################################################################
     #################################################################################################################################
     ########################################################## Classifiers ##########################################################
@@ -613,35 +613,35 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
 
     exps = [
         ['RM'],
-        # ['PE'],
-        # ['SP'],
-        # ['SE'],
-        # ['TE'],
-        # ['NBVS'],
-        # ['VD'],
-        # ['TM'],
+        ['PE'],
+        ['SP'],
+        ['SE'],
+        ['TE'],
+        ['NBVS'],
+        ['VD'],
+        ['TM'],
         # ['VT'],
-        # ['HIST'],
-        # ['LCC'],
+        ['HIST'],
+        ['LCC'],
         # ['SQ'],
-        # ['RM', 'PE'],
-        # ['RM', 'SP'],
-        # ['RM', 'SE'],
-        # ['RM', 'TE'],
-        # ['RM', 'NBVS'],
-        # ['RM', 'VD'],
-        # ['RM', 'TM'],
+        ['RM', 'PE'],
+        ['RM', 'SP'],
+        ['RM', 'SE'],
+        ['RM', 'TE'],
+        ['RM', 'NBVS'],
+        ['RM', 'VD'],
+        ['RM', 'TM'],
         # ['RM', 'VT'],
-        # ['RM', 'HIST'],
-        # ['RM', 'LCC'],
+        ['RM', 'HIST'],
+        ['RM', 'LCC'],
         # ['RM', 'SQ'],
         ['RM', 'PE', 'SE'],
         ['RM', 'PE', 'SE', 'TE'],
         ['RM', 'PE', 'NBVS', 'TE'],
         ['RM', 'TE', 'PE', 'NBVS', 'SE'],
-        ['RM', 'TE', 'PE', 'NBVS', 'SE', 'VD'],
-        ['RM', 'TE', 'PE', 'NBVS', 'SE', 'TM'],
-        ['RM', 'TE', 'PE', 'NBVS', 'SE', 'VD', 'TM'],
+        # ['RM', 'TE', 'PE', 'NBVS', 'SE', 'VD'],
+        # ['RM', 'TE', 'PE', 'NBVS', 'SE', 'TM'],
+        # ['RM', 'TE', 'PE', 'NBVS', 'SE', 'VD', 'TM'],
         # ['PE', 'SE', 'TE'],
         # ['PE', 'NBVS', 'TE'],
         # ['TE', 'PE', 'NBVS', 'SE'],
@@ -1039,6 +1039,7 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
                         ]
                     # arg: train set, arg_te: test set
                     _, _, regr, scores, _ = convnet.classify_convnet_image_match_training(arg, arg_te)
+                    import sys; sys.exit(1)
                 else:
                     # arg: test set
                     _, _, regr, scores, _ = convnet.classify_convnet_image_match_inference(arg)
@@ -1116,7 +1117,10 @@ def main(argv):
     parser.add_argument('--convnet_batch_size', help='8, 16, 32, ...')
     parser.add_argument('--convnet_resnet_model', help='18, 34, 50, 101, 152')
     parser.add_argument('--convnet_loss', help='ce, t, cet')
+    parser.add_argument('--convnet_triplet_sampling_strategy', help='n, r, u')
     parser.add_argument('--convnet_features', help='RM, RM+TE, RM+NBVS, RM+TE+NBVS')
+    parser.add_argument('--convnet_use_images', help='')
+    
     
     
     # parser.set_defaults(use_all_training_data=False)
@@ -1249,6 +1253,15 @@ def main(argv):
     else:
         convnet_loss = 'cross-entropy'
 
+    if parser_options.convnet_triplet_sampling_strategy == 'n':
+        triplet_sampling_strategy = 'normal'
+    elif parser_options.convnet_loss == 'r':
+        triplet_sampling_strategy = 'random'
+    elif parser_options.convnet_loss == 'u':
+        triplet_sampling_strategy = 'uniform-files'
+    else:
+        triplet_sampling_strategy = 'normal'
+
     if parser_options.convnet_resnet_model == '18':
         convnet_resnet_model = 'resnet18'
     elif parser_options.convnet_resnet_model == '34':
@@ -1288,7 +1301,7 @@ def main(argv):
         'lr': 0.01,
         'optimizer': 'adam',
         'wd': 0.0001,
-        'epochs': 10000,
+        'epochs': 50,
         'start_epoch': 0,
         'resume': True,
         'lr_decay': 0.01,
@@ -1301,21 +1314,23 @@ def main(argv):
         # 'fine_tuning': True, \
         # 'class_balance': False, \
         # 'all_features': False, \
+        'triplet-sampling-strategy': triplet_sampling_strategy,
         # 'triplet-sampling-strategy': 'random',
         # 'triplet-sampling-strategy': 'uniform-files',
-        'triplet-sampling-strategy': 'normal',
+        # 'triplet-sampling-strategy': 'normal',
         # 'sample-inclass': True,
         'sample-inclass': False,
         # 'num_workers': 4,
-        'num_workers': 6 if parser_options.classifier.upper() != 'GCN' else 0,
+        'num_workers': 12 if parser_options.classifier.upper() != 'GCN' else 0,
         # 'num_workers': 10,
         # 'use_image_features': True,
         # 'use_image_features': False,
         'loss': convnet_loss,
         'model': convnet_resnet_model,
-        'features': parser_options.convnet_features
-        # 'loss': 'triplet'
-        # 'loss': 'cross-entropy+triplet'
+        'features': parser_options.convnet_features,
+        'convnet_input_size': 224,
+        'mlp-layer-size': 256,
+        'convnet_use_images': True if parser_options.convnet_use_images == 'yes' else False,
     }
     if options['classifier'] == 'GCN':
         mkdir_p(options['gcn_log_dir'])
@@ -1326,18 +1341,18 @@ def main(argv):
         #     'training': ['SMALL'], 
         #     'testing': ['SMALL']
         # },
-        {
-            'training': ['TanksAndTemples'], 
-            'testing': ['TanksAndTemples']
-        },
+        # {
+        #     'training': ['TanksAndTemples'], 
+        #     'testing': ['TanksAndTemples']
+        # },
         # {
         #     'training': ['TanksAndTemples', 'ETH3D'], 
         #     'testing': ['TanksAndTemples', 'ETH3D']
         # },
-        # {
-        #     'training': ['TanksAndTemples', 'ETH3D', 'TUM_RGBD_SLAM'], 
-        #     'testing': ['TanksAndTemples', 'ETH3D', 'TUM_RGBD_SLAM']
-        # },
+        {
+            'training': ['TanksAndTemples', 'ETH3D', 'TUM_RGBD_SLAM'], 
+            'testing': ['TanksAndTemples', 'ETH3D', 'TUM_RGBD_SLAM']
+        },
     ]
     for dataset_exp in dataset_experiments:
         print ('#'*200)

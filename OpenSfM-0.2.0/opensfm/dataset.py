@@ -368,7 +368,7 @@ class DataSet:
 
     def __classifier_features_photometric_errors_map_path(self):
         """Return path of all matches directory"""
-        return os.path.join(self.__classifier_features_path(), 'pe_maps_ransac_updated')
+        return os.path.join(self.__classifier_features_path(), 'pe_maps-10-iterations-size-224')
 
     def __classifier_features_graph_path(self):
         """Return path of all matches directory"""
@@ -462,7 +462,7 @@ class DataSet:
 
     def __feature_photometric_errors_file(self, ext='pkl.gz'):
         """File for flags indicating whether calibrated robust matching occured"""
-        return os.path.join(self.__classifier_features_path(), 'pe_ransac_updated.{}'.format(ext))
+        return os.path.join(self.__classifier_features_path(), 'pe-10-iterations-size-224.{}'.format(ext))
 
     def __feature_nbvs_file(self, ext='pkl.gz'):
         """File for flags indicating whether calibrated robust matching occured"""

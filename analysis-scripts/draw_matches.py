@@ -25,6 +25,7 @@ def draw_matches(im1, p1, im2, p2, rmatches, colors, features=None, label=None):
     fontScale              = 3
     fontColor              = (0,0,255)
     lineType               = 10
+    correspondences = []
 
     if len(rmatches) > 0:
         pts_normalized_img1 = p1[rmatches[:,0].astype(int),0:2]
@@ -35,8 +36,14 @@ def draw_matches(im1, p1, im2, p2, rmatches, colors, features=None, label=None):
 
         for i, _ in enumerate(pts_denormalized_img1):
             # Draw points
-            cv2.circle(im1, (int(pts_denormalized_img1[i][0]), int(pts_denormalized_img1[i][1])), 20, colors[i%30], -1)
-            cv2.circle(im2, (int(pts_denormalized_img2[i][0]), int(pts_denormalized_img2[i][1])), 20, colors[i%30], -1)
+            color = colors[i%30]
+            cv2.circle(im1, (int(pts_denormalized_img1[i][0]), int(pts_denormalized_img1[i][1])), 20, color, -1)
+            cv2.circle(im2, (int(pts_denormalized_img2[i][0]), int(pts_denormalized_img2[i][1])), 20, color, -1)
+            correspondences.append([
+              (int(pts_denormalized_img1[i][0]), int(pts_denormalized_img1[i][1])),
+              (int(pts_denormalized_img2[i][0]), int(pts_denormalized_img2[i][1])),
+              color
+              ])
 
     if label is not None:
       im_text = 'Total robust matches: {} ; Label: {}'.format(len(rmatches), label)
@@ -48,6 +55,22 @@ def draw_matches(im1, p1, im2, p2, rmatches, colors, features=None, label=None):
         fontScale,
         fontColor,
         lineType)
+    return correspondences
+
+def draw_correspondences(im, correspondences):
+  for a,b,c in correspondences:
+    # Draw correspondences
+    cv2.line(im, a, b, c, 10)
+
+def scale_correspondences(im1, im2, correspondences):
+  scaled_correspondences = []
+  for (a,b,c) in correspondences:
+    scaled_correspondences.append([
+      a,
+      (b[0] * im2.shape[1]/im1.shape[1] + im1.shape[1], b[1] * im2.shape[0]/im1.shape[0]),
+      c
+      ])
+  return scaled_correspondences
 
 def iterate_gt_matches_(dset, im1_filters, im2_filters):
   colors = [(int(random.random()*255), int(random.random()*255), int(random.random()*255)) for i in xrange(0,30)]
@@ -120,13 +143,15 @@ def iterate_gt_matches(data, colors, im1_filters, im2_filters, features=None):
       matches = np.concatenate((im1_indices.reshape(-1,1), im2_indices.reshape(-1,1)), axis=1)
       im1 = cv2.imread(os.path.join(dset,'images',im1_fn))
       im2 = cv2.imread(os.path.join(dset,'images',im2_fn))
-      draw_matches(im1, p1, im2, p2, matches, colors, features=features)
+      correspondences = draw_matches(im1, p1, im2, p2, matches, colors, features=features)
+      scaled_correspondences = scale_correspondences(im1, im2, correspondences)
       viz_filename = os.path.join(dset, 'match_visualizations_gt', '{}---{}.jpeg'.format(os.path.basename(im1_fn).split('.')[0], \
         os.path.basename(im2_fn).split('.')[0]))
       # imgs = np.concatenate((cv2.resize(im1, (225, 225)),cv2.resize(im2, (225, 225))),axis=1)
 
       im2 = cv2.resize(im2, (im1.shape[1], im1.shape[0]))
       imgs = np.concatenate((im1,im2),axis=1)
+      draw_correspondences(imgs, scaled_correspondences)
       cv2.imwrite(viz_filename, cv2.resize(imgs, (2560, 960)) )
 
 def iterate_matches_(dset, im1_filters, im2_filters):
@@ -152,16 +177,27 @@ def iterate_matches(data, colors, im1_filters, im2_filters, features=None):
 
       for im2_fn in matches:
         if len(im2_filters) > 0 and os.path.basename(im2_fn) not in im2_filters:
+          # print ("here")
           continue
+        # print ("here2")
         im1 = cv2.imread(os.path.join(dset,'images',im1_fn))
         im2 = cv2.imread(os.path.join(dset,'images',im2_fn))
         p2, f2, c2 = data.load_features(im2_fn)
-        draw_matches(im1, p1, im2, p2, matches[im2_fn], colors, features=features)
+        correspondences = draw_matches(im1, p1, im2, p2, matches[im2_fn], colors, features=features)
         viz_filename = os.path.join(dset, 'match_visualizations', '{}---{}.jpeg'.format(os.path.basename(im1_fn).split('.')[0], \
           os.path.basename(im2_fn).split('.')[0]))
-        # imgs = np.concatenate((cv2.resize(im1, (225, 225)),cv2.resize(im2, (225, 225))),axis=1)
+        
+        scaled_correspondences = scale_correspondences(im1, im2, correspondences)
+        # scaled_correspondences = []
+        # for (a,b,c) in correspondences:
+        #   scaled_correspondences.append([
+        #     a,
+        #     (b[0] * im2.shape[1]/im1.shape[1] + im1.shape[1], b[1] * im2.shape[0]/im1.shape[0]),
+        #     c
+        #     ])
         im2 = cv2.resize(im2, (im1.shape[1], im1.shape[0]))
         imgs = np.concatenate((im1,im2),axis=1)
+        draw_correspondences(imgs, scaled_correspondences)
         cv2.imwrite(viz_filename, cv2.resize(imgs, (2560, 960)) )
 
   # print all_matches
@@ -236,12 +272,21 @@ def main():
 
 
     # courtyard
-    # im1_filters = ['DSC_0291.JPG']
-    # im2_filters = ['DSC_0309.JPG']
+    # im1_filters = ['DSC_0286.JPG']
+    # im2_filters = ['DSC_0287.JPG']
+    im1_filters = ['DSC_0286.JPG']
+    im2_filters = ['DSC_0298.JPG']
+    # im1_filters = ['DSC_0294.JPG']
+    # im2_filters = ['DSC_0297.JPG']
 
     # ece_floor5_wall
-    im1_filters = ['2017-11-22_19-46-21_218.jpeg']
-    im2_filters = ['2017-11-22_19-46-33_796.jpeg']
+    # im1_filters = ['2017-11-22_19-46-21_218.jpeg']
+    # im2_filters = ['2017-11-22_19-46-33_796.jpeg']
+    # ece_floor3_loop_ccw
+    # im1_filters = ['2017-11-22_17-50-21_743.jpeg']
+    # im2_filters = ['2017-11-22_17-55-57_136.jpeg']
+    im2_filters = ['2017-11-22_17-55-44_808.jpeg']
+    im1_filters = ['2017-11-22_17-52-17_588.jpeg']
     # iterate_gt_matches_(parser_options.dataset, im1_filters, im2_filters)
     iterate_matches_(parser_options.dataset, im1_filters, im2_filters)
  

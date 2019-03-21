@@ -34,6 +34,7 @@ class Command:
         if data.reconstruction_exists('reconstruction_gt.json'):
             matches_gt = self.load_gt_matches(data)
             matches_gt_pruned = self.load_gt_pruned_matches(data, spl=2)
+            matches_gt_selective = self.load_selective_gt_matches(data)
 
         matches_end = timer()
         logger.info('Creating tracks graph using pruned rmatches')
@@ -66,6 +67,9 @@ class Command:
             logger.info('Creating tracks graph using pruned ground-truth matches')
             tracks_graph_gt_pruned = matching.create_tracks_graph(features, colors, matches_gt_pruned,
                                                         data.config)
+            logger.info('Creating tracks graph using selective ground-truth matches')
+            tracks_graph_gt_selective = matching.create_tracks_graph(features, colors, matches_gt_selective,
+                                                        data.config)
         tracks_end = timer()
         data.save_tracks_graph(tracks_graph_pruned, 'tracks-pruned-matches.csv')
         data.save_tracks_graph(tracks_graph_all, 'tracks-all-matches.csv')
@@ -77,6 +81,7 @@ class Command:
         if data.reconstruction_exists('reconstruction_gt.json'):
             data.save_tracks_graph(tracks_graph_gt, 'tracks-gt-matches.csv')
             data.save_tracks_graph(tracks_graph_gt_pruned, 'tracks-gt-matches-pruned.csv')
+            data.save_tracks_graph(tracks_graph_gt_selective, 'tracks-gt-matches-selective.csv')
         end = timer()
 
         with open(data.profile_log(), 'a') as fout:
@@ -247,6 +252,31 @@ class Command:
                 elif im2 in im_matching_results and im1 in im_matching_results[im2] \
                     and im_matching_results[im2][im1]['score'] == 1.0:
                     matches[im1, im2] = im1_matches[im2]
+        return matches
+
+    def load_selective_gt_matches(self, data):
+        matches = {}
+        image_matching_classifier_thresholds = data.config.get('image_matching_classifier_thresholds')
+        gt_matches_selective_threshold = data.config.get('gt_matches_selective_threshold')
+        im_matching_results = data.load_groundtruth_image_matching_results(image_matching_classifier_thresholds)
+        for im1 in data.images():
+            try:
+                im1_matches = data.load_matches(im1)
+                _, _, im1_all_matches = data.load_all_matches(im1)
+            except IOError:
+                continue
+            for im2 in im1_all_matches:
+                if im2 in im1_matches and len(im1_matches[im2]) < gt_matches_selective_threshold:
+                    matches[im1, im2] = im1_matches[im2]
+                else:
+                    if im1 in im_matching_results and im2 in im_matching_results[im1] \
+                        and im_matching_results[im1][im2]['score'] == 1.0 \
+                        and im_matching_results[im1][im2]['rmatches'] >= gt_matches_selective_threshold:
+                        matches[im1, im2] = im1_all_matches[im2]
+                    elif im2 in im_matching_results and im1 in im_matching_results[im2] \
+                        and im_matching_results[im2][im1]['score'] == 1.0 \
+                        and im_matching_results[im2][im1]['rmatches'] >= gt_matches_selective_threshold:
+                        matches[im1, im2] = im1_all_matches[im2]
         return matches
 
     def load_gt_pruned_matches(self, data, spl):

@@ -35,10 +35,12 @@
 # declare -a datasets=("ETH3D/boulders" "ETH3D/exhibition_hall")
 
 # declare -a datasets=("ETH3D/boulders" "ETH3D/courtyard" "ETH3D/lecture_room" "ETH3D/exhibition_hall" "UIUCTag/ece_floor5_wall" "UIUCTag/ece_floor3_loop_ccw" "UIUCTag/ece_floor3_loop_cw" "TanksAndTemples/Meetingroom")
-declare -a datasets=("ETH3D/exhibition_hall")
+declare -a datasets=("ETH3D/lecture_room" "ETH3D/exhibition_hall" "UIUCTag/ece_floor5_wall" "UIUCTag/ece_floor3_loop_ccw" "UIUCTag/ece_floor3_loop_cw" "TanksAndTemples/Meetingroom")
+# declare -a datasets=("UIUCTag/ece_floor3_loop_ccw" "UIUCTag/ece_floor3_loop_cw")
+# declare -a datasets=("ETH3D/exhibition_hall" "ETH3D/courtyard" "UIUCTag/ece_floor3_loop_ccw" "UIUCTag/ece_floor3_loop_cw")
 
 for i in "${datasets[@]}"; do
-  for j in `seq 1 6`; do
+  for j in `seq 1 3`; do
     dset=(${i//// });
     root=${dset[0]};
     sequence=${dset[1]};

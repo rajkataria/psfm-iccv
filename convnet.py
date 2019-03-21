@@ -73,21 +73,21 @@ class ConvNet(nn.Module):
         # if opts['use_image_features']:
         if opts['model'] == 'resnet18':
             mlp_input_size = 1024
-            __model = resnet.resnet18(pretrained=False)
+            __model = resnet.resnet18(pretrained=False, opts=opts)
         elif opts['model'] == 'resnet34':
             mlp_input_size = 1024
-            __model = resnet.resnet34(pretrained=False)
+            __model = resnet.resnet34(pretrained=False, opts=opts)
         elif opts['model'] == 'resnet50':
             mlp_input_size = 4096
-            __model = resnet.resnet50(pretrained=False)
+            __model = resnet.resnet50(pretrained=False, opts=opts)
         elif opts['model'] == 'resnet101':
             mlp_input_size = 4096
-            __model = resnet.resnet101(pretrained=False)
+            __model = resnet.resnet101(pretrained=False, opts=opts)
         elif opts['model'] == 'resnet152':
             mlp_input_size = 4096
-            __model = resnet.resnet152(pretrained=False)
+            __model = resnet.resnet152(pretrained=False, opts=opts)
         else:
-            __model = resnet.resnet50(pretrained=False)
+            __model = resnet.resnet50(pretrained=False, opts=opts)
 
         
         if 'TE' in opts['features']:
@@ -96,13 +96,13 @@ class ConvNet(nn.Module):
             mlp_input_size += 2
 
         self.mlp = nn.Sequential(
-            nn.Linear(mlp_input_size, 1024),
+            nn.Linear(mlp_input_size, opts['mlp-layer-size']),
             nn.ReLU(),
             nn.Dropout(),
-            nn.Linear(1024, 1024),
+            nn.Linear(opts['mlp-layer-size'], opts['mlp-layer-size']),
             nn.ReLU(),
             nn.Dropout(),
-            nn.Linear(1024, 2)
+            nn.Linear(opts['mlp-layer-size'], 2)
         )
         # else:
         #     self.mlp = nn.Sequential(
@@ -194,8 +194,12 @@ class ConvNet(nn.Module):
         # input2 = torch.cat((img2, se_rmatches_img2, se_matches_img2, pe_img2, pe_mask_img2, pe_warped_img2), 1)
         # input1 = torch.cat((img1, se_rmatches_img1, se_matches_img1, pe_img1, pe_mask_img1), 1)
         # input2 = torch.cat((img2, se_rmatches_img2, se_matches_img2, pe_img2, pe_mask_img2), 1)
-        input1 = torch.cat((se_rmatches_img1, se_matches_img1, pe_img1, pe_mask_img1), 1)
-        input2 = torch.cat((se_rmatches_img2, se_matches_img2, pe_img2, pe_mask_img2), 1)
+        if self.opts['convnet_use_images']:
+            input1 = torch.cat((img1, se_rmatches_img1, se_matches_img1, pe_img1, pe_mask_img1), 1)
+            input2 = torch.cat((img2, se_rmatches_img2, se_matches_img2, pe_img2, pe_mask_img2), 1)
+        else:    
+            input1 = torch.cat((se_rmatches_img1, se_matches_img1, pe_img1, pe_mask_img1), 1)
+            input2 = torch.cat((se_rmatches_img2, se_matches_img2, pe_img2, pe_mask_img2), 1)
         # input1 = torch.cat((img1, se_rmatches_img1, se_matches_img1, pe_img1), 1)
         # input2 = torch.cat((img2, se_rmatches_img2, se_matches_img2, pe_img2), 1)
         # input1 = se_rmatches_img1
@@ -214,6 +218,11 @@ class ConvNet(nn.Module):
         # y = torch.cat((i_diff, i_dot), 1)
         # y = i_diff
         y = torch.cat((i1.view(i2.size(0), -1), i2.view(i2.size(0), -1)), 1)
+
+        if 'TE' in self.opts['features']:
+            y = torch.cat((y.view(y.size(0), -1), te_histogram.view(te_histogram.size(0), -1)), 1)
+        if 'NBVS' in self.opts['features']:
+            y = torch.cat((y.view(y.size(0), -1), nbvs_im1.view(nbvs_im1.size(0), -1), nbvs_im2.view(nbvs_im2.size(0), -1)), 1)
 
         # print '='*100
         # # print img1.size()
@@ -247,6 +256,19 @@ class ConvNet(nn.Module):
                     m.weight.data.normal_(0, 0.00000000001)
                 else:
                     m.weight.data.normal_(0, 0.01)
+                m.bias.data.zero_()
+
+        for m in self.image_feature_extractor.modules():
+            if isinstance(m, nn.Conv2d):
+                n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+                m.weight.data.normal_(0, math.sqrt(2. / n))
+                if m.bias is not None:
+                    m.bias.data.zero_()
+            elif isinstance(m, nn.BatchNorm2d):
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()
+            elif isinstance(m, nn.Linear):
+                m.weight.data.normal_(0, 0.01)
                 m.bias.data.zero_()
 
 class ImageMatchingDataset(data.Dataset):
@@ -376,12 +398,12 @@ class ImageMatchingDataset(data.Dataset):
             se_rmatches_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'match_maps', 'rmatches---{}-{}.png'.format(self.fns[i,1], self.fns[i,0]))
             se_matches_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'match_maps', 'matches---{}-{}.png'.format(self.fns[i,0], self.fns[i,1]))
             se_matches_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'match_maps', 'matches---{}-{}.png'.format(self.fns[i,1], self.fns[i,0]))
-            pe_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_ransac_updated', '{}-{}-em.png'.format(self.fns[i,0], self.fns[i,1]))
-            pe_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_ransac_updated', '{}-{}-em.png'.format(self.fns[i,1], self.fns[i,0]))
-            pe_mask_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_ransac_updated', '{}-{}-m.png'.format(self.fns[i,0], self.fns[i,1]))
-            pe_mask_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_ransac_updated', '{}-{}-m.png'.format(self.fns[i,1], self.fns[i,0]))
-            pe_warped_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_ransac_updated', '{}-{}-wi.png'.format(self.fns[i,0], self.fns[i,1]))
-            pe_warped_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_ransac_updated', '{}-{}-wi.png'.format(self.fns[i,1], self.fns[i,0]))
+            pe_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps-10-iterations-size-224', '{}-{}-em.png'.format(self.fns[i,0], self.fns[i,1]))
+            pe_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps-10-iterations-size-224', '{}-{}-em.png'.format(self.fns[i,1], self.fns[i,0]))
+            pe_mask_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps-10-iterations-size-224', '{}-{}-m.png'.format(self.fns[i,0], self.fns[i,1]))
+            pe_mask_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps-10-iterations-size-224', '{}-{}-m.png'.format(self.fns[i,1], self.fns[i,0]))
+            pe_warped_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps-10-iterations-size-224', '{}-{}-wi.png'.format(self.fns[i,0], self.fns[i,1]))
+            pe_warped_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps-10-iterations-size-224', '{}-{}-wi.png'.format(self.fns[i,1], self.fns[i,0]))
 
             # if self.dsets[i] not in self.unique_imgs:
             #     self.unique_imgs[self.dsets[i]] = {}
@@ -588,6 +610,10 @@ def inference(data_loader, model, epoch, run_dir, logger, opts, mode=None, optim
                 fns_b = np.concatenate((fns_b, np.concatenate((np.array(im1s).reshape((-1,1)),np.array(im2s).reshape((-1,1))), axis=1)), axis=0)
                 dsets_b = np.concatenate((dsets_b, np.array(dsets)), axis=0)
 
+            # The samples are the same in the normal strategy, so we only need to do it once
+            if opts['triplet-sampling-strategy'] == 'normal' or mode == 'test':
+                break
+
         if mode == 'train':
             reformatted_targets = targets.type(torch.cuda.FloatTensor)
             reformatted_targets[reformatted_targets <= 0] = -1
@@ -619,7 +645,10 @@ def inference(data_loader, model, epoch, run_dir, logger, opts, mode=None, optim
             all_num_rmatches = np.concatenate((all_num_rmatches, num_rmatches_b.data.cpu().numpy()), axis=0)
 
         if (batch_idx + 1) % opts['log_interval'] == 0:
-            num_tests = (batch_idx + 1) * 2*opts['batch_size'] # positive and negative samples
+            if opts['triplet-sampling-strategy'] == 'normal' or mode == 'test':
+                num_tests = (batch_idx + 1) * opts['batch_size'] # only one sample
+            else:
+                num_tests = (batch_idx + 1) * 2 * opts['batch_size'] # positive and negative samples
             accuracy = correct_counts*100.0/num_tests
             if mode == 'train':
                 print(
@@ -772,7 +801,7 @@ def classify_convnet_image_match_inference(arg):
         )
 
     run_dir = os.path.join(opts['convnet_log_dir'], \
-        'run-opt-{}-bs-{}-lr-{}-exp-{}-loss-{}-triplet-sampling-{}-sample-inclass-{}-min-images-{}-max-images-{}-use-all-data-{}-use-small-weights-{}-model-{}'.format(\
+        'run-opt-{}-bs-{}-lr-{}-exp-{}-loss-{}-triplet-sampling-{}-sample-inclass-{}-min-images-{}-max-images-{}-use-all-data-{}-use-small-weights-{}-model-{}-is-{}-mlp-layer-size-{}-use-images-{}'.format(\
             opts['optimizer'], \
             opts['batch_size'], \
             opts['lr'], \
@@ -784,7 +813,10 @@ def classify_convnet_image_match_inference(arg):
             opts['image_match_classifier_max_match'], \
             opts['use_all_training_data'], \
             opts['use_small_weights'], \
-            model.name
+            opts['model'], \
+            opts['convnet_input_size'], \
+            opts['mlp-layer-size'], \
+            opts['convnet_use_images']
         )
     )
     logger = Logger(run_dir)
@@ -819,7 +851,7 @@ def classify_convnet_image_match_initialization(train_loader, test_loader, run_d
   
     # create logger
     run_dir = os.path.join(opts['convnet_log_dir'], \
-        'run-opt-{}-bs-{}-lr-{}-exp-{}-loss-{}-triplet-sampling-{}-sample-inclass-{}-min-images-{}-max-images-{}-use-all-data-{}-use-small-weights-{}-model-{}'.format(\
+        'run-opt-{}-bs-{}-lr-{}-exp-{}-loss-{}-triplet-sampling-{}-sample-inclass-{}-min-images-{}-max-images-{}-use-all-data-{}-use-small-weights-{}-model-{}-is-{}-mlp-layer-size-{}-use-images-{}'.format(\
             opts['optimizer'], \
             opts['batch_size'], \
             opts['lr'], \
@@ -832,7 +864,10 @@ def classify_convnet_image_match_initialization(train_loader, test_loader, run_d
             opts['image_match_classifier_max_match'], \
             opts['use_all_training_data'], \
             opts['use_small_weights'], \
-            model.name
+            opts['model'], \
+            opts['convnet_input_size'], \
+            opts['mlp-layer-size'], \
+            opts['convnet_use_images']
         )
     )
     
@@ -855,7 +890,7 @@ def classify_convnet_image_match_training(arg, arg_te):
     kwargs = {'num_workers': opts['num_workers'], 'pin_memory': True}
 
     run_dir = os.path.join(opts['convnet_log_dir'], \
-        'run-opt-{}-bs-{}-lr-{}-exp-{}-loss-{}-triplet-sampling-{}-sample-inclass-{}-min-images-{}-max-images-{}-use-all-data-{}-use-small-weights-{}-model-{}'.format(\
+        'run-opt-{}-bs-{}-lr-{}-exp-{}-loss-{}-triplet-sampling-{}-sample-inclass-{}-min-images-{}-max-images-{}-use-all-data-{}-use-small-weights-{}-model-{}-is-{}-mlp-layer-size-{}-use-images-{}'.format(\
             opts['optimizer'], \
             opts['batch_size'], \
             opts['lr'], \
@@ -868,18 +903,27 @@ def classify_convnet_image_match_training(arg, arg_te):
             opts['image_match_classifier_max_match'], \
             opts['use_all_training_data'], \
             opts['use_small_weights'], \
-            'CONVNET'
+            opts['model'], \
+            opts['convnet_input_size'], \
+            opts['mlp-layer-size'], \
+            opts['convnet_use_images']
         )
     )
     matching_classifiers.mkdir_p(run_dir)
 
-    transform = tv.transforms.Compose([
-        tv.transforms.Resize((224, 224)),
+    train_transform = tv.transforms.Compose([
+        tv.transforms.Resize((opts['convnet_input_size'], opts['convnet_input_size'])),
+        tv.transforms.RandomHorizontalFlip(),
+        tv.transforms.ToTensor(),
+    ])
+
+    test_transform = tv.transforms.Compose([
+        tv.transforms.Resize((opts['convnet_input_size'], opts['convnet_input_size'])),
         tv.transforms.ToTensor(),
     ])
 
     train_loader = torch.utils.data.DataLoader(
-        ImageMatchingDataset(arg, opts, transform=transform),
+        ImageMatchingDataset(arg, opts, transform=train_transform),
         batch_size=opts['batch_size'], shuffle=opts['shuffle'], **kwargs
         )
 
@@ -891,7 +935,7 @@ def classify_convnet_image_match_training(arg, arg_te):
 
     opts = arg[-1]
     test_loader = torch.utils.data.DataLoader(
-        ImageMatchingDataset(arg_te, opts, transform=transform),
+        ImageMatchingDataset(arg_te, opts, transform=test_transform),
         batch_size=opts['batch_size'], shuffle=opts['shuffle'], **kwargs
         )
 
