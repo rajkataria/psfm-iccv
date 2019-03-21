@@ -136,13 +136,15 @@ processes: 72                          # Number of threads to use
 # Classifier/new params
 # relative_pose_method: fivept_stewenius           # ransac, eightpt, sevenpt, fivept_kneip, fivept_nister, fivept_stewenius
 use_gt_matches: no
+use_gt_selective_matches: no
 use_image_matching_classifier: no
 use_image_matching_thresholding: no
 use_weighted_feature_matches: no
 use_weighted_resectioning: no
 use_colmap_resectioning: no
 use_shortest_path_pruning: no
-shortest_path_rmatches_threshold: 1000
+gt_matches_selective_threshold: 50      # Everything ABOVE this value use ground-truth matches
+shortest_path_rmatches_threshold: 2
 feature_matching_classifier: Barn+Caterpillar+Church+Ignatius+3-50.pkl
 error_inlier_threshold: 0.01
 error_outlier_threshold: 0.08

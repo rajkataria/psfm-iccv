@@ -1230,11 +1230,12 @@ def grow_reconstruction(data, graph, reconstruction, images, gcp):
 
     logger.info("-------------------------------------------------------")
 
-    run_name = 'imc-{}-wr-{}-colmapr-{}-gm-{}-wfm-{}-imt-{}-spp-{}.json'.format(\
+    run_name = 'imc-{}-wr-{}-colmapr-{}-gm-{}-gcm-{}-wfm-{}-imt-{}-spp-{}.json'.format(\
         data.config['use_image_matching_classifier'], \
         data.config['use_weighted_resectioning'], \
         data.config['use_colmap_resectioning'], \
         data.config['use_gt_matches'], \
+        data.config['use_gt_selective_matches'], \
         data.config['use_weighted_feature_matches'], \
         data.config['use_image_matching_thresholding'] , \
         data.config['use_shortest_path_pruning']
@@ -1260,6 +1261,8 @@ def incremental_reconstruction(data):
     if data.config.get('use_gt_matches', False):
         if data.config.get('use_shortest_path_pruning', False):
             graph = data.load_tracks_graph('tracks-gt-matches-pruned.csv')
+        elif data.config.get('use_gt_selective_matches', False):
+            graph = data.load_tracks_graph('tracks-gt-matches-selective.csv')
         else:
             graph = data.load_tracks_graph('tracks-gt-matches.csv')
     elif data.config.get('use_image_matching_classifier', False):
@@ -1306,11 +1309,12 @@ def incremental_reconstruction(data):
                 reconstructions = sorted(reconstructions,
                                          key=lambda x: -len(x.shots))
                 
-                reconstruction_fn = 'reconstruction-imc-{}-wr-{}-colmapr-{}-gm-{}-wfm-{}-imt-{}-spp-{}.json'.format(\
+                reconstruction_fn = 'reconstruction-imc-{}-wr-{}-colmapr-{}-gm-{}-gsm-{}-wfm-{}-imt-{}-spp-{}.json'.format(\
                     data.config['use_image_matching_classifier'], \
                     data.config['use_weighted_resectioning'], \
                     data.config['use_colmap_resectioning'], \
                     data.config['use_gt_matches'], \
+                    data.config['use_gt_selective_matches'], \
                     data.config['use_weighted_feature_matches'], \
                     data.config['use_image_matching_thresholding'] , \
                     data.config['use_shortest_path_pruning']

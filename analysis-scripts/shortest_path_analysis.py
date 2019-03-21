@@ -49,7 +49,7 @@ def shortest_path_analysis(dset, options):
     #     (_labels >= 1.0) \
     #     )[0]
     ri = np.linspace(0,len(_fns)-1, len(_fns)).astype(np.int)
-    graph_pruned = data.load_tracks_graph('tracks-pruned-matches.csv')
+    # graph_pruned = data.load_tracks_graph('tracks-pruned-matches.csv')
 
     # im = 'DSC_0827.JPG'
     # for track in graph_pruned[im]:
