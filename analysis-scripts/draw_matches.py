@@ -22,9 +22,9 @@ def draw_matches(im1, p1, im2, p2, rmatches, colors, features=None, label=None):
     height,width,channels = im1.shape
     font                   = cv2.FONT_HERSHEY_SIMPLEX
     bottomLeftCornerOfText = (10,height-50)
-    fontScale              = 3
+    fontScale              = 1
     fontColor              = (0,0,255)
-    lineType               = 10
+    lineType               = 2
     correspondences = []
 
     if len(rmatches) > 0:
@@ -37,8 +37,8 @@ def draw_matches(im1, p1, im2, p2, rmatches, colors, features=None, label=None):
         for i, _ in enumerate(pts_denormalized_img1):
             # Draw points
             color = colors[i%30]
-            cv2.circle(im1, (int(pts_denormalized_img1[i][0]), int(pts_denormalized_img1[i][1])), 20, color, -1)
-            cv2.circle(im2, (int(pts_denormalized_img2[i][0]), int(pts_denormalized_img2[i][1])), 20, color, -1)
+            cv2.circle(im1, (int(pts_denormalized_img1[i][0]), int(pts_denormalized_img1[i][1])), 10, color, -1)
+            cv2.circle(im2, (int(pts_denormalized_img2[i][0]), int(pts_denormalized_img2[i][1])), 10, color, -1)
             correspondences.append([
               (int(pts_denormalized_img1[i][0]), int(pts_denormalized_img1[i][1])),
               (int(pts_denormalized_img2[i][0]), int(pts_denormalized_img2[i][1])),
@@ -60,7 +60,7 @@ def draw_matches(im1, p1, im2, p2, rmatches, colors, features=None, label=None):
 def draw_correspondences(im, correspondences):
   for a,b,c in correspondences:
     # Draw correspondences
-    cv2.line(im, a, b, c, 10)
+    cv2.line(im, a, b, c, 2)
 
 def scale_correspondences(im1, im2, correspondences):
   scaled_correspondences = []
@@ -210,7 +210,9 @@ def main():
     parser.add_argument('-l', '--opensfm_path', help='opensfm path')
 
     parser.add_argument('--debug', dest='debug', action='store_true', help='show mask')
+    parser.add_argument('--groundtruth', dest='groundtruth', action='store_true', help='ground truth matches as well')
     parser.set_defaults(debug=False)
+    parser.set_defaults(groundtruth=False)
     parser_options = parser.parse_args()
 
     if not parser_options.opensfm_path in sys.path:
@@ -274,8 +276,8 @@ def main():
     # courtyard
     # im1_filters = ['DSC_0286.JPG']
     # im2_filters = ['DSC_0287.JPG']
-    im1_filters = ['DSC_0286.JPG']
-    im2_filters = ['DSC_0298.JPG']
+    im1_filters = ['DSC_0286.JPG', 'DSC_0289.JPG', 'DSC_0305.JPG', 'DSC_0305.JPG']
+    im2_filters = ['DSC_0298.JPG', 'DSC_0292.JPG', 'DSC_0307.JPG', 'DSC_0321.JPG']
     # im1_filters = ['DSC_0294.JPG']
     # im2_filters = ['DSC_0297.JPG']
 
@@ -285,9 +287,18 @@ def main():
     # ece_floor3_loop_ccw
     # im1_filters = ['2017-11-22_17-50-21_743.jpeg']
     # im2_filters = ['2017-11-22_17-55-57_136.jpeg']
-    im2_filters = ['2017-11-22_17-55-44_808.jpeg']
-    im1_filters = ['2017-11-22_17-52-17_588.jpeg']
-    # iterate_gt_matches_(parser_options.dataset, im1_filters, im2_filters)
+    # im2_filters = ['2017-11-22_17-55-44_808.jpeg']
+    # im1_filters = ['2017-11-22_17-52-17_588.jpeg']
+
+    # bridge
+    # im1_filters = ['DSC_1174.JPG']
+    # im2_filters = ['DSC_1283.JPG']
+
+    # oats
+    im1_filters = ['P1010141.jpg', 'P1010145.jpg']
+    im2_filters = ['P1010145.jpg', 'P1010159.jpg']
+    if parser_options.groundtruth:
+      iterate_gt_matches_(parser_options.dataset, im1_filters, im2_filters)
     iterate_matches_(parser_options.dataset, im1_filters, im2_filters)
  
 if __name__ == '__main__':

@@ -108,12 +108,57 @@ class ResNet(nn.Module):
         #                        bias=False)
         # self.conv1 = nn.Conv2d(12, 64, kernel_size=7, stride=2, padding=3,
         #                        bias=False)
+        input_dimensions = 0
+        if opts['convnet_use_matches_map']:
+            input_dimensions += 1
+        if opts['convnet_use_rmatches_map']:
+            input_dimensions += 1
+        if opts['convnet_use_photometric_error_maps']:
+            input_dimensions += 2
+        if opts['convnet_use_non_rmatches_map']:
+            input_dimensions += 1
         if opts['convnet_use_images']:
-            self.conv1 = nn.Conv2d(7, 64, kernel_size=7, stride=2, padding=3,
+            input_dimensions += 3
+        if opts['convnet_use_feature_match_map']:
+            input_dimensions += 1
+        if opts['convnet_use_track_map']:
+            input_dimensions += 1
+
+        self.conv1 = nn.Conv2d(input_dimensions, 64, kernel_size=7, stride=2, padding=3,
                                    bias=False)
-        else:
-            self.conv1 = nn.Conv2d(4, 64, kernel_size=7, stride=2, padding=3,
-                                   bias=False)
+        # if opts['convnet_use_images']:
+        #     if opts['convnet_use_feature_match_map']:
+        #         if opts['convnet_use_track_map']:
+        #             self.conv1 = nn.Conv2d(9, 64, kernel_size=7, stride=2, padding=3,
+        #                            bias=False)
+        #         else:
+        #             self.conv1 = nn.Conv2d(8, 64, kernel_size=7, stride=2, padding=3,
+        #                            bias=False)
+        #     else:
+        #         if opts['convnet_use_track_map']:
+        #             self.conv1 = nn.Conv2d(8, 64, kernel_size=7, stride=2, padding=3,
+        #                            bias=False)
+        #         else:
+        #             self.conv1 = nn.Conv2d(7, 64, kernel_size=7, stride=2, padding=3,
+        #                            bias=False)
+        # else:
+        #     if opts['convnet_use_feature_match_map']:
+        #         if opts['convnet_use_track_map']:
+        #             self.conv1 = nn.Conv2d(6, 64, kernel_size=7, stride=2, padding=3,
+        #                            bias=False)
+        #         else:
+        #             self.conv1 = nn.Conv2d(5, 64, kernel_size=7, stride=2, padding=3,
+        #                            bias=False)
+        #     else:
+        #         if opts['convnet_use_track_map']:
+        #             self.conv1 = nn.Conv2d(5, 64, kernel_size=7, stride=2, padding=3,
+        #                            bias=False)
+        #         else:
+        #             self.conv1 = nn.Conv2d(4, 64, kernel_size=7, stride=2, padding=3,
+        #                            bias=False)
+
+
+
         # self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3,
         #                        bias=False)
         self.bn1 = nn.BatchNorm2d(64)

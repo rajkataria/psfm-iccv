@@ -143,14 +143,14 @@ def calculate_graph_auc(G, G_gt):
     auc = sklearn.metrics.average_precision_score(scores_gt, scores)
     return auc
     
-def draw_graph(G, filename, highlighted_nodes=[], layout='shell', title=None):
+def draw_graph(G, filename, highlighted_nodes=[], layout='spring', title=None):
     plt.clf()
     if layout == 'spring':
-        pos=nx.spring_layout(G, iterations=70) # positions for all nodes
+        pos=nx.spring_layout(G, iterations=200) # positions for all nodes
     elif layout == 'spectral':
         pos = nx.spectral_layout(G)
     else:
-        pos = nx.shell_layout(G)
+        pos = layout
 
     highlighted_exlarge = [(u, v) for (u, v, d) in G.edges(data=True) if u in highlighted_nodes and v in highlighted_nodes and d['weight'] >= 0.8]
     highlighted_elarge = [(u, v) for (u, v, d) in G.edges(data=True) if u in highlighted_nodes and v in highlighted_nodes and d['weight'] >= 0.6 and d['weight'] < 0.8]
@@ -189,8 +189,8 @@ def draw_graph(G, filename, highlighted_nodes=[], layout='shell', title=None):
     else:
         alpha = 0.10
 
-    nx.draw_networkx_nodes(G,pos,node_size=4000, alpha=alpha)
-    nx.draw_networkx_nodes(G,pos,nodelist=highlighted_nodes, node_size=4000, alpha=1.0)
+    nx.draw_networkx_nodes(G,pos,node_size=1000, alpha=alpha)
+    nx.draw_networkx_nodes(G,pos,nodelist=highlighted_nodes, node_size=1000, alpha=1.0)
 
     edgetypes = {
         'highlighted_exlarge': {'edges': highlighted_exlarge, 'color': 'green', 'width': 13, 'alpha': 1.0},

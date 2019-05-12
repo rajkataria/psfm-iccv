@@ -10,8 +10,9 @@ from . import classify_images
 from . import formulate_graphs
 from . import create_tracks
 from . import create_tracks_classifier
+from . import yan
 from . import reconstruct
-from . import convert_colmap
+from . import convert_nvm
 from . import validate_results
 from . import mesh
 from . import undistort
@@ -36,8 +37,9 @@ opensfm_commands = [
     formulate_graphs,
     create_tracks,
     create_tracks_classifier,
+    yan,
     reconstruct,
-    convert_colmap,
+    convert_nvm,
     validate_results,
     mesh,
     undistort,

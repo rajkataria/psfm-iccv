@@ -13,13 +13,17 @@ import re
 import scipy
 import opensfm 
 import sys
-# import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 
 from opensfm import features, multiview
 from opensfm import context
+from opensfm import types
 # from opensfm.commands import formulate_graphs
 from multiprocessing import Pool
 from sklearn.externals import joblib
+from sklearn import manifold
+from sklearn.decomposition import PCA
+from sklearn.metrics import euclidean_distances
 from scipy.spatial import Delaunay, ConvexHull
 from scipy import interpolate
 from shapely.geometry import Polygon, Point, LineString
@@ -137,6 +141,8 @@ def calculate_spatial_entropy(image_coordinates, grid_size):
     indx = denormalized_image_coordinates[:,0].astype(np.int32)
     indy = denormalized_image_coordinates[:,1].astype(np.int32)
     for i in xrange(0,len(indx)):
+        # print '#'*100
+        # print '{} : ({},{}) : ({})'.format(grid_size, indx[i], indy[i], image_coordinates[i,:])
         dmap[indy[i]*grid_size + indx[i]] = 1.0
         dmap_entropy[indy[i]*grid_size + indx[i]] += 1.0
     prob_map = dmap_entropy / np.sum(dmap_entropy) + epsilon
@@ -199,6 +205,8 @@ def classify_boosted_dts_image_match(arg):
         lcc_im1_35, lcc_im2_35, min_lcc_35, max_lcc_35, \
         lcc_im1_40, lcc_im2_40, min_lcc_40, max_lcc_40, \
         shortest_path_length, \
+        mds_rank_percentage_im1_im2, mds_rank_percentage_im2_im1, \
+        distance_rank_percentage_im1_im2_gt, distance_rank_percentage_im2_im1_gt, \
         labels, weights, \
         train, regr, options = arg
 
@@ -272,6 +280,11 @@ def classify_boosted_dts_image_match(arg):
         max_lcc_40.reshape((len(labels),-1)),
 
         shortest_path_length.reshape((len(labels),-1)),
+
+        mds_rank_percentage_im1_im2.reshape((len(labels),-1)),
+        mds_rank_percentage_im2_im1.reshape((len(labels),-1)),
+        distance_rank_percentage_im1_im2_gt.reshape((len(labels),-1)),
+        distance_rank_percentage_im2_im1_gt.reshape((len(labels),-1)),
         ),
     axis=1)
     
@@ -387,6 +400,7 @@ def calculate_spatial_entropies(ctx):
             p1 = cached_p[im1]
 
         for im2 in im1_all_robust_matches:
+            print '{} - {}'.format(im1, im2)
             rmatches = im1_all_robust_matches[im2]
             matches = im1_all_matches[im2]
             
@@ -402,6 +416,9 @@ def calculate_spatial_entropies(ctx):
             p1_rmatches = p1[rmatches[:, 0].astype(int)]
             p2_rmatches = p2[rmatches[:, 1].astype(int)]
 
+            p1_non_rmatches = p1[np.array(list(set(list(range(0,len(p1)))) - set(rmatches[:, 0].astype(int))))]
+            p2_non_rmatches = p2[np.array(list(set(list(range(0,len(p2)))) - set(rmatches[:, 1].astype(int))))]
+
             entropy_im1_8, _ = calculate_spatial_entropy(p1_rmatches, 8)
             entropy_im2_8, _ = calculate_spatial_entropy(p2_rmatches, 8)
             entropy_im1_16, _ = calculate_spatial_entropy(p1_rmatches, 16)
@@ -413,11 +430,15 @@ def calculate_spatial_entropies(ctx):
             entropy_rmatches_im2_224, rmatches_map_im2 = calculate_spatial_entropy(p2_rmatches, 224)
             entropy_matches_im1_224, matches_map_im1 = calculate_spatial_entropy(p1_matches, 224)
             entropy_matches_im2_224, matches_map_im2 = calculate_spatial_entropy(p2_matches, 224)
+            entropy_non_rmatches_im1_224, non_rmatches_map_im1 = calculate_spatial_entropy(p1_non_rmatches, 224)
+            entropy_non_rmatches_im2_224, non_rmatches_map_im2 = calculate_spatial_entropy(p2_non_rmatches, 224)
 
             data.save_match_map('rmatches---{}-{}'.format(im1,im2), rmatches_map_im1)
             data.save_match_map('rmatches---{}-{}'.format(im2,im1), rmatches_map_im2)
             data.save_match_map('matches---{}-{}'.format(im1,im2), matches_map_im1)
             data.save_match_map('matches---{}-{}'.format(im2,im1), matches_map_im2)
+            data.save_match_map('non_rmatches---{}-{}'.format(im1,im2), non_rmatches_map_im1)
+            data.save_match_map('non_rmatches---{}-{}'.format(im2,im1), non_rmatches_map_im2)
 
             if im1 not in entropies:
                 entropies[im1] = {}
@@ -561,9 +582,10 @@ def sample_points_polygon(denormalized_points, v, n):
 
   return polygon, points
 
-def warp_image(Ms, triangle_pts_img1, triangle_pts_img2, img1, img2, im1, im2, flags, colors):
-    img2_o_final = -255 * np.ones(img1.shape, dtype = img1.dtype)
-  
+def warp_image(data, Ms, triangle_pts_img1, triangle_pts_img2, img1, img2, im1, im2, flags, colors, grid_size, save_individual_triangles=False):
+    # img2_o_final = -255 * np.ones(img1.shape, dtype=img1.dtype)
+    imgs_per_triangle = []
+
     for s, _ in enumerate(triangle_pts_img1):
         pts_img1 = triangle_pts_img1[s].reshape((1,3,2))
         pts_img2 = triangle_pts_img2[s].reshape((1,3,2))
@@ -585,24 +607,110 @@ def warp_image(Ms, triangle_pts_img1, triangle_pts_img2, img1, img2, im1, im2, f
         img2_cropped = img2_cropped * mask
 
         # Output image is set to white
-        img2_o = 255 * np.ones(img1.shape, dtype = img1.dtype)
+        img2_o = -255 * np.ones(img1.shape, dtype=img1.dtype)
         img2_o[r2[1]:r2[1]+r2[3], r2[0]:r2[0]+r2[2]] = img2_o[r2[1]:r2[1]+r2[3], r2[0]:r2[0]+r2[2]] * ( (1.0, 1.0, 1.0) - mask )
         img2_o[r2[1]:r2[1]+r2[3], r2[0]:r2[0]+r2[2]] = img2_o[r2[1]:r2[1]+r2[3], r2[0]:r2[0]+r2[2]] + img2_cropped
-        img2_o_final[r2[1]:r2[1]+r2[3], r2[0]:r2[0]+r2[2]] = img2_o_final[r2[1]:r2[1]+r2[3], r2[0]:r2[0]+r2[2]] * ( (1.0, 1.0, 1.0) - mask )
-        img2_o_final[r2[1]:r2[1]+r2[3], r2[0]:r2[0]+r2[2]] = img2_o_final[r2[1]:r2[1]+r2[3], r2[0]:r2[0]+r2[2]] + img2_cropped
+
+        imgs_per_triangle.append(img2_o)
+        # masks_per_triangle.append(mask_o)
+
+        # img2_o_final[r2[1]:r2[1]+r2[3], r2[0]:r2[0]+r2[2]] = img2_o_final[r2[1]:r2[1]+r2[3], r2[0]:r2[0]+r2[2]] * ( (1.0, 1.0, 1.0) - mask )
+        # img2_o_final[r2[1]:r2[1]+r2[3], r2[0]:r2[0]+r2[2]] = img2_o_final[r2[1]:r2[1]+r2[3], r2[0]:r2[0]+r2[2]] + img2_cropped
 
         if flags['draw_points']:
             for i, _ in enumerate(pts_img1[0]):
                 color_index = random.randint(0,len(colors)-1)
                 cv2.circle(img1, (int(pts_img1[0][i][0]), int(pts_img1[0][i][1])), 2, colors[color_index], 2)
                 cv2.circle(img2, (int(pts_img2[0][i][0]), int(pts_img2[0][i][1])), 2, colors[color_index], 2)
+    
+    triangle_ids, normalized_error_per_triangle, aggregated_wi, aggregated_m, aggregated_em, wi_cache, m_cache, em_cache = \
+        calculate_individual_errors_and_aggregate_triangles(data, img1, img2, np.array(imgs_per_triangle).copy(), grid_size, \
+            outlier_indices=[], cached_wi=[], cached_m=[], cached_em=[])
 
-        if flags['draw_triangles']:
-            color_index = random.randint(0,len(colors)-1)
-            cv2.polylines(img1,[triangle_pts_img1[s]],True,colors[color_index])
-            cv2.polylines(img2,[triangle_pts_img2[s]],True,colors[color_index])
+    normalized_error_per_triangle = np.array(normalized_error_per_triangle)
+    order = np.argsort(-normalized_error_per_triangle)
+    outliers, outlier_indices = detect_outliers(normalized_error_per_triangle)
+    # print 'here'
+    # print wi_cache
+    _, _, aggregated_wi_filtered, aggregated_m_filtered, aggregated_em_filtered, _, _, _ = \
+        calculate_individual_errors_and_aggregate_triangles(data, img1, img2, np.array(imgs_per_triangle).copy(), grid_size, \
+        outlier_indices=outlier_indices, cached_wi=wi_cache, cached_m=m_cache, cached_em=em_cache)
 
-    return img2_o_final
+
+    data.save_photometric_errors_map('{}-{}-a-wi-unfiltered'.format(os.path.basename(im1), os.path.basename(im2)), aggregated_wi, size=grid_size)
+    data.save_photometric_errors_map('{}-{}-a-m-unfiltered'.format(os.path.basename(im1), os.path.basename(im2)), aggregated_m, size=grid_size)
+    data.save_photometric_errors_map('{}-{}-a-em-unfiltered'.format(os.path.basename(im1), os.path.basename(im2)), aggregated_em, size=grid_size)
+
+    data.save_photometric_errors_map('{}-{}-a-wi-filtered'.format(os.path.basename(im1), os.path.basename(im2)), aggregated_wi_filtered, size=grid_size)
+    data.save_photometric_errors_map('{}-{}-a-m-filtered'.format(os.path.basename(im1), os.path.basename(im2)), aggregated_m_filtered, size=grid_size)
+    data.save_photometric_errors_map('{}-{}-a-em-filtered'.format(os.path.basename(im1), os.path.basename(im2)), aggregated_em_filtered, size=grid_size)
+
+    # return img2_o_final, aggregated_m
+    return aggregated_wi_filtered, aggregated_m_filtered
+
+def calculate_individual_errors_and_aggregate_triangles(data, img1, img2, imgs_per_triangle, grid_size, outlier_indices=[], cached_wi=[], cached_m=[], cached_em=[]):
+    triangle_ids = []
+    normalized_error_per_triangle = []
+    wi_cache = []
+    m_cache = []
+    em_cache = []
+    aggregated_wi = np.zeros(img1.shape, dtype=img1.dtype)
+    aggregated_m = np.zeros((grid_size, grid_size), dtype=img1.dtype)
+    aggregated_em = np.zeros((grid_size, grid_size), dtype=img1.dtype)
+
+    # print imgs_per_triangle
+    for count, _ in enumerate(imgs_per_triangle):
+        if count in outlier_indices:
+            continue
+        if len(cached_wi) > 0 and len(cached_m) > 0 and len(cached_em) > 0:
+            rr,rc,rd = np.where(cached_wi[count] >= 0)
+            aggregated_wi[cached_wi[count] > 0] = cached_wi[count][cached_wi[count] > 0].astype(np.uint8)
+            aggregated_m[cached_m[count] > 0] = cached_m[count][cached_m[count] > 0].astype(np.uint8)
+            aggregated_em[rr,rc] = cached_em[count][rr,rc]
+        else:
+            wi = imgs_per_triangle[count]
+            m = np.zeros((grid_size, grid_size), dtype=img1.dtype)
+            rr,rc,rd = np.where(wi >= 0)
+            rr_,rc_,rd_ = np.where(wi < 0)
+            
+            m[rr,rc] = 255
+            m[rr_,rc_] = 0
+            
+            em = calculate_error_map(img2, wi)
+
+            aggregated_wi[wi > 0] = wi[wi > 0].astype(np.uint8)
+            aggregated_m[m > 0] = m[m > 0].astype(np.uint8)
+            aggregated_em[rr,rc] = em[rr,rc]
+            wi_cache.append(wi)
+            m_cache.append(m)
+            em_cache.append(em)
+            wi[wi < 0] = 0
+            
+            triangle_ids.append(count)
+            normalized_error = 1.0*np.sum(em)/len(rr)
+            normalized_error_per_triangle.append(normalized_error)
+            # if count < 0:
+            #     data.save_photometric_errors_map('{}-{}-t-{}-w'.format(os.path.basename(im1), os.path.basename(im2), count), wi, size=224)
+            #     data.save_photometric_errors_map('{}-{}-t-{}-m'.format(os.path.basename(im1), os.path.basename(im2), count), m, size=224)
+            #     data.save_photometric_errors_map('{}-{}-t-{}-em'.format(os.path.basename(im1), os.path.basename(im2), count), em, size=224)
+
+    return triangle_ids, normalized_error_per_triangle, aggregated_wi, aggregated_m, aggregated_em, wi_cache, m_cache, em_cache
+
+def detect_outliers(data_pts):
+    threshold = 2
+    outliers = []
+    outlier_indices = []
+    # mean = np.mean(data_pts)
+    median = np.median(data_pts)
+    std = np.std(data_pts)
+    
+    for i,y in enumerate(data_pts):
+        z_score = (y - median)/std
+        # if np.abs(z_score) > threshold:
+        if z_score > threshold:
+            outliers.append(y)
+            outlier_indices.append(i)
+    return outliers, outlier_indices
 
 def calculate_photometric_error_histogram(errors):
     histogram, bins = np.histogram(np.array(errors), bins=51, range=(0,250))
@@ -677,90 +785,102 @@ def tesselate_matches(ransac_count, grid_size, data, im1, im2, img1, img2, match
     colors = [(int(random.random()*255), int(random.random()*255), int(random.random()*255)) for i in xrange(0,100)]
     t_start_img_loading = timer()
 
-    if debug:
-        img1_o = img1.copy()
-        img2_o = img2.copy()
-        img1_w = img1.copy()
-        img2_w = img2.copy()
-        img1_original = img1.copy()
-        img2_original = img2.copy()
+    img1_o = img1
+    img2_o = img2
+    img1_w = img1
+    img2_w = img2
+    img1_original = img1
+    img2_original = img2
+    im1_fn = os.path.basename(im1)
+    im2_fn = os.path.basename(im2)
+    if False and data.photometric_error_triangle_transformations_exists(im1_fn,im2_fn):
+        logger.info('Loading cached triangles')
+        triangles_data = data.load_photometric_error_triangle_transformations(im1_fn, im2_fn)
+        Ms = triangles_data['Ms']
+        triangle_pts_img1 = triangles_data['triangle_pts_img1']
+        triangle_pts_img2 = triangles_data['triangle_pts_img2']
     else:
-        img1_o = img1
-        img2_o = img2
-        img1_w = img1
-        img2_w = img2
-        img1_original = img1
-        img2_original = img2
+        p1_points = p1[ matches[:,0].astype(np.int) ]
+        p2_points = p2[ matches[:,1].astype(np.int) ]
+        denormalized_p1_points = features.denormalized_image_coordinates(p1_points, grid_size, grid_size)
+        denormalized_p2_points = features.denormalized_image_coordinates(p2_points, grid_size, grid_size)
 
-    p1_points = p1[ matches[:,0].astype(np.int) ]
-    p2_points = p2[ matches[:,1].astype(np.int) ]
-    denormalized_p1_points = features.denormalized_image_coordinates(p1_points, grid_size, grid_size)
-    denormalized_p2_points = features.denormalized_image_coordinates(p2_points, grid_size, grid_size)
+        # hull_img1, hull_img2 = calculate_convex_hull(data, img1_o, denormalized_p1_points, img2_o, denormalized_p2_points, flags)
+        # if hull_img1 is None or hull_img2 is None:
+        #     return None, None, 0, np.array([]), np.array([]), np.array([]), np.array([]), None, None, None
 
-    hull_img1, hull_img2 = calculate_convex_hull(data, img1_o, denormalized_p1_points, img2_o, denormalized_p2_points, flags)
-    if hull_img1 is None or hull_img2 is None:
-        return None, None, 0, np.array([]), np.array([]), np.array([]), np.array([]), None, None, None
+        tesselation_vertices_im1 = denormalized_p1_points[:,0:2]
+        tesselation_vertices_im2 = denormalized_p2_points[:,0:2]
 
-    tesselation_vertices_im1 = denormalized_p1_points[:,0:2]
-    tesselation_vertices_im2 = denormalized_p2_points[:,0:2]
+        if debug and flags['draw_matches']:
+            for i, cc in enumerate(tesselation_vertices_im1):
+                color_index = random.randint(0,len(colors)-1)
+                cv2.circle(img1_o, (int(cc[0]), int(cc[1])), 5, colors[color_index], -1)
+                cv2.circle(img2_o, (int(tesselation_vertices_im2[i, 0]), int(tesselation_vertices_im2[i, 1])), 5, colors[color_index], -1)
 
-    if debug and flags['draw_matches']:
-        for i, cc in enumerate(tesselation_vertices_im1):
+        try:
+            triangles_img1 = Delaunay(tesselation_vertices_im1, qhull_options='Pp Qt', incremental=True)
+        except:
+            return None, None, 0, np.array([]), np.array([]), np.array([]), np.array([]), None, None, None
+
+        # x = np.linspace(0, grid_size - 1, grid_size).astype(int)
+        # y = np.linspace(0, grid_size - 1, grid_size).astype(int)
+
+        # z_img1 = [None] * 3
+        # z_img2 = [None] * 3
+        # f_img1 = [None] * 3
+        # f_img2 = [None] * 3
+        # for i in xrange(0,3):
+        #     z_img1[i] = img1_original[0:grid_size,0:grid_size,i]
+        #     z_img2[i] = img2_original[0:grid_size,0:grid_size,i]
+        #     f_img1[i] = interpolate.interp2d(x, y, z_img1[i], kind='cubic')
+        #     f_img2[i] = interpolate.interp2d(x, y, z_img2[i], kind='cubic')
+
+        t_start_triangle_loop = timer()
+        for s, simplex in enumerate(triangles_img1.simplices):
             color_index = random.randint(0,len(colors)-1)
-            cv2.circle(img1_o, (int(cc[0]), int(cc[1])), 5, colors[color_index], -1)
-            cv2.circle(img2_o, (int(tesselation_vertices_im2[i, 0]), int(tesselation_vertices_im2[i, 1])), 5, colors[color_index], -1)
-
-    try:
-        triangles_img1 = Delaunay(tesselation_vertices_im1, qhull_options='Pp Qt', incremental=True)
-    except:
-        return None, None, 0, np.array([]), np.array([]), np.array([]), np.array([]), None, None, None
-
-    x = np.linspace(0, grid_size - 1, grid_size).astype(int)
-    y = np.linspace(0, grid_size - 1, grid_size).astype(int)
-
-    z_img1 = [None] * 3
-    z_img2 = [None] * 3
-    f_img1 = [None] * 3
-    f_img2 = [None] * 3
-    for i in xrange(0,3):
-        z_img1[i] = img1_original[0:grid_size,0:grid_size,i]
-        z_img2[i] = img2_original[0:grid_size,0:grid_size,i]
-        f_img1[i] = interpolate.interp2d(x, y, z_img1[i], kind='cubic')
-        f_img2[i] = interpolate.interp2d(x, y, z_img2[i], kind='cubic')
-
-    t_start_triangle_loop = timer()
-    for s, simplex in enumerate(triangles_img1.simplices):
-        color_index = random.randint(0,len(colors)-1)
-        pts_img1_ = np.array([ 
-            tesselation_vertices_im1[simplex[0], 0:2], \
-            tesselation_vertices_im1[simplex[1], 0:2], \
-            tesselation_vertices_im1[simplex[2], 0:2], \
+            pts_img1_ = np.array([ 
+                tesselation_vertices_im1[simplex[0], 0:2], \
+                tesselation_vertices_im1[simplex[1], 0:2], \
+                tesselation_vertices_im1[simplex[2], 0:2], \
+                ])
+            pts_img2_ = np.array([ 
+                tesselation_vertices_im2[simplex[0], 0:2], \
+                tesselation_vertices_im2[simplex[1], 0:2], \
+                tesselation_vertices_im2[simplex[2], 0:2], \
             ])
-        pts_img2_ = np.array([ 
-            tesselation_vertices_im2[simplex[0], 0:2], \
-            tesselation_vertices_im2[simplex[1], 0:2], \
-            tesselation_vertices_im2[simplex[2], 0:2], \
-        ])
-        pts_img1 = pts_img1_.astype(np.int32).reshape((-1,1,2))
-        pts_img2 = pts_img2_.astype(np.int32).reshape((-1,1,2))
+            pts_img1 = pts_img1_.astype(np.int32).reshape((-1,1,2))
+            pts_img2 = pts_img2_.astype(np.int32).reshape((-1,1,2))
 
-        M = cv2.getAffineTransform(np.float32(pts_img1_),np.float32(pts_img2_))
-        triangle_pts_img1.append(pts_img1)
-        triangle_pts_img2.append(pts_img2)
+            M = cv2.getAffineTransform(np.float32(pts_img1_),np.float32(pts_img2_))
+            triangle_pts_img1.append(pts_img1)
+            triangle_pts_img2.append(pts_img2)
 
-        Ms.append(M)
+            Ms.append(M)
 
-        if debug and flags['draw_triangles']:
-            cv2.polylines(img1_o,[pts_img1],True,colors[color_index])
-            cv2.polylines(img2_o,[pts_img2],True,colors[color_index])
+            if debug and flags['draw_triangles']:
+                cv2.polylines(img1_o,[pts_img1],True,colors[color_index])
+                cv2.polylines(img2_o,[pts_img2],True,colors[color_index])
+        Ms = np.array(Ms)
+        if False:
+            triangle_pts_img1 = np.array(triangle_pts_img1)
+            triangle_pts_img2 = np.array(triangle_pts_img2)
+            triangles_data = {
+                'im1': im1,
+                'im2': im2,
+                'Ms': Ms,
+                'triangle_pts_img1': triangle_pts_img1,
+                'triangle_pts_img2': triangle_pts_img2
+            }
 
-    if debug:
-        imgs = np.concatenate((img1_o,img2_o),axis=1)
-        data.save_photometric_errors_map('{}-{}-d-{}-{}'.format(os.path.basename(im1), os.path.basename(im2), os.path.basename(im1), ransac_count), img1_o, size=grid_size)
-        data.save_photometric_errors_map('{}-{}-d-{}-{}'.format(os.path.basename(im1), os.path.basename(im2), os.path.basename(im2), ransac_count), img2_o, size=grid_size)
+            data.save_photometric_error_triangle_transformations(im1_fn, im2_fn, triangles_data)
+        if debug:
+            imgs = np.concatenate((img1_o,img2_o),axis=1)
+            data.save_photometric_errors_map('{}-{}-d-{}-{}'.format(os.path.basename(im1), os.path.basename(im2), os.path.basename(im1), ransac_count), img1_o, size=grid_size)
+            data.save_photometric_errors_map('{}-{}-d-{}-{}'.format(os.path.basename(im1), os.path.basename(im2), os.path.basename(im2), ransac_count), img2_o, size=grid_size)
 
-    warped_image = warp_image(Ms, triangle_pts_img1, triangle_pts_img2, img1_w, img2_w, im1, im2, flags, colors)
-    masked_image = warp_image(Ms, triangle_pts_img1, triangle_pts_img2, 255*np.ones(img1_w.shape), np.zeros(img2_w.shape), im1, im2, flags, colors)
+    warped_image, masked_image = warp_image(data, Ms, triangle_pts_img1, triangle_pts_img2, img1_w, img2_w, im1, im2, flags, colors, grid_size, save_individual_triangles=True)
+    # masked_image = warp_image(data, Ms, triangle_pts_img1, triangle_pts_img2, 255*np.ones(img1_w.shape), np.zeros(img2_w.shape), im1, im2, flags, colors, grid_size, save_individual_triangles=False)
 
     # try:
     #     warped_image = warp_image(Ms, triangle_pts_img1, triangle_pts_img2, img1_w, img2_w, im1, im2, flags, colors)
@@ -768,14 +888,18 @@ def tesselate_matches(ransac_count, grid_size, data, im1, im2, img1, img2, match
     # except:
     #     # TODO(raj): debug error with ece_floor5_wall images: 2017-11-22_19-46-21_218.jpeg ---2017-11-22_19-46-33_796.jpeg
     #     return None, None, 0, np.array([]), np.array([]), np.array([]), np.array([]), None, None, None
-    masked_image = masked_image[:,:,0]
-    masked_image[masked_image < 0] = 0
+    
+    # masked_image = masked_image[:,:,0]
+    # masked_image[masked_image < 0] = 0
+
+    # if False:
     error_map = calculate_error_map(img2_w, warped_image)
     cum_errors = get_l2_errors(error_map)
 
     histogram_counts, histogram_cumsum, histogram, bins = calculate_photometric_error_histogram(cum_errors)
     polygon_area, polygon_area_percentage = get_polygon_area(masked_image)
     return polygon_area, polygon_area_percentage, len(triangles_img1.simplices), histogram_counts, histogram_cumsum, histogram, bins, error_map, masked_image, warped_image
+    # return 
 
 def get_polygon_area(masked_image):
     polygon_area =  1.0*len(np.where(masked_image > 0)[0])
@@ -814,18 +938,23 @@ def mkdir_p(path):
     except os.error as exc:
         pass
 
-def get_image(data, im, grid_size):
-    if not os.path.exists(os.path.join(data.data_path,'images-resized',im)):
-        img = cv2.imread(os.path.join(data.data_path,'images',im),cv2.IMREAD_COLOR)
-        cv2.imwrite(os.path.join(data.data_path,'images-resized',im), cv2.resize(img, (grid_size, grid_size)))
-        with open(os.path.join(data.data_path,'images-resized',im + '.json'), 'w') as fout:
-            json.dump({'height': img.shape[0], 'width': img.shape[1]}, fout, sort_keys=True, indent=4, separators=(',', ': '))
+def get_resized_image(data, im, grid_size):
+    if not data.resized_image_exists(im):
+        image_original = cv2.imread(os.path.join(data.data_path,'images',im),cv2.IMREAD_COLOR)
+        data.save_resized_image(im_fn=im, image=image_original, grid_size=grid_size)
 
-    im_fn = os.path.join(data.data_path,'images-resized',im)
-    img = cv2.imread(im_fn,cv2.IMREAD_COLOR)
-    with open(os.path.join(im_fn + '.json'), 'r') as fin:
-        metadata = json.load(fin)
-    return img, im_fn, metadata
+    image, im_fn, metadata = data.load_resized_image(im)
+    
+    return image, im_fn, metadata
+
+def get_processed_images(data, im1, im2, grid_size):
+    if not data.processed_image_exists(im1, im2) or not data.processed_image_exists(im2, im1):
+        im1_a_fn, im2_a_fn, img1_adjusted_denormalized, img2_adjusted_denormalized, m1, m2 = perform_gamma_adjustment(data, im1, im2, grid_size, debug=False)
+    else:
+        im1_a_fn, img1_adjusted_denormalized, m1 = data.load_processed_image(im1, im2)
+        im2_a_fn, img2_adjusted_denormalized, m2 = data.load_processed_image(im1, im2)
+
+    return im1_a_fn, im2_a_fn, img1_adjusted_denormalized, img2_adjusted_denormalized, m1, m2
 
 def calculate_photometric_error_convex_hull(arg):
     ii, jj, patchdataset, data, im1, im2, matches, flags = arg
@@ -841,8 +970,10 @@ def calculate_photometric_error_convex_hull(arg):
         p2, f2, c2 = data.load_features(im2)
   
     mkdir_p(os.path.join(data.data_path,'images-resized'))
-    img1, im1_fn, m1 = get_image(data, im1, grid_size)
-    img2, im2_fn, m2 = get_image(data, im2, grid_size)
+    # img1, im1_fn, m1 = get_resized_image(data, im1, grid_size)
+    # img2, im2_fn, m2 = get_resized_image(data, im2, grid_size)
+    im1_fn, im2_fn, img1, img2, m1, m2 = get_processed_images(data, im1, im2, grid_size)
+
 
     denormalized_p1_points = features.denormalized_image_coordinates(p1[:,0:2], m1['width'], m1['height'])
     denormalized_p2_points = features.denormalized_image_coordinates(p2[:,0:2], m2['width'], m2['height'])
@@ -879,52 +1010,52 @@ def calculate_photometric_error_convex_hull(arg):
         best_histogram_counts, best_histogram_cumsum, best_histogram, best_bins = calculate_photometric_error_histogram(cum_errors)
         best_polygon_area, best_polygon_area_percentage = get_polygon_area(best_masked_image)
     else:
-        # print 'here0'
-        for ransac_count in range(0,10):
-            # First iteration always has all matches
-            if ransac_count == 0:
-                rid = []
-            else:
-                random_match_count = np.random.randint(1,int(0.5 * len(matches)))
-                rid = np.sort(np.random.choice(len(matches), random_match_count, replace=False))
+        ransac_count = 0
+        polygon_area, polygon_area_percentage, total_triangles, histogram_counts, histogram_cumsum, histogram, bins, error_map, masked_image, warped_image = \
+            tesselate_matches(ransac_count, grid_size, data, im1_fn, im2_fn, img1, img2, matches, renormalized_p1_points, renormalized_p2_points, patchdataset, flags, ii, jj)
+        if False:
+            for ransac_count in range(0,1):
+                # First iteration always has all matches
+                if ransac_count == 0:
+                    rid = []
+                else:
+                    random_match_count = np.random.randint(1,int(0.5 * len(matches)))
+                    rid = np.sort(np.random.choice(len(matches), random_match_count, replace=False))
 
-            random_matches = np.ones(len(matches)).astype(np.bool)
-            random_matches[rid] = False
-            # print 'here'
-            polygon_area, polygon_area_percentage, total_triangles, histogram_counts, histogram_cumsum, histogram, bins, error_map, masked_image, warped_image = \
-                tesselate_matches(ransac_count, grid_size, data, \
-                    im1_fn, im2_fn, \
-                    img1, img2, \
-                    matches[random_matches], renormalized_p1_points, renormalized_p2_points, patchdataset, flags, ii, jj)
-            # print 'here2'
-            if warped_image is None or error_map is None or masked_image is None:
-                continue
+                random_matches = np.ones(len(matches)).astype(np.bool)
+                random_matches[rid] = False
+                # print 'here'
+                polygon_area, polygon_area_percentage, total_triangles, histogram_counts, histogram_cumsum, histogram, bins, error_map, masked_image, warped_image = \
+                    tesselate_matches(ransac_count, grid_size, data, \
+                        im1_fn, im2_fn, \
+                        img1, img2, \
+                        matches[random_matches], renormalized_p1_points, renormalized_p2_points, patchdataset, flags, ii, jj)
+                # print 'here2'
+                if warped_image is None or error_map is None or masked_image is None:
+                    continue
 
-            error = np.sum(np.multiply(error_map, masked_image)) / np.sum(masked_image > 0)
-            if error < best_error:
-                best_rid = rid
-                best_warped_image = warped_image.copy()
-                best_error_map = error_map.copy()
-                best_masked_image = masked_image.copy()
-                best_polygon_area = polygon_area
-                best_polygon_area_percentage = polygon_area_percentage
-                best_total_triangles = total_triangles
-                best_histogram_counts = histogram_counts
-                best_histogram_cumsum = histogram_cumsum
-                best_histogram = histogram
-                best_bins = bins
-                best_error = error
+                error = np.sum(np.multiply(error_map, masked_image)) / np.sum(masked_image > 0)
+                if error < best_error:
+                    best_rid = rid
+                    best_warped_image = warped_image.copy()
+                    best_error_map = error_map.copy()
+                    best_masked_image = masked_image.copy()
+                    best_polygon_area = polygon_area
+                    best_polygon_area_percentage = polygon_area_percentage
+                    best_total_triangles = total_triangles
+                    best_histogram_counts = histogram_counts
+                    best_histogram_cumsum = histogram_cumsum
+                    best_histogram = histogram
+                    best_bins = bins
+                    best_error = error
 
-        # print np.sum(masked_image > 0)
-        if best_warped_image is not None and best_error_map is not None and best_masked_image is not None:
-            data.save_photometric_errors_map(wi_fn, best_warped_image, size=grid_size)
-            data.save_photometric_errors_map(em_fn, best_error_map, size=grid_size)
-            data.save_photometric_errors_map(m_fn, best_masked_image, size=grid_size)
-        logger.info('Best error: {} rid: {}'.format(best_error, best_rid))
-        end_t = timer()
 
-    # logger.info('Finished processing {} / {}'.format(im1, im2))
-    return im1, im2, best_polygon_area, best_polygon_area_percentage, best_total_triangles, best_histogram_counts, best_histogram_cumsum, best_histogram, best_bins
+            logger.info('Best error: {} rid: {}'.format(best_error, best_rid))
+            end_t = timer()
+
+    return im1, im2, polygon_area, polygon_area_percentage, total_triangles, histogram_counts, histogram_cumsum, histogram, bins
+   # return im1, im2, best_polygon_area, best_polygon_area_percentage, best_total_triangles, best_histogram_counts, best_histogram_cumsum, best_histogram, best_bins
+    # return im1, im2
 
 def calculate_photometric_errors(ctx):
     data = ctx.data
@@ -974,6 +1105,13 @@ def calculate_photometric_errors(ctx):
             # if im1 == 'DSC_1770.JPG' and im2 == 'DSC_1779.JPG':
             #     args.append([0, 1, None, ctx.data, im1, im2, rmatches[:, 0:2].astype(int), flags])
             #     args.append([0, 1, None, ctx.data, im2, im1, np.concatenate((rmatches[:, 1].reshape((-1,1)), rmatches[:, 0].reshape((-1,1))), axis=1).astype(int), flags])
+
+            # if im1 == 'DSC_1744.JPG' and im2 == 'DSC_1746.JPG' or \
+            #     im1 == 'DSC_1744.JPG' and im2 == 'DSC_1800.JPG' or \
+            #     im1 == 'DSC_1773.JPG' and im2 == 'DSC_1778.JPG' or \
+            #     im1 == 'DSC_1744.JPG' and im2 == 'DSC_1780.JPG' or \
+            #     im1 == 'DSC_1761.JPG' and im2 == 'DSC_1762.JPG':
+
             args.append([0, 1, None, ctx.data, im1, im2, rmatches[:, 0:2].astype(int), flags])
             args.append([0, 1, None, ctx.data, im2, im1, np.concatenate((rmatches[:, 1].reshape((-1,1)), rmatches[:, 0].reshape((-1,1))), axis=1).astype(int), flags])
 
@@ -992,6 +1130,7 @@ def calculate_photometric_errors(ctx):
         p.close()
 
     for r in p_results:
+        # if False:
         im1, im2, polygon_area, polygon_area_percentage, total_triangles, histogram_counts, histogram_cumsum, histogram, bins = r
         if polygon_area is None or polygon_area_percentage is None:
             continue
@@ -1003,7 +1142,73 @@ def calculate_photometric_errors(ctx):
             results[im1] = {}
         results[im1][im2] = element
 
+        # im1, im2 = r
+        # if im1 not in results:
+        #     results[im1] = {}
+        # results[im1][im2] = True
+
     data.save_photometric_errors(results)
+
+# def save_processed_image(data, im_fn, img, grid_size):
+#     mkdir_p(os.path.join(data.data_path,'images-resized-processed'))
+#     if grid_size is None:
+#         cv2.imwrite(os.path.join(data.data_path,'images-resized-processed',im_fn), img)
+#     else:
+#         cv2.imwrite(os.path.join(data.data_path,'images-resized-processed',im_fn), cv2.resize(img, (grid_size, grid_size)))
+
+def perform_gamma_adjustment(data, im1, im2, grid_size, debug=False):
+    im1_fn = os.path.basename(im1)
+    im2_fn = os.path.basename(im2)
+
+    img1, _, m1 = get_resized_image(data, im1, grid_size)
+    img2, _, m2 = get_resized_image(data, im2, grid_size)
+
+    img1_normalized = cv2.normalize(img1, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
+    img2_normalized = cv2.normalize(img2, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
+    
+    gamma_im1 = 1.0 * max(np.sum(img1_normalized), np.sum(img2_normalized)) / np.sum(img1_normalized)
+    gamma_im2 = 1.0 * max(np.sum(img1_normalized), np.sum(img2_normalized)) / np.sum(img2_normalized)
+
+    # print img1_normalized
+
+    img1_adjusted = np.power(img1_normalized, 1.0/gamma_im1)
+    img2_adjusted = np.power(img2_normalized, 1.0/gamma_im2)
+
+    img1_adjusted_denormalized = cv2.normalize(img1_adjusted, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_16S)
+    img2_adjusted_denormalized = cv2.normalize(img2_adjusted, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_16S)
+    # print img1_adjusted_denormalized
+    # print '{} / {} : {}'.format(np.sum(img1), np.sum(img2), 1.0 * )
+
+
+    # if debug: 
+    #     imgs_u = np.concatenate((img1,cv2.resize(img2, (img1.shape[1], img1.shape[0]))),axis=1)
+    #     imgs_p = np.concatenate((img1_adjusted_denormalized,cv2.resize(img2_adjusted_denormalized, (img1_adjusted_denormalized.shape[1], img1_adjusted_denormalized.shape[0]))),axis=1)
+    #     imgs_ = np.concatenate((imgs_u, cv2.resize(imgs_p, (imgs_u.shape[1], imgs_u.shape[0]))),axis=1)
+    #     save_processed_image(data, im_fn='{}-{}.png'.format(im1_fn, im1_fn), img=imgs_, grid_size=None)
+    
+    # im1_a_fn = '{}---{}-{}-processed.png'.format(im1_fn, im1_fn, im2_fn)
+    # im2_a_fn = '{}---{}-{}-processed.png'.format(im2_fn, im1_fn, im2_fn)
+    im1_a_fn = data.save_processed_image(im1_fn=im1_fn, im2_fn=im2_fn, image=img1_adjusted_denormalized, grid_size=grid_size)
+    im2_a_fn = data.save_processed_image(im1_fn=im2_fn, im2_fn=im1_fn, image=img2_adjusted_denormalized, grid_size=grid_size)
+    # save_processed_image(data, im_fn='{}---{}-{}-unprocessed.png'.format(im1_fn, im1_fn, im2_fn), img=img1, grid_size=grid_size)
+    # save_processed_image(data, im_fn='{}---{}-{}-unprocessed.png'.format(im2_fn, im1_fn, im2_fn), img=img2, grid_size=grid_size)
+
+    return im1_a_fn, im2_a_fn, img1_adjusted_denormalized, img2_adjusted_denormalized, m1, m2
+
+def output_image_keypoints(ctx):
+    data = ctx.data
+    cameras = data.load_camera_models()
+    images = data.images()
+    exifs = ctx.exifs
+    config = data.config
+    processes = config['processes']
+    args = []
+
+    logger.info('Outputting image keypoint maps...')
+    for im in images:
+        p, f, c = ctx.data.load_features(im)
+        _, feature_map_im = calculate_spatial_entropy(p, 224)
+        data.save_feature_map('feature---{}'.format(im), feature_map_im)
 
 def calculate_nbvs(ctx):
     data = ctx.data
@@ -1014,9 +1219,9 @@ def calculate_nbvs(ctx):
     cached_p = {}
     nbvs = {}
     
-    # if data.nbvs_exists():
-    #     logger.info('NBVS exist!')
-    #     return
+    if data.nbvs_exists():
+        logger.info('NBVS exist!')
+        return
 
     logger.info('Calculating NBVS...')
     for im1 in images:
@@ -1312,7 +1517,7 @@ def formulate_paths(ctx, transformations, cutoff, edge_threshold):
     if data.graph_exists('rm', edge_threshold):
         G = data.load_graph('rm', edge_threshold)
     else:
-        num_rmatches, _ = rmatches_adapter(data)
+        num_rmatches, _, _ = rmatches_adapter(data)
         G = opensfm.commands.formulate_graphs.formulate_graph([data, data.images(), num_rmatches, graph_label, edge_threshold])
         data.save_graph(G, 'rm', edge_threshold)
 
@@ -1374,31 +1579,39 @@ def calculate_consistency_errors(ctx):
             logger.info('Finished formulating consistency errors - Cutoff: {} Edge threshold: {}   Time: {}'.format(cutoff, edge_threshold, timer() - s_time))
             data.save_consistency_errors(histograms, cutoff=cutoff, edge_threshold=edge_threshold)
 
-def get_rmatches_from_edge_costs(G, im1, im2):
+def get_rmatches_and_edge_costs(G, im1, im2, num_rmatches):
     edge_data = G.get_edge_data(im1, im2)
-    if edge_data and edge_data['weight'] <= 1:
-        rmatches = 1.0 / edge_data['weight']
+    if edge_data and 'weight' in edge_data:
+        edge_cost = edge_data['weight']
+    else:
+        edge_cost = 1000000000.0
+
+    if im1 in num_rmatches and im2 in num_rmatches[im1]:
+        rmatches = num_rmatches[im1][im2]
+    elif im2 in num_rmatches and im1 in num_rmatches[im2]:
+        rmatches = num_rmatches[im2][im1]
     else:
         rmatches = 0
-    return rmatches
+
+    return rmatches, edge_cost
 
 def shortest_path_per_image(arg):
     shortest_paths = {}
-    data, i, im1, images, G = arg
+    data, i, im1, images, G, num_rmatches = arg
     
     for j,im2 in enumerate(images):
         if j <= i:
             continue
-        rmatches = get_rmatches_from_edge_costs(G, im1, im2)
+        rmatches, edge_cost = get_rmatches_and_edge_costs(G, im1, im2, num_rmatches)
         shortest_path = nx.shortest_path(G, im1, im2, weight='weight')
         path = {}
         for k, _ in enumerate(shortest_path):
             if k == 0:
                 continue
-            node_rmatches = get_rmatches_from_edge_costs(G, shortest_path[k-1], shortest_path[k])
-            path['{}---{}'.format(shortest_path[k-1], shortest_path[k])] = {'rmatches': node_rmatches}
+            node_rmatches, node_edge_cost = get_rmatches_and_edge_costs(G, shortest_path[k-1], shortest_path[k], num_rmatches)
+            path['{}---{}'.format(shortest_path[k-1], shortest_path[k])] = {'rmatches': node_rmatches, 'cost': node_edge_cost}
 
-        shortest_paths[im2] = {'rmatches': rmatches, 'path': path, 'shortest_path': shortest_path}
+        shortest_paths[im2] = {'rmatches': rmatches, 'path': path, 'shortest_path': shortest_path, 'cost': edge_cost}
     return im1, shortest_paths
 
 def calculate_shortest_paths(ctx):
@@ -1408,31 +1621,39 @@ def calculate_shortest_paths(ctx):
     shortest_paths = {}
     edge_threshold = 0
     graph_label = 'rm-cost'
-
-    if data.graph_exists(graph_label, edge_threshold):
-        G = data.load_graph(graph_label, edge_threshold)
-    else:
-        num_rmatches, num_rmatches_cost = rmatches_adapter(data)
-        G = opensfm.commands.formulate_graphs.formulate_graph([data, images, num_rmatches_cost, graph_label, edge_threshold])
-        data.save_graph(G, graph_label, edge_threshold)
-
-
-    args = []
-    for i,im1 in enumerate(images):
-        args.append([data, i, im1, images, G])
+    seq_cost_factor = ctx.sequence_cost_factor
+    graph_label_with_sequences = 'rm-seq-cost-{}'.format(seq_cost_factor)
     
-    p = Pool(processes)
-    p_results = []
-    if processes == 1:    
-        for arg in args:
-            p_results.append(shortest_path_per_image(arg))
-    else:
-        p_results = p.map(shortest_path_per_image, args)
+    num_rmatches, num_rmatches_cost, im_num_rmatches_cost_with_sequences = rmatches_adapter(data, {'apply_sequence_ranks': True, 'sequence_cost_factor': seq_cost_factor})
 
-    for im, im_shortest_paths in p_results:
-        shortest_paths[im] = im_shortest_paths    
+    # if data.graph_exists(graph_label, edge_threshold) and data.graph_exists(graph_label_with_sequences, edge_threshold):
+    #     G = data.load_graph(graph_label, edge_threshold)
+    #     G_ = data.load_graph(graph_label_with_sequences, edge_threshold)
+    # else:
+    G = opensfm.commands.formulate_graphs.formulate_graph([data, images, num_rmatches_cost, graph_label, edge_threshold])
+    G_ = opensfm.commands.formulate_graphs.formulate_graph([data, images, im_num_rmatches_cost_with_sequences, graph_label_with_sequences, edge_threshold])
+    data.save_graph(G, graph_label, edge_threshold)
+    data.save_graph(G_, graph_label_with_sequences, edge_threshold)
 
-    data.save_shortest_paths(shortest_paths)
+
+    for datum in [[G, graph_label], [G_, graph_label_with_sequences]]:
+        args = []
+        graph, label = datum
+        for i,im1 in enumerate(images):
+            args.append([data, i, im1, images, graph, num_rmatches])
+        
+        p = Pool(processes)
+        p_results = []
+        if processes == 1:    
+            for arg in args:
+                p_results.append(shortest_path_per_image(arg))
+        else:
+            p_results = p.map(shortest_path_per_image, args)
+
+        for im, im_shortest_paths in p_results:
+            shortest_paths[im] = im_shortest_paths    
+
+        data.save_shortest_paths(shortest_paths, label=label)
 
 def calculate_sequence_ranks(ctx):
     data = ctx.data
@@ -1767,23 +1988,81 @@ def rmatches_adapter(data, options={}):
     im_all_rmatches = {}
     im_num_rmatches = {}
     im_num_rmatches_cost = {}
+    im_num_rmatches_cost_with_sequences = {}
 
     for img in data.images():
         _, _, rmatches = data.load_all_matches(img)
         im_all_rmatches[img] = rmatches
 
+    if 'apply_sequence_ranks' in options and options['apply_sequence_ranks'] is True:
+        sequence_ranks = data.load_sequence_ranks()
+        sequence_count = 0
+        total_rmatches = 0
+        sequences = {}
+        adjacent_pairs = {}
+        for i, im1 in enumerate(sorted(data.images())):
+            for j,im2 in enumerate(sorted(data.images())):
+                if j != i + 1:
+                    continue
+                adjacent_pairs[im1] = {im2: True}
+                adjacent_pairs[im2] = {im1: True}
+                if im1 in im_all_rmatches and im2 in im_all_rmatches[im1]:
+                    rmatches = len(im_all_rmatches[im1][im2])
+                elif im2 in im_all_rmatches and im1 in im_all_rmatches[im2]:
+                    rmatches = len(im_all_rmatches[im2][im1])
+                else:
+                    rmatches = 0
+                total_rmatches += rmatches
+                sequence_count += 1
+                # if sequence_ranks[im1][im2]['rank'] == 0:
+                #     if im1 in im_all_rmatches and im2 in im_all_rmatches[im1]:
+                #         rmatches = len(im_all_rmatches[im1][im2])
+                #     elif im2 in im_all_rmatches and im1 in im_all_rmatches[im2]:
+                #         rmatches = len(im_all_rmatches[im2][im1])
+                #     else:
+                #         rmatches = 0
+                #     sequences['{}---{}'.format(im1,im2)] = True
+                #     total_rmatches += rmatches
+                #     sequence_count += 1
+        c = 1.0 * total_rmatches / sequence_count
+        logger.info('\tTotal Sequence pairs: {}  Average rmatches between consecutive images: {}'.format(sequence_count, c))
+        logger.info(json.dumps(sequences, sort_keys=True, indent=4, separators=(',', ': ')))
+
     for im1 in im_all_rmatches:
         if im1 not in im_num_rmatches:
             im_num_rmatches[im1] = {}
             im_num_rmatches_cost[im1] = {}
+        
+        if 'apply_sequence_ranks' in options and options['apply_sequence_ranks'] is True:
+            if im1 not in im_num_rmatches_cost_with_sequences:
+                im_num_rmatches_cost_with_sequences[im1] = {}
+            
         for im2 in im_all_rmatches[im1]:
-            im_num_rmatches[im1][im2] = len(im_all_rmatches[im1][im2])
-            if len(im_all_rmatches[im1][im2]) == 0:
-                im_num_rmatches_cost[im1][im2] = 1000.0
-            else:
-                im_num_rmatches_cost[im1][im2] = 1.0 / len(im_all_rmatches[im1][im2])
+            if im2 not in im_num_rmatches:
+                im_num_rmatches[im2] = {}
+                im_num_rmatches_cost[im2] = {}
+            if 'apply_sequence_ranks' in options and options['apply_sequence_ranks'] is True:
+                if im2 not in im_num_rmatches_cost_with_sequences:
+                    im_num_rmatches_cost_with_sequences[im2] = {}
 
-    return im_num_rmatches, im_num_rmatches_cost
+            im_num_rmatches[im1][im2] = len(im_all_rmatches[im1][im2])
+            im_num_rmatches[im2][im1] = im_num_rmatches[im1][im2]
+            if len(im_all_rmatches[im1][im2]) == 0:
+                im_num_rmatches_cost[im1][im2] = 100000000.0
+            else:
+                im_num_rmatches_cost[im1][im2] = 1.0 / im_num_rmatches[im1][im2]
+
+            im_num_rmatches_cost[im2][im1] = im_num_rmatches_cost[im1][im2]
+            if 'apply_sequence_ranks' in options and options['apply_sequence_ranks'] is True:
+                if im1 in adjacent_pairs and im2 in adjacent_pairs[im1] and adjacent_pairs[im1][im2] is True or \
+                    im2 in adjacent_pairs and im1 in adjacent_pairs[im2] and adjacent_pairs[im2][im1] is True:
+                    im_num_rmatches_cost_with_sequences[im1][im2] = min(im_num_rmatches_cost[im1][im2], 1.0/( options['sequence_cost_factor'] * c ) )
+                    im_num_rmatches_cost_with_sequences[im2][im1] = im_num_rmatches_cost_with_sequences[im1][im2]
+                else:
+                    im_num_rmatches_cost_with_sequences[im1][im2] = im_num_rmatches_cost[im1][im2]
+                    im_num_rmatches_cost_with_sequences[im2][im1] = im_num_rmatches_cost[im2][im1]
+
+    return im_num_rmatches, im_num_rmatches_cost, im_num_rmatches_cost_with_sequences
 
 def vocab_tree_adapter(data, options={}):
     vtranks, vtscores = data.load_vocab_ranks_and_scores()
@@ -1918,7 +2197,7 @@ def calculate_lccs(ctx):
     lccs = {}
     edge_threshold = 15
 
-    num_rmatches, _ = rmatches_adapter(data)
+    num_rmatches, _, _ = rmatches_adapter(data)
     G = opensfm.commands.formulate_graphs.formulate_graph([data, images, num_rmatches, 'rm', edge_threshold])
     for threshold in [15, 20, 25, 30, 35, 40]:
         G_thresholded = opensfm.commands.formulate_graphs.threshold_graph_edges(G, threshold, key='weight')
@@ -1953,3 +2232,542 @@ def calculate_lccs(ctx):
     #         im_num_rmatches[im1][im2] = len(im_all_rmatches[im1][im2])
 
     # return im_num_rmatches
+
+
+
+
+def get_cmap(n, name='hsv'):
+    colormaps = ['Accent', 'Accent_r', 'Blues', 'Blues_r', 'BrBG', 'BrBG_r', 'BuGn', 'BuGn_r', 'BuPu', 'BuPu_r', 'CMRmap', 'CMRmap_r', 'Dark2', 'Dark2_r', 'GnBu', 'GnBu_r', 'Greens', 'Greens_r', 'Greys', 'Greys_r', 'OrRd', 'OrRd_r', 'Oranges', 'Oranges_r', 'PRGn', 'PRGn_r', 'Paired', 'Paired_r', 'Pastel1', 'Pastel1_r', 'Pastel2', 'Pastel2_r', 'PiYG', 'PiYG_r', 'PuBu', 'PuBuGn', 'PuBuGn_r', 'PuBu_r', 'PuOr', 'PuOr_r', 'PuRd', 'PuRd_r', 'Purples', 'Purples_r', 'RdBu', 'RdBu_r', 'RdGy', 'RdGy_r', 'RdPu', 'RdPu_r', 'RdYlBu', 'RdYlBu_r', 'RdYlGn', 'RdYlGn_r', 'Reds', 'Reds_r', 'Set1', 'Set1_r', 'Set2', 'Set2_r', 'Set3', 'Set3_r', 'Spectral', 'Spectral_r', 'Wistia', 'Wistia_r', 'YlGn', 'YlGnBu', 'YlGnBu_r', 'YlGn_r', 'YlOrBr', 'YlOrBr_r', 'YlOrRd', 'YlOrRd_r']
+    return plt.get_cmap(colormaps[n])
+
+def plot_mds(data, pos_gt, pos, iteration, opts):
+    fig = plt.figure(1)
+    ax = plt.axes([0., 0., 1., 1.])
+
+    s = 50
+    cmap = get_cmap(opts['max_iterations'] + 1)
+    if pos_gt is not None and iteration <= 0:
+        for i in range(0,len(pos_gt)):
+            if 'triangulated-indices' in opts and i in opts['triangulated-indices']:
+                color = 'b'
+            else:
+                color = 'g'
+            plt.scatter([pos_gt[i, 0]], [pos_gt[i, 1]], c=color, s=s, lw=0,
+                        label='True Position')
+        results_folder = os.path.join(data.data_path, 'results')
+        mkdir_p(results_folder)
+        plt.savefig(os.path.join(data.data_path, 'results', 'path-gt-lmds-{}-i-{}.png'.format(opts['lmds'], iteration)),dpi=90)
+    
+    if pos_gt is None and (iteration + 1) % opts['solve_mds_plot_freq'] == 0:
+        for i in range(0,len(pos)):
+            if 'triangulated-indices' in opts and i in opts['triangulated-indices']:
+                color = 'b'
+            else:
+                color = 'r'
+            plt.scatter(pos[i, 0], pos[i, 1], c=color, s=s, lw=0, label='MDS - Iteration {}'.format(iteration))
+        #     index = (len(pos)-opts['triangulated-indices'])
+        #     plt.scatter(pos[0:index, 0], pos[0:index, 1], c='r', s=s, lw=0, label='MDS - Iteration {}'.format(iteration))
+        #     plt.scatter(pos[index:, 0], pos[index:, 1], c='b', s=s, lw=0, label='MDS - Iteration {}'.format(iteration))
+        # else:
+        #     plt.scatter(pos[:, 0], pos[:, 1], c='r', s=s, lw=0, label='MDS - Iteration {}'.format(iteration))
+        results_folder = os.path.join(data.data_path, 'results')
+        mkdir_p(results_folder)
+        plt.savefig(os.path.join(results_folder, 'path-inferred-{}-lmds-{}.png'.format(opts['shortest_path_label'], opts['lmds'])),dpi=90)
+        
+
+    if False:
+        similarities = similarities.max() / similarities * 100
+        similarities[np.isinf(similarities)] = 0
+        # Plot the edges
+        start_idx, end_idx = np.where(pos)
+        # a sequence of (*line0*, *line1*, *line2*), where::
+        #            linen = (x0, y0), (x1, y1), ... (xm, ym)
+        segments = [[pos_gt[i, :], pos_gt[j, :]]
+                    for i in range(len(pos)) for j in range(len(pos))]
+        values = np.abs(similarities)
+        lc = LineCollection(segments,
+                            zorder=0, cmap=plt.cm.Blues,
+                            norm=plt.Normalize(0, values.max()))
+        lc.set_array(similarities.flatten())
+        lc.set_linewidths(0.5 * np.ones(len(segments)))
+        ax.add_collection(lc)
+
+    plt.clf()
+
+
+def solve_mds(data, distances_gt, distances, num_fns, opts, debug):
+    logger.info('#'*100)
+    logger.info('#'*40 + ' Solving MDS problem... ' + '#'*40)
+    logger.info('#'*100)
+    seed = np.random.RandomState(seed=3)
+    mds = manifold.MDS(n_components=3, max_iter=3000, eps=1e-9, random_state=seed,
+                   dissimilarity="precomputed", n_jobs=1)
+    if distances_gt is not None:
+        seed_gt = np.random.RandomState(seed=3)
+        mds_gt = manifold.MDS(n_components=3, max_iter=3000, eps=1e-9, random_state=seed_gt,
+                   dissimilarity="precomputed", n_jobs=1)
+        mds_embedding_pos_gt = mds_gt.fit(distances_gt).embedding_
+    
+    mds_embedding_pos = mds.fit(distances).embedding_
+
+    # Rotate the data
+    clf = PCA(n_components=2)
+    nmds = manifold.MDS(n_components=3, metric=False, max_iter=3000, eps=1e-9,
+                    dissimilarity="precomputed", random_state=seed, n_jobs=1,
+                    n_init=1)
+    if distances_gt is not None:
+        clf_gt = PCA(n_components=2)
+        nmds_gt = manifold.MDS(n_components=3, metric=False, max_iter=3000, eps=1e-9,
+                        dissimilarity="precomputed", random_state=seed_gt, n_jobs=1,
+                        n_init=1)
+        pos_gt = nmds_gt.fit_transform(distances_gt, init=mds_embedding_pos_gt)
+        pos_gt = mds_embedding_pos_gt
+        pos_gt = clf_gt.fit_transform(pos_gt)
+        scale_gt = np.max(np.abs(pos_gt))
+        pos_gt = pos_gt / scale_gt
+    
+    # pos = nmds.fit_transform(distances, init=mds_embedding_pos)
+    pos = mds_embedding_pos
+    pos = clf.fit_transform(pos)
+    scale = np.max(np.abs(pos))
+    inferred_positions = pos / scale
+
+    if distances_gt is not None:
+        plot_mds(data=data, pos_gt=pos_gt, pos=None, iteration=0, opts=opts)
+    plot_mds(data=data, pos_gt=None, pos=inferred_positions, iteration=1, opts=opts)
+    updated_distances = euclidean_distances(inferred_positions)
+
+    if distances_gt is not None:
+        return mds_embedding_pos, mds_embedding_pos_gt, inferred_positions, pos_gt, updated_distances
+    return mds_embedding_pos, inferred_positions, updated_distances
+
+def build_dummy_camera():
+    camera = types.PerspectiveCamera()
+    camera.id = "v2 sony a7sm2 1920 1080 perspective 0.5833"
+    camera.width = 1920
+    camera.height = 1080
+    camera.focal_prior = 0.5833333333333334
+    camera.focal = 0.6069623805001559
+    camera.k1 = 0.0
+    camera.k2 = 0.0
+    camera.k1_prior = 0.0
+    camera.k2_prior = 0.0
+    return camera
+
+def create_inferred_reconstruction(positions, reverse_image_mapping):
+    recon_inferred = types.Reconstruction()
+    camera = build_dummy_camera()
+    recon_inferred.add_camera(camera)
+    for i in range(0,len(positions)):
+        pose = types.Pose()
+        # pose.set_origin([positions[i][1], 0, positions[i][0]])
+        pose.set_origin([positions[i][0], 0, positions[i][1]])
+        
+        shot = types.Shot()
+        shot.camera = camera
+        shot.pose = pose
+        shot.id = reverse_image_mapping[i]
+
+        sm = types.ShotMetadata()
+        sm.orientation = 1
+        sm.gps_position = [0.0, 0.0, 0.0]
+        sm.gps_dop = 999999.0
+        shot.metadata = sm
+
+        # add shot to reconstruction
+        recon_inferred.add_shot(shot)
+    return recon_inferred
+
+def distance_based_triangulation(data, landmark_positions, delta_a):
+    delta_a_sq = np.multiply(delta_a, delta_a)
+    L_inv = np.linalg.pinv(np.matrix(landmark_positions))
+
+    delta_i = euclidean_distances(landmark_positions)
+    delta_i_sq = np.multiply(delta_i, delta_i)
+
+
+    # distances_squared = distances
+    # landmark_distances_squared = euclidean_distances(landmark_positions)
+
+    # landmark_distances_squared = np.dot(landmark_distances, landmark_distances)
+    # print landmark_distances
+    # print landmark_distances_squared
+    # import sys; sys.exit(1)
+    
+    # u_landmark_distances_squared = np.sum(landmark_distances_squared, axis=1) / (len(landmark_distances_squared))
+    
+    delta_u = np.mean(delta_i_sq, axis=0)
+    # delta_u = np.sum(delta_i_sq, axis=1) / len(delta_i)
+
+    # print '#'*100
+    # print u_landmark_distances_squared
+    # print '-'*100
+    # print np.mean(landmark_distances_squared, axis=1)
+    # print '='*100
+    # print landmark_positions_inv
+    # print '$'*100
+    # print landmark_positions.shape
+    # print distances.shape
+
+    # print '@'*100
+    # print np.matrix(landmark_positions_inv).shape
+    # print distances_squared.reshape((-1,1)).shape
+    # print '@'*100
+    # print np.matrix((distances_squared - u_landmark_distances_squared).reshape((-1,1))).shape
+
+    # print '@'*100
+
+    # x = -0.5 * np.matrix(landmark_positions_inv) * np.matrix((delta_a_sq - delta_u).reshape((-1,1)))
+    x = -0.5 * L_inv * np.matrix((delta_a_sq - delta_u).reshape((-1,1)))
+    # print '!'*100
+    # print x.shape
+    # import sys; sys.exit(1)
+    # pass
+    return x
+
+def infer_cleaner_positions(ctx):
+    logger.info('#'*100)
+    logger.info('#'*25 + ' Inferring cleaner camera positions using shortest paths... ' + '#'*25)
+    logger.info('#'*100)
+    data = ctx.data
+    images = sorted(data.images())
+    np_images = np.array(images)
+    num_fns = len(images)
+    seq_cost_factor = ctx.sequence_cost_factor
+    
+    if data.reconstruction_exists('reconstruction_gt.json'):
+        reverse_image_mapping_gt = {}
+        recon_gt = data.load_reconstruction('reconstruction_gt.json')[0]
+        num_fns_gt = len(recon_gt.shots.keys())
+        positions_gt = np.zeros((num_fns_gt,3))
+        for i,k in enumerate(sorted(recon_gt.shots.keys())):
+            reverse_image_mapping_gt[i] = k
+            positions_gt[i,:] = recon_gt.shots[k].pose.get_origin()
+
+        distances_gt = euclidean_distances(positions_gt)
+
+    for sp_label in ['rm-cost']:#, 'rm-seq-cost-{}'.format(seq_cost_factor)]:
+        distances_baseline = -1 * np.ones((len(images), len(images)))
+        shortest_paths = data.load_shortest_paths(label=sp_label)
+        cached_features = {}
+        image_mapping = {}
+        reverse_image_mapping = {}
+        im_closest_images = {}
+
+        for i,im1 in enumerate(images):
+            image_mapping[im1] = i
+            reverse_image_mapping[i] = im1
+
+            im1_all_matches, im1_valid_rmatches, im1_all_robust_matches = data.load_all_matches(im1)
+            p1, f1, c1 = data.load_features(im1)
+            for j,im2 in enumerate(images):
+                if i == j:
+                    distances_baseline[i,j] = 0.0
+                else:
+                    if im1 in shortest_paths and im2 in shortest_paths[im1]:
+                        path = shortest_paths[im1][im2]['path']
+                    else:
+                        path = shortest_paths[im2][im1]['path']
+                    shortest_path_distance = 0.0
+                    for k,p in enumerate(path):
+                        im1_, im2_ = p.split('---')
+                        if im1_ in cached_features:
+                            p1_ = cached_features[im1_]
+                        else:
+                            p1_, _, _ = data.load_features(im1_)
+                            cached_features[im1_] = p1_
+                        if im2_ in cached_features:
+                            p2_ = cached_features[im2_]
+                        else:
+                            p2_, _, _ = data.load_features(im2_)
+                            cached_features[im2_] = p2_
+
+                        # if path[p]['rmatches'] == 0:
+                        #     print (path)
+                        #     print ('{} : {}    /    {} : {}'.format(im1, len(p1_), im2, len(p2_)))
+                        
+                        # shortest_path_distance += 1.0 / (path[p]['rmatches'] / min(len(p1_), len(p2_)))
+                        shortest_path_distance += path[p]['cost']
+                    distances_baseline[i,j] = shortest_path_distance
+                distances_baseline[j,i] = distances_baseline[i,j]
+
+        
+        # distances_baseline = np.array([
+        #     [0.0,       1.0,      1.0,        2.0],
+        #     [1.0,       0.0,      1.4142,     2.236],
+        #     [1.0,       1.4142,   0.0,        1.0],
+        #     [2.0,       2.236,    1.0,        0.0]
+        #     ])
+        if False:
+            positions = np.array([
+                [0.0, 0.0],
+                [1.0, 0.0],
+                [2.0, 0.0],
+                [0.0, 1.0],
+                [0.0, 2.0],
+                ])
+
+            images = images[0:len(positions)]
+            num_fns = len(images)
+            distances_baseline = euclidean_distances(positions)
+            distances_gt = distances_baseline[:,:]
+
+        distances_baseline_pruned = distances_baseline[:,:]
+        if data.reconstruction_exists('reconstruction_gt.json'):
+            distances_gt_pruned = distances_gt[:,:]
+
+        # noisiest_images = []
+        mds_images = images[:]
+        logger.info('Total images: {}'.format(len(mds_images)))
+        # for i in range(0, int(math.floor(0.5*len(images)))): # remove maximum 50% of images
+        # for i in range(0, int(math.floor(0.2*len(images)))): # remove maximum 20% of images
+        # for i in range(0, int(math.floor(0.1*len(images)))): # remove maximum 20% of images
+        for i in range(0, 1): # remove maximum 50% of images
+            # r, c = np.where(distances_baseline_pruned > 100.0/1.0)
+            r, c = np.where(distances_baseline_pruned > 1.0/15.0)
+            # r, c = np.where(distances_baseline_pruned > 1.0/100.0)
+            if len(r) == 0:
+                logger.info('\tRemoved all "noisy" images. Images left to perform MDS: {}'.format(distances_baseline_pruned.shape[0]))
+                break
+            unique_images, image_counts = np.unique(r, return_counts=True)
+            mapped_images = dict(zip(unique_images, image_counts))
+            noisiest_image = unique_images[np.argmax(image_counts)]
+            distances_baseline_pruned = np.delete(distances_baseline_pruned,(noisiest_image), axis=0)
+            distances_baseline_pruned = np.delete(distances_baseline_pruned,(noisiest_image), axis=1)
+            if data.reconstruction_exists('reconstruction_gt.json'):
+                distances_gt_pruned = np.delete(distances_gt_pruned,(noisiest_image), axis=0)
+                distances_gt_pruned = np.delete(distances_gt_pruned,(noisiest_image), axis=1)
+            # noisiest_images.append(noisiest_image)
+            del mds_images[noisiest_image]
+
+
+        # Since we've pruned greedily, we need to figure out what are landmark indices and pruned indices (compared to the original matrix)
+        images_pruned = []
+        landmark_indices = []
+        triangulated_indices = []
+        offset = 0
+        for i in range(0,len(images)):
+            if i - offset >= len(mds_images) or images[i] != mds_images[i - offset]:
+                images_pruned.append({'image': images[i], 'index': i})
+                triangulated_indices.append(i)
+                offset += 1
+            else:
+                landmark_indices.append(i)
+        landmark_indices = np.array(landmark_indices)
+        
+        options = {'solve_mds_plot_freq': 1, 'max_iterations': 20, 'shortest_path_label': sp_label, 'lmds': True}
+        if data.reconstruction_exists('reconstruction_gt.json'):
+            # distances_gt_pruned_sq = np.multiply(distances_gt_pruned, distances_gt_pruned)
+            # distances_baseline_pruned_sq = np.multiply(distances_baseline_pruned, distances_baseline_pruned)
+            mds_embedding_positions, mds_embedding_positions_gt, positions_inferred, positions_inferred_gt, _ = solve_mds(data=data, distances_gt=distances_gt_pruned, distances=distances_baseline_pruned, num_fns=len(mds_images), opts=options, debug=False)
+        else:
+            mds_embedding_positions, positions_inferred, _ = solve_mds(data=data, distances_gt=None, distances=distances_baseline_pruned, num_fns=len(mds_images), opts=options, debug=False)
+
+        # print (mds_embedding_positions)
+        # import sys; sys.exit(1)
+        use_embedding_positions = True
+        if use_embedding_positions:
+            all_positions_inferred = mds_embedding_positions[:,:]
+            if data.reconstruction_exists('reconstruction_gt.json'):
+                all_positions_inferred_gt = mds_embedding_positions_gt[:,:]
+        else:
+            all_positions_inferred = positions_inferred[:,:]
+            if data.reconstruction_exists('reconstruction_gt.json'):
+                all_positions_inferred_gt = positions_inferred_gt[:,:]
+
+
+        logger.info('Triangulating pruned cameras using distances from landmark cameras...')
+        for ip in images_pruned:
+            logger.info('\tImage being added: {}'.format(reverse_image_mapping[ip['index']]))
+            confident_indices = distances_baseline[ip['index'], landmark_indices].argsort()[:max(3, int(len(images)*0.2))]
+            # confident_indices = distances_baseline[ip['index'], landmark_indices].argsort()[:3]
+            x = distance_based_triangulation(data, mds_embedding_positions[confident_indices], distances_baseline[ip['index'], landmark_indices][confident_indices])
+            # x = distance_based_triangulation(data, mds_embedding_positions, distances_baseline[ip['index'], landmark_indices])
+            
+            # all_positions_inferred = np.append(all_positions_inferred, x.reshape((1,-1)), axis=0)
+            all_positions_inferred = np.insert(all_positions_inferred,ip['index'],x.reshape((1,-1)), axis=0) 
+
+            if data.reconstruction_exists('reconstruction_gt.json'):
+                x_gt = distance_based_triangulation(data, mds_embedding_positions_gt, distances_gt[ip['index'], landmark_indices])
+                # all_positions_inferred_gt = np.append(all_positions_inferred_gt, x_gt.reshape((1,-1)), axis=0)
+                all_positions_inferred_gt = np.insert(all_positions_inferred_gt,ip['index'],x_gt.reshape((1,-1)), axis=0) 
+
+
+        options['triangulated-indices'] = triangulated_indices
+
+        if False and use_embedding_positions:
+            seed = np.random.RandomState(seed=3)
+            nmds = manifold.MDS(n_components=3, metric=False, max_iter=3000, eps=1e-9,
+                        dissimilarity="precomputed", random_state=seed, n_jobs=1,
+                        n_init=1)
+            clf = PCA(n_components=2)
+            all_positions_inferred = nmds.fit_transform(distances_baseline, init=all_positions_inferred)
+            all_positions_inferred = clf.fit_transform(all_positions_inferred)
+            scale = np.max(np.abs(all_positions_inferred))
+            all_positions_inferred = all_positions_inferred / scale
+            if data.reconstruction_exists('reconstruction_gt.json'):
+                seed_gt = np.random.RandomState(seed=3)
+                nmds_gt = manifold.MDS(n_components=3, metric=False, max_iter=3000, eps=1e-9,
+                            dissimilarity="precomputed", random_state=seed_gt, n_jobs=1,
+                            n_init=1)
+                clf_gt = PCA(n_components=2)
+                all_positions_inferred_gt = nmds_gt.fit_transform(distances_gt, init=all_positions_inferred_gt)
+                all_positions_inferred_gt = clf_gt.fit_transform(all_positions_inferred_gt)
+                scale_gt = np.max(np.abs(all_positions_inferred_gt))
+                all_positions_inferred_gt = all_positions_inferred_gt / scale_gt
+        else:
+            all_positions_inferred = np.array(all_positions_inferred)
+            if data.reconstruction_exists('reconstruction_gt.json'):
+                all_positions_inferred_gt = np.array(all_positions_inferred_gt)
+
+        # print (all_positions_inferred)
+        updated_distances = euclidean_distances(all_positions_inferred)
+        plot_mds(data=data, pos_gt=None, pos=all_positions_inferred, iteration=1, opts=options)
+        if data.reconstruction_exists('reconstruction_gt.json'):
+            plot_mds(data=data, pos_gt=all_positions_inferred_gt, pos=None, iteration=-1, opts=options)
+
+        for i in range(0,num_fns):
+            order = np.argsort(np.array(updated_distances[:,i]))
+            im_closest_images[reverse_image_mapping[i]] = np_images[order].tolist()
+
+        data.save_closest_images(im_closest_images, label='{}-lmds-{}'.format(sp_label, options['lmds']))
+
+    # import sys; sys.exit(1)
+    if data.reconstruction_exists('reconstruction_gt.json'):
+        im_closest_images_gt = {}
+        np_images_gt = np.array(sorted(recon_gt.shots.keys()))
+        for i in range(0,num_fns_gt):
+            order_gt = np.argsort(np.array(distances_gt[:,i]))
+            im_closest_images_gt[reverse_image_mapping_gt[i]] = np_images_gt[order_gt].tolist()
+        data.save_closest_images(im_closest_images_gt, label='gt-lmds-{}'.format(options['lmds']))
+
+        # recon_inferred = create_inferred_reconstruction(positions_inferred, reverse_image_mapping)
+        # relevant_reconstructions = [[recon_gt, recon_inferred, 'path']]
+        # opensfm.commands.validate_results.ransac_based_ate_evaluation(data, relevant_reconstructions)
+
+def infer_positions(ctx):
+    logger.info('#'*100)
+    logger.info('#'*25 + ' Inferring camera positions using shortest paths... ' + '#'*25)
+    logger.info('#'*100)
+    data = ctx.data
+    images = sorted(data.images())
+    np_images = np.array(images)
+    num_fns = len(images)
+    seq_cost_factor = ctx.sequence_cost_factor
+    
+    if data.reconstruction_exists('reconstruction_gt.json'):
+        reverse_image_mapping_gt = {}
+        recon_gt = data.load_reconstruction('reconstruction_gt.json')[0]
+        num_fns_gt = len(recon_gt.shots.keys())
+        positions_gt = np.zeros((num_fns_gt,3))
+        for i,k in enumerate(sorted(recon_gt.shots.keys())):
+            reverse_image_mapping_gt[i] = k
+            positions_gt[i,:] = recon_gt.shots[k].pose.get_origin()
+
+        distances_gt = euclidean_distances(positions_gt)
+
+    for sp_label in ['rm-cost', 'rm-seq-cost-{}'.format(seq_cost_factor)]:
+        distances_baseline = -1 * np.ones((len(images), len(images)))
+        shortest_paths = data.load_shortest_paths(label=sp_label)
+        cached_features = {}
+        image_mapping = {}
+        reverse_image_mapping = {}
+        im_closest_images = {}
+
+        for i,im1 in enumerate(images):
+            image_mapping[im1] = i
+            reverse_image_mapping[i] = im1
+
+            im1_all_matches, im1_valid_rmatches, im1_all_robust_matches = data.load_all_matches(im1)
+            p1, f1, c1 = data.load_features(im1)
+            for j,im2 in enumerate(images):
+                if i == j:
+                    distances_baseline[i,j] = 0.0
+                else:
+                    if im1 in shortest_paths and im2 in shortest_paths[im1]:
+                        path = shortest_paths[im1][im2]['path']
+                    else:
+                        path = shortest_paths[im2][im1]['path']
+                    shortest_path_distance = 0.0
+                    for k,p in enumerate(path):
+                        im1_, im2_ = p.split('---')
+                        if im1_ in cached_features:
+                            p1_ = cached_features[im1_]
+                        else:
+                            p1_, _, _ = data.load_features(im1_)
+                            cached_features[im1_] = p1_
+                        if im2_ in cached_features:
+                            p2_ = cached_features[im2_]
+                        else:
+                            p2_, _, _ = data.load_features(im2_)
+                            cached_features[im2_] = p2_
+
+                        # if path[p]['rmatches'] == 0:
+                        #     print (path)
+                        #     print ('{} : {}    /    {} : {}'.format(im1, len(p1_), im2, len(p2_)))
+                        
+                        # shortest_path_distance += 1.0 / (path[p]['rmatches'] / min(len(p1_), len(p2_)))
+                        shortest_path_distance += path[p]['cost']
+                    distances_baseline[i,j] = shortest_path_distance
+                distances_baseline[j,i] = distances_baseline[i,j]
+
+        options = {'solve_mds_plot_freq': 1, 'max_iterations': 20, 'shortest_path_label': sp_label, 'lmds': False}
+        if data.reconstruction_exists('reconstruction_gt.json'):
+            mds_embedding_positions, mds_embedding_positions_gt, positions_inferred, positions_inferred_gt, updated_distances = solve_mds(data=data, distances_gt=distances_gt, distances=distances_baseline, num_fns=num_fns, opts=options, debug=False)
+        else:
+            mds_embedding_positions, positions_inferred, updated_distances = solve_mds(data=data, distances_gt=None, distances=distances_baseline, num_fns=num_fns, opts=options, debug=False)
+
+        for i in range(0,num_fns):
+            order = np.argsort(np.array(updated_distances[:,i]))
+            im_closest_images[reverse_image_mapping[i]] = np_images[order].tolist()
+
+        data.save_closest_images(im_closest_images, label='{}-lmds-{}'.format(sp_label, options['lmds']))
+
+    if data.reconstruction_exists('reconstruction_gt.json'):
+        im_closest_images_gt = {}
+        np_images_gt = np.array(sorted(recon_gt.shots.keys()))
+        for i in range(0,num_fns_gt):
+            order_gt = np.argsort(np.array(distances_gt[:,i]))
+            im_closest_images_gt[reverse_image_mapping_gt[i]] = np_images_gt[order_gt].tolist()
+        data.save_closest_images(im_closest_images_gt, label='gt-lmds-{}'.format(options['lmds']))
+
+        # recon_inferred = create_inferred_reconstruction(positions_inferred, reverse_image_mapping)
+        # relevant_reconstructions = [[recon_gt, recon_inferred, 'path']]
+        # opensfm.commands.validate_results.ransac_based_ate_evaluation(data, relevant_reconstructions)
+
+def calculate_track_map(image_coordinates, track_lengths, grid_size):
+    entropy = 0.0
+    tmap = np.zeros((grid_size*grid_size,)).astype(np.float)
+    if len(image_coordinates) == 0:
+        return tmap.reshape((grid_size, grid_size))
+    # dmap_entropy = np.zeros((grid_size*grid_size,)).astype(np.float)
+    denormalized_image_coordinates = features.denormalized_image_coordinates(image_coordinates, grid_size, grid_size)
+    indx = denormalized_image_coordinates[:,0].astype(np.int32)
+    indy = denormalized_image_coordinates[:,1].astype(np.int32)
+    for i in xrange(0,len(indx)):
+        tmap[indy[i]*grid_size + indx[i]] += track_lengths[i]
+        # dmap_entropy[indy[i]*grid_size + indx[i]] += 1.0
+    return tmap.reshape((grid_size, grid_size))
+
+def create_tracks_map(ctx):
+    logger.info('#'*100)
+    logger.info('#'*25 + ' Creating track map... ' + '#'*25)
+    logger.info('#'*100)
+    data = ctx.data
+    graph = data.load_tracks_graph('tracks.csv')
+    for im in data.images():
+        image_coordinates = []
+        track_lengths = []
+        if im in graph:
+            tracks = graph[im]
+            for t in tracks:
+                # tid = graph[im][t]['feature_id']
+                x,y = graph[im][t]['feature']
+                image_coordinates.append([x,y])
+                track_lengths.append(len(graph[t]))
+        track_map = calculate_track_map(np.array(image_coordinates), track_lengths, 224)
+        data.save_track_map(im, track_map)
+        # print np.sum(np.array(track_lengths))
+        # print np.sum(track_map)
+        # # print '{} : {}  -  {}'.format(im, t, graph[t])
+        # return

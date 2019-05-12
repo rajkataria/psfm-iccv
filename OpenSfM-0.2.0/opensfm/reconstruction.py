@@ -9,6 +9,7 @@ import numpy as np
 import cv2
 import pyopengv
 import six
+import sys
 from timeit import default_timer as timer
 from six import iteritems
 
@@ -1230,7 +1231,7 @@ def grow_reconstruction(data, graph, reconstruction, images, gcp):
 
     logger.info("-------------------------------------------------------")
 
-    run_name = 'imc-{}-wr-{}-colmapr-{}-gm-{}-gcm-{}-wfm-{}-imt-{}-spp-{}.json'.format(\
+    run_name = 'imc-{}-wr-{}-colmapr-{}-gm-{}-gsm-{}-wfm-{}-imt-{}-spp-{}-cip-{}-cipgt-{}-cipk-{}-yan-{}.json'.format(\
         data.config['use_image_matching_classifier'], \
         data.config['use_weighted_resectioning'], \
         data.config['use_colmap_resectioning'], \
@@ -1238,7 +1239,11 @@ def grow_reconstruction(data, graph, reconstruction, images, gcp):
         data.config['use_gt_selective_matches'], \
         data.config['use_weighted_feature_matches'], \
         data.config['use_image_matching_thresholding'] , \
-        data.config['use_shortest_path_pruning']
+        data.config['use_shortest_path_pruning'], \
+        data.config['use_closest_images_pruning'], \
+        data.config['use_gt_closest_images_pruning'], \
+        data.config['closest_images_top_k'], \
+        data.config['use_yan_disambiguation']
         )
     data.save_resectioning_order(resectioning_order, run=run_name)
     data.save_resectioning_order_attempted(resectioning_order_attempted, run=run_name)
@@ -1257,21 +1262,42 @@ def incremental_reconstruction(data):
     chrono = Chronometer()
     if not data.reference_lla_exists():
         data.invent_reference_lla()
-    
-    if data.config.get('use_gt_matches', False):
+
+
+    if data.config.get('use_yan_disambiguation', False):
+        graph = data.load_tracks_graph('tracks-yan.csv')    
+    elif data.config.get('use_gt_matches', False):
+        if not data.reconstruction_exists('reconstruction_gt.json'):
+            logger.info('Ground-truth reconstruction does not exist, skipping reconstruction.')
+            sys.exit(1)
         if data.config.get('use_shortest_path_pruning', False):
             graph = data.load_tracks_graph('tracks-gt-matches-pruned.csv')
         elif data.config.get('use_gt_selective_matches', False):
             graph = data.load_tracks_graph('tracks-gt-matches-selective.csv')
         else:
             graph = data.load_tracks_graph('tracks-gt-matches.csv')
+    elif data.config.get('use_gt_closest_images_pruning', False):
+        if not data.reconstruction_exists('reconstruction_gt.json'):
+            logger.info('Ground-truth reconstruction does not exist, skipping reconstruction.')
+            sys.exit(1)
+        if data.config.get('use_image_matching_classifier', False) and data.config.get('use_image_matching_thresholding', False):
+            graph = data.load_tracks_graph('tracks-gt-distance-pruned-thresholded-matches.csv')
+        else:
+            graph = data.load_tracks_graph('tracks-gt-distance-pruned-matches.csv')
     elif data.config.get('use_image_matching_classifier', False):
         if data.config.get('use_image_matching_thresholding', False):
-            graph = data.load_tracks_graph('tracks-thresholded-matches.csv')
+            if data.config.get('use_closest_images_pruning'):
+                graph = data.load_tracks_graph('tracks-distance-pruned-thresholded-matches.csv')
+            elif data.config.get('use_shortest_path_pruning'):
+                graph = data.load_tracks_graph('tracks-pruned-thresholded-matches.csv')
+            else:
+                graph = data.load_tracks_graph('tracks-thresholded-matches.csv')
         else:
             graph = data.load_tracks_graph('tracks-all-matches.csv')
     else:
-        if data.config.get('use_shortest_path_pruning', False):
+        if data.config.get('use_closest_images_pruning', False):
+            graph = data.load_tracks_graph('tracks-distance-pruned-matches.csv')
+        elif data.config.get('use_shortest_path_pruning', False):
             graph = data.load_tracks_graph('tracks-pruned-matches.csv')
         else:
             # original baseline
@@ -1309,7 +1335,7 @@ def incremental_reconstruction(data):
                 reconstructions = sorted(reconstructions,
                                          key=lambda x: -len(x.shots))
                 
-                reconstruction_fn = 'reconstruction-imc-{}-wr-{}-colmapr-{}-gm-{}-gsm-{}-wfm-{}-imt-{}-spp-{}.json'.format(\
+                reconstruction_fn = 'reconstruction-imc-{}-wr-{}-colmapr-{}-gm-{}-gsm-{}-wfm-{}-imt-{}-imtv-{}-spp-{}-cip-{}-cipgt-{}-cipk-{}-yan-{}.json'.format(\
                     data.config['use_image_matching_classifier'], \
                     data.config['use_weighted_resectioning'], \
                     data.config['use_colmap_resectioning'], \
@@ -1317,7 +1343,12 @@ def incremental_reconstruction(data):
                     data.config['use_gt_selective_matches'], \
                     data.config['use_weighted_feature_matches'], \
                     data.config['use_image_matching_thresholding'] , \
-                    data.config['use_shortest_path_pruning']
+                    data.config['image_matching_classifier_threshold'] , \
+                    data.config['use_shortest_path_pruning'], \
+                    data.config['use_closest_images_pruning'], \
+                    data.config['use_gt_closest_images_pruning'], \
+                    data.config['closest_images_top_k'], \
+                    data.config['use_yan_disambiguation']
                     )
                 data.save_reconstruction(reconstructions, filename=reconstruction_fn)
 

@@ -49,7 +49,7 @@ flann_iterations: 10          # See OpenCV doc
 flann_checks: 200             # Smaller -> Faster (but might lose good matches)
 
 # Params for VOCAB_TREE matching
-relevant_ranks: 50
+relevant_ranks: 500
 
 # Libraries
 libvot: ../libvot/
@@ -141,16 +141,20 @@ use_image_matching_classifier: no
 use_image_matching_thresholding: no
 use_weighted_feature_matches: no
 use_weighted_resectioning: no
-use_colmap_resectioning: no
+use_colmap_resectioning: yes
 use_shortest_path_pruning: no
+use_gt_closest_images_pruning: no
+use_closest_images_pruning: no
+use_yan_disambiguation: no
 gt_matches_selective_threshold: 50      # Everything ABOVE this value use ground-truth matches
-shortest_path_rmatches_threshold: 2
+shortest_path_rmatches_threshold: 200   # Everything ABOVE this value has a score of 1.0
+closest_images_top_k: H
 feature_matching_classifier: Barn+Caterpillar+Church+Ignatius+3-50.pkl
 error_inlier_threshold: 0.01
 error_outlier_threshold: 0.08
-image_matching_classifier_threshold: 0.3
+image_matching_classifier_threshold: 0.5
 image_matching_classifier: RM+PE+SE+TE+ETH3D+TUM_RGBD_SLAM+TanksAndTemples+6-50-thresholds-15-50.pkl
-image_matching_classifier_thresholds: 
+image_matching_classifier_range: 
     - 15
     - 50
 
