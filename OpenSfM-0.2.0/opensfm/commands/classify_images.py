@@ -126,10 +126,10 @@ class Command:
             fns, num_rmatches, _, score, shortest_path_length, _ = r
             im1, im2 = fns
 
-            if num_rmatches < image_matching_classifier_thresholds[0]:
-                score = [0.0]
-            elif num_rmatches > image_matching_classifier_thresholds[-1]:
-                score = [1.0]
+            # if num_rmatches < image_matching_classifier_thresholds[0]:
+            #     score = [0.0]
+            # elif num_rmatches > image_matching_classifier_thresholds[-1]:
+            #     score = [1.0]
 
             if im1 not in results:
                 results[im1] = {}

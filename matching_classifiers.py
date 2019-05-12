@@ -326,6 +326,7 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
     #################################################################################################################################
     #################################################################################################################################    
     for i,t in enumerate(training_datasets):
+        print '\tDataset: {}'.format(t)
         data = dataset.DataSet(t)
         # _fns, [_R11s, _R12s, _R13s, _R21s, _R22s, _R23s, _R31s, _R32s, _R33s, _num_rmatches, _num_matches, _spatial_entropy_1_8x8, \
         #     _spatial_entropy_2_8x8, _spatial_entropy_1_16x16, _spatial_entropy_2_16x16, _pe_histogram, _pe_polygon_area_percentage, \
@@ -346,6 +347,8 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
             _lcc_im1_35, _lcc_im2_35, _min_lcc_35, _max_lcc_35, \
             _lcc_im1_40, _lcc_im2_40, _min_lcc_40, _max_lcc_40, \
             _shortest_path_length, \
+            _mds_rank_percentage_im1_im2, _mds_rank_percentage_im2_im1, \
+            _distance_rank_percentage_im1_im2_gt, _distance_rank_percentage_im2_im1_gt, \
             _num_gt_inliers, _labels] \
             = data.load_image_matching_dataset(robust_matches_threshold=options['image_matching_gt_threshold'], rmatches_min_threshold=training_min_threshold, \
                 rmatches_max_threshold=training_max_threshold, spl=options['shortest_path_length'])
@@ -362,6 +365,8 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
                 lcc_im1_35_tr, lcc_im2_35_tr, min_lcc_35_tr, max_lcc_35_tr, \
                 lcc_im1_40_tr, lcc_im2_40_tr, min_lcc_40_tr, max_lcc_40_tr, \
                 shortest_path_length_tr, \
+                mds_rank_percentage_im1_im2_tr, mds_rank_percentage_im2_im1_tr, \
+                distance_rank_percentage_im1_im2_gt_tr, distance_rank_percentage_im2_im1_gt_tr, \
                 num_gt_inliers_tr, labels_tr \
                 = _fns, _R11s, _R12s, _R13s, _R21s, _R22s, _R23s, _R31s, _R32s, _R33s, _num_rmatches, _num_matches, _spatial_entropy_1_8x8, \
                 _spatial_entropy_2_8x8, _spatial_entropy_1_16x16, _spatial_entropy_2_16x16, _pe_histogram, _pe_polygon_area_percentage, \
@@ -374,6 +379,8 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
                 _lcc_im1_35, _lcc_im2_35, _min_lcc_35, _max_lcc_35, \
                 _lcc_im1_40, _lcc_im2_40, _min_lcc_40, _max_lcc_40, \
                 _shortest_path_length, \
+                _mds_rank_percentage_im1_im2, _mds_rank_percentage_im2_im1, \
+                _distance_rank_percentage_im1_im2_gt, _distance_rank_percentage_im2_im1_gt, \
                 _num_gt_inliers, _labels
             dsets_tr = np.tile(t, (len(labels_tr),))
         else:
@@ -432,6 +439,10 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
             max_lcc_40_tr = np.concatenate((max_lcc_40_tr, _max_lcc_40), axis=0)
             shortest_path_length_tr = np.concatenate((shortest_path_length_tr, _shortest_path_length), axis=0)
             num_gt_inliers_tr = np.concatenate((num_gt_inliers_tr, _num_gt_inliers), axis=0)
+            mds_rank_percentage_im1_im2_tr = np.concatenate((mds_rank_percentage_im1_im2_tr, _mds_rank_percentage_im1_im2), axis=0)
+            mds_rank_percentage_im2_im1_tr = np.concatenate((mds_rank_percentage_im2_im1_tr, _mds_rank_percentage_im2_im1), axis=0)
+            distance_rank_percentage_im1_im2_gt_tr = np.concatenate((distance_rank_percentage_im1_im2_gt_tr, _distance_rank_percentage_im1_im2_gt), axis=0)
+            distance_rank_percentage_im2_im1_gt_tr = np.concatenate((distance_rank_percentage_im2_im1_gt_tr, _distance_rank_percentage_im2_im1_gt), axis=0)
             labels_tr = np.concatenate((labels_tr, _labels), axis=0)
             dsets_tr = np.concatenate((dsets_tr, np.tile(t, (len(_labels),))), axis=0)
 
@@ -445,6 +456,7 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
     #################################################################################################################################
     #################################################################################################################################    
     for i,t in enumerate(testing_datasets):
+        print '\tDataset: {}'.format(t)
         data = dataset.DataSet(t)
         _fns, [_R11s, _R12s, _R13s, _R21s, _R22s, _R23s, _R31s, _R32s, _R33s, _num_rmatches, _num_matches, _spatial_entropy_1_8x8, \
             _spatial_entropy_2_8x8, _spatial_entropy_1_16x16, _spatial_entropy_2_16x16, _pe_histogram, _pe_polygon_area_percentage, \
@@ -457,6 +469,8 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
             _lcc_im1_35, _lcc_im2_35, _min_lcc_35, _max_lcc_35, \
             _lcc_im1_40, _lcc_im2_40, _min_lcc_40, _max_lcc_40, \
             _shortest_path_length, \
+            _mds_rank_percentage_im1_im2, _mds_rank_percentage_im2_im1, \
+            _distance_rank_percentage_im1_im2_gt, _distance_rank_percentage_im2_im1_gt, \
             _num_gt_inliers, _labels] \
             = data.load_image_matching_dataset(robust_matches_threshold=options['image_matching_gt_threshold'], rmatches_min_threshold=options['image_match_classifier_min_match'], \
                 rmatches_max_threshold=options['image_match_classifier_max_match'], spl=options['shortest_path_length'])
@@ -473,6 +487,8 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
                 lcc_im1_35_te, lcc_im2_35_te, min_lcc_35_te, max_lcc_35_te, \
                 lcc_im1_40_te, lcc_im2_40_te, min_lcc_40_te, max_lcc_40_te, \
                 shortest_path_length_te, \
+                mds_rank_percentage_im1_im2_te, mds_rank_percentage_im2_im1_te, \
+                distance_rank_percentage_im1_im2_gt_te, distance_rank_percentage_im2_im1_gt_te, \
                 num_gt_inliers_te, labels_te \
                 = _fns, _R11s, _R12s, _R13s, _R21s, _R22s, _R23s, _R31s, _R32s, _R33s, _num_rmatches, _num_matches, _spatial_entropy_1_8x8, \
                 _spatial_entropy_2_8x8, _spatial_entropy_1_16x16, _spatial_entropy_2_16x16, _pe_histogram, _pe_polygon_area_percentage, \
@@ -485,6 +501,8 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
                 _lcc_im1_35, _lcc_im2_35, _min_lcc_35, _max_lcc_35, \
                 _lcc_im1_40, _lcc_im2_40, _min_lcc_40, _max_lcc_40, \
                 _shortest_path_length, \
+                _mds_rank_percentage_im1_im2, _mds_rank_percentage_im2_im1, \
+                _distance_rank_percentage_im1_im2_gt, _distance_rank_percentage_im2_im1_gt, \
                 _num_gt_inliers, _labels
             dsets_te = np.tile(t, (len(labels_te),))
         else:
@@ -542,6 +560,10 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
             min_lcc_40_te = np.concatenate((min_lcc_40_te, _min_lcc_40), axis=0)
             max_lcc_40_te = np.concatenate((max_lcc_40_te, _max_lcc_40), axis=0)
             shortest_path_length_te = np.concatenate((shortest_path_length_te, _shortest_path_length), axis=0)
+            mds_rank_percentage_im1_im2_te = np.concatenate((mds_rank_percentage_im1_im2_te, _mds_rank_percentage_im1_im2), axis=0)
+            mds_rank_percentage_im2_im1_te = np.concatenate((mds_rank_percentage_im2_im1_te, _mds_rank_percentage_im2_im1), axis=0)
+            distance_rank_percentage_im1_im2_gt_te = np.concatenate((distance_rank_percentage_im1_im2_gt_te, _distance_rank_percentage_im1_im2_gt), axis=0)
+            distance_rank_percentage_im2_im1_gt_te = np.concatenate((distance_rank_percentage_im2_im1_gt_te, _distance_rank_percentage_im2_im1_gt), axis=0)
             num_gt_inliers_te = np.concatenate((num_gt_inliers_te, _num_gt_inliers), axis=0)
             labels_te = np.concatenate((labels_te, _labels), axis=0)
             dsets_te = np.concatenate((dsets_te, np.tile(t, (len(_labels),))), axis=0)
@@ -613,35 +635,41 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
 
     exps = [
         ['RM'],
-        ['PE'],
-        ['SP'],
-        ['SE'],
-        ['TE'],
-        ['NBVS'],
-        ['VD'],
-        ['TM'],
-        # ['VT'],
-        ['HIST'],
-        ['LCC'],
-        # ['SQ'],
-        ['RM', 'PE'],
-        ['RM', 'SP'],
-        ['RM', 'SE'],
-        ['RM', 'TE'],
-        ['RM', 'NBVS'],
-        ['RM', 'VD'],
-        ['RM', 'TM'],
-        # ['RM', 'VT'],
-        ['RM', 'HIST'],
-        ['RM', 'LCC'],
-        # ['RM', 'SQ'],
-        ['RM', 'PE', 'SE'],
-        ['RM', 'PE', 'SE', 'TE'],
-        ['RM', 'PE', 'NBVS', 'TE'],
-        ['RM', 'TE', 'PE', 'NBVS', 'SE'],
-        # ['RM', 'TE', 'PE', 'NBVS', 'SE', 'VD'],
-        # ['RM', 'TE', 'PE', 'NBVS', 'SE', 'TM'],
+        # ['MDS'],
+        # ['RM', 'MDS'],
+        ['RM', 'DIST-GT'],
+        # ['PE'],
+        # ['SP'],
+        # ['SE'],
+        # ['TE'],
+        # ['NBVS'],
+        # ['VD'],
+        # ['TM'],
+        # # ['VT'],
+        # ['HIST'],
+        # ['LCC'],
+        # # ['SQ'],
+        # ['RM', 'PE'],
+        # ['RM', 'SP'],
+        # ['RM', 'SE'],
+        # ['RM', 'TE'],
+        # ['RM', 'NBVS'],
+        # ['RM', 'VD'],
+        # ['RM', 'TM'],
+        # # ['RM', 'VT'],
+        # ['RM', 'HIST'],
+        # ['RM', 'LCC'],
+        # # ['RM', 'SQ'],
+        # ['RM', 'PE', 'SE'],
+        # ['RM', 'PE', 'SE', 'TE'],
+        # ['RM', 'PE', 'SE', 'TE', 'MDS'],
+        # # ['RM', 'PE', 'NBVS', 'TE'],
+        # ['RM', 'TE', 'PE', 'NBVS', 'SE'],
+        # ['RM', 'TE', 'PE', 'NBVS', 'SE', 'MDS'],
+        # # ['RM', 'TE', 'PE', 'NBVS', 'SE', 'VD'],
+        # # ['RM', 'TE', 'PE', 'NBVS', 'SE', 'TM'],
         # ['RM', 'TE', 'PE', 'NBVS', 'SE', 'VD', 'TM'],
+        # ['RM', 'TE', 'PE', 'NBVS', 'SE', 'VD', 'TM', 'MDS'],
         # ['PE', 'SE', 'TE'],
         # ['PE', 'NBVS', 'TE'],
         # ['TE', 'PE', 'NBVS', 'SE'],
@@ -789,6 +817,10 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
             min_lcc_40 = min_lcc_40_tr.copy() if mode == 'train' else min_lcc_40_te.copy()
             max_lcc_40 = max_lcc_40_tr.copy() if mode == 'train' else max_lcc_40_te.copy()
             shortest_path_length = shortest_path_length_tr.copy() if mode == 'train' else shortest_path_length_te.copy()
+            mds_rank_percentage_im1_im2 = mds_rank_percentage_im1_im2_tr.copy() if mode == 'train' else mds_rank_percentage_im1_im2_te.copy()
+            mds_rank_percentage_im2_im1 = mds_rank_percentage_im2_im1_tr.copy() if mode == 'train' else mds_rank_percentage_im2_im1_te.copy()
+            distance_rank_percentage_im1_im2_gt = distance_rank_percentage_im1_im2_gt_tr.copy() if mode == 'train' else distance_rank_percentage_im1_im2_gt_te.copy()
+            distance_rank_percentage_im2_im1_gt = distance_rank_percentage_im2_im1_gt_tr.copy() if mode == 'train' else distance_rank_percentage_im2_im1_gt_te.copy()
             num_gt_inliers = num_gt_inliers_tr.copy() if mode == 'train' else num_gt_inliers_te.copy()
             labels = labels_tr.copy() if mode == 'train' else labels_te.copy()
             weights = weights_tr.copy() if mode == 'train' else weights_te.copy()
@@ -850,6 +882,10 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
             min_lcc_40_te_clone = min_lcc_40_te.copy()
             max_lcc_40_te_clone = max_lcc_40_te.copy()
             shortest_path_length_te_clone = shortest_path_length_te.copy()
+            mds_rank_percentage_im1_im2_te_clone = mds_rank_percentage_im1_im2_te.copy()
+            mds_rank_percentage_im2_im1_te_clone = mds_rank_percentage_im2_im1_te.copy()
+            distance_rank_percentage_im1_im2_gt_te_clone = distance_rank_percentage_im1_im2_gt_te.copy()
+            distance_rank_percentage_im2_im1_gt_te_clone = distance_rank_percentage_im2_im1_gt_te.copy()
             num_gt_inliers_te_clone = num_gt_inliers_te.copy()
             labels_te_clone = labels_te.copy()
             weights_te_clone = weights_te.copy()
@@ -976,7 +1012,16 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
                 vt_rank_percentage_im2_im1 = np.zeros(vt_rank_percentage_im2_im1.shape)
                 vt_rank_percentage_im1_im2_te_clone = np.zeros(vt_rank_percentage_im1_im2_te_clone.shape)
                 vt_rank_percentage_im2_im1_te_clone = np.zeros(vt_rank_percentage_im2_im1_te_clone.shape)
-
+            if 'MDS' not in exp:
+                mds_rank_percentage_im1_im2 = np.zeros(mds_rank_percentage_im1_im2.shape)
+                mds_rank_percentage_im2_im1 = np.zeros(mds_rank_percentage_im2_im1.shape)
+                mds_rank_percentage_im1_im2_te_clone = np.zeros(mds_rank_percentage_im1_im2_te_clone.shape)
+                mds_rank_percentage_im2_im1_te_clone = np.zeros(mds_rank_percentage_im2_im1_te_clone.shape)
+            if 'DIST-GT' not in exp:
+                distance_rank_percentage_im1_im2_gt = np.zeros(distance_rank_percentage_im1_im2_gt.shape)
+                distance_rank_percentage_im2_im1_gt = np.zeros(distance_rank_percentage_im2_im1_gt.shape)
+                distance_rank_percentage_im1_im2_gt_te_clone = np.zeros(distance_rank_percentage_im1_im2_gt_te_clone.shape)
+                distance_rank_percentage_im2_im1_gt_te_clone = np.zeros(distance_rank_percentage_im2_im1_gt_te_clone.shape)
             arg = [ \
                 dsets, fns, R11s, R12s, R13s, R21s, R22s, R23s, R31s, R32s, R33s, num_rmatches, num_matches, spatial_entropy_1_8x8, \
                 spatial_entropy_2_8x8, spatial_entropy_1_16x16, spatial_entropy_2_16x16, pe_histogram, pe_polygon_area_percentage, \
@@ -989,6 +1034,8 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
                 lcc_im1_35, lcc_im2_35, min_lcc_35, max_lcc_35, \
                 lcc_im1_40, lcc_im2_40, min_lcc_40, max_lcc_40, \
                 shortest_path_length, \
+                mds_rank_percentage_im1_im2, mds_rank_percentage_im2_im1, \
+                distance_rank_percentage_im1_im2_gt, distance_rank_percentage_im2_im1_gt, \
                 labels, weights, \
                 train_mode, trained_classifier, options
             ]
@@ -1011,6 +1058,8 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
                             lcc_im1_35_te_clone, lcc_im2_35_te_clone, min_lcc_35_te_clone, max_lcc_35_te_clone, \
                             lcc_im1_40_te_clone, lcc_im2_40_te_clone, min_lcc_40_te_clone, max_lcc_40_te_clone, \
                             shortest_path_length_te_clone, \
+                            mds_rank_percentage_im1_im2_te_clone, mds_rank_percentage_im2_im1_te_clone, \
+                            distance_rank_percentage_im1_im2_gt_te_clone, distance_rank_percentage_im2_im1_gt_te_clone, \
                             labels_te_clone, weights_te_clone, \
                             False, trained_classifier, options
                         ]
@@ -1034,6 +1083,8 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
                             lcc_im1_35_te_clone, lcc_im2_35_te_clone, min_lcc_35_te_clone, max_lcc_35_te_clone, \
                             lcc_im1_40_te_clone, lcc_im2_40_te_clone, min_lcc_40_te_clone, max_lcc_40_te_clone, \
                             shortest_path_length_te_clone, \
+                            mds_rank_percentage_im1_im2_te_clone, mds_rank_percentage_im2_im1_te_clone, \
+                            distance_rank_percentage_im1_im2_gt_te_clone, distance_rank_percentage_im2_im1_gt_te_clone, \
                             labels_te_clone, weights_te, \
                             False, trained_classifier, options
                         ]
@@ -1058,6 +1109,8 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
                             lcc_im1_35_te_clone, lcc_im2_35_te_clone, min_lcc_35_te_clone, max_lcc_35_te_clone, \
                             lcc_im1_40_te_clone, lcc_im2_40_te_clone, min_lcc_40_te_clone, max_lcc_40_te_clone, \
                             shortest_path_length_te_clone, \
+                            mds_rank_percentage_im1_im2_te_clone, mds_rank_percentage_im2_im1_te_clone, \
+                            distance_rank_percentage_im1_im2_gt_te_clone, distance_rank_percentage_im2_im1_gt_te_clone, \
                             labels_te_clone, \
                             False, trained_classifier, options
                         ]
@@ -1112,15 +1165,21 @@ def main(argv):
     parser.add_argument('-x', '--image_match_classifier_max_match', help='')
     parser.add_argument('-c', '--classifier', help='')
     parser.add_argument('-a', '--use_all_training_data', help='')
-    parser.add_argument('-s', '--use_small_weights', help='')
+    parser.add_argument('-v', '--train_on_val', help='')
 
-    parser.add_argument('--convnet_batch_size', help='8, 16, 32, ...')
+    parser.add_argument('--convnet_lr')
+    parser.add_argument('--convnet_batch_size', default=1, help='8, 16, 32, ...')
     parser.add_argument('--convnet_resnet_model', help='18, 34, 50, 101, 152')
-    parser.add_argument('--convnet_loss', help='ce, t, cet')
+    parser.add_argument('--convnet_loss', help='ce, t')
     parser.add_argument('--convnet_triplet_sampling_strategy', help='n, r, u')
     parser.add_argument('--convnet_features', help='RM, RM+TE, RM+NBVS, RM+TE+NBVS')
     parser.add_argument('--convnet_use_images', help='')
-    
+    parser.add_argument('--convnet_use_feature_match_map', help='')
+    parser.add_argument('--convnet_use_track_map', help='')
+    parser.add_argument('--convnet_use_non_rmatches_map', help='')
+    parser.add_argument('--convnet_use_rmatches_map', help='')
+    parser.add_argument('--convnet_use_matches_map', help='')
+    parser.add_argument('--convnet_use_photometric_error_maps', help='')
     
     
     # parser.set_defaults(use_all_training_data=False)
@@ -1150,6 +1209,8 @@ def main(argv):
             ],
             'SMALL': [
                 '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/ETH3D/courtyard',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/ETH3D/delivery_area',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/ETH3D/electro',
             ],
             'TUM_RGBD_SLAM': [
                 '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_360',
@@ -1210,6 +1271,7 @@ def main(argv):
             ],
             'SMALL': [
                 '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/ETH3D/lecture_room',
+                '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/ETH3D/living_room',
             ],
             'TUM_RGBD_SLAM': [
                 '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_cabinet',
@@ -1244,9 +1306,7 @@ def main(argv):
         }
     }
 
-    if parser_options.convnet_loss == 'cet':
-        convnet_loss = 'cross-entropy+triplet'
-    elif parser_options.convnet_loss == 'ce':
+    if parser_options.convnet_loss == 'ce':
         convnet_loss = 'cross-entropy'
     elif parser_options.convnet_loss == 't':
         convnet_loss = 'triplet'
@@ -1255,9 +1315,9 @@ def main(argv):
 
     if parser_options.convnet_triplet_sampling_strategy == 'n':
         triplet_sampling_strategy = 'normal'
-    elif parser_options.convnet_loss == 'r':
+    elif parser_options.convnet_triplet_sampling_strategy == 'r':
         triplet_sampling_strategy = 'random'
-    elif parser_options.convnet_loss == 'u':
+    elif parser_options.convnet_triplet_sampling_strategy == 'u':
         triplet_sampling_strategy = 'uniform-files'
     else:
         triplet_sampling_strategy = 'normal'
@@ -1280,7 +1340,7 @@ def main(argv):
         'image_matching_data_folder': 'data/image-matching-classifiers-results',
         'image_matching_gt_threshold': 20,
         'use_all_training_data': True if parser_options.use_all_training_data == 'yes' else False,
-        'use_small_weights': True if parser_options.use_small_weights == 'yes' else False,
+        'train_on_val': True if parser_options.train_on_val == 'yes' else False,
         # 'classifier': 'BDT',
         'classifier': parser_options.classifier.upper(),
         # 'classifier': 'GCN',
@@ -1298,10 +1358,12 @@ def main(argv):
         'batch_size': int(parser_options.convnet_batch_size) if parser_options.classifier.upper() != 'GCN' else 1,
         # 'shuffle': True,
         'shuffle': True,
-        'lr': 0.01,
+        # 'lr': 0.01,
+        # 'lr': 0.005,
+        'lr': float(parser_options.convnet_lr), 
         'optimizer': 'adam',
         'wd': 0.0001,
-        'epochs': 50,
+        'epochs': 30,
         'start_epoch': 0,
         'resume': True,
         'lr_decay': 0.01,
@@ -1331,6 +1393,14 @@ def main(argv):
         'convnet_input_size': 224,
         'mlp-layer-size': 256,
         'convnet_use_images': True if parser_options.convnet_use_images == 'yes' else False,
+        'convnet_use_feature_match_map': True if parser_options.convnet_use_feature_match_map == 'yes' else False,
+        'convnet_use_track_map': True if parser_options.convnet_use_track_map == 'yes' else False,
+        'convnet_use_warped_images': False,
+        'convnet_use_non_rmatches_map': True if parser_options.convnet_use_non_rmatches_map == 'yes' else False,
+        'convnet_use_rmatches_map': True if parser_options.convnet_use_rmatches_map == 'yes' else False,
+        'convnet_use_matches_map': True if parser_options.convnet_use_matches_map == 'yes' else False,
+        'convnet_use_photometric_error_maps': True if parser_options.convnet_use_photometric_error_maps == 'yes' else False,
+        'convnet_load_dataset_in_memory': False
     }
     if options['classifier'] == 'GCN':
         mkdir_p(options['gcn_log_dir'])
@@ -1344,6 +1414,10 @@ def main(argv):
         # {
         #     'training': ['TanksAndTemples'], 
         #     'testing': ['TanksAndTemples']
+        # },
+        # {
+        #     'training': ['TUM_RGBD_SLAM'], 
+        #     'testing': ['TUM_RGBD_SLAM']
         # },
         # {
         #     'training': ['TanksAndTemples', 'ETH3D'], 
@@ -1370,6 +1444,8 @@ def main(argv):
             # training_datasets.extend(datasets['testing'][dataset_name])
         for dataset_name in dataset_exp['testing']:
             testing_datasets.extend(datasets['testing'][dataset_name])
+            if options['train_on_val']:
+                training_datasets.extend(datasets['testing'][dataset_name])
             # testing_datasets.extend(datasets['training'][dataset_name])
 
         # feature_matching_learned_classifier(options, training_datasets, testing_datasets)

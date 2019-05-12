@@ -3,11 +3,15 @@ import math
 import numpy as np
 import os
 import matplotlib.pyplot as plt; plt.rcdefaults()
+from matplotlib import rcParams
+import seaborn as sns; sns.set()
 import scipy
 import sys
+import torch
 
 from argparse import ArgumentParser
 import matching_classifiers # import load_classifier, calculate_per_image_mean_auc, calculate_dataset_auc, mkdir_p
+import convnet
 
 def save_analysis_data(data, fn):
     with open(fn, 'w') as fout:
@@ -18,10 +22,71 @@ def load_analysis_data(fn):
         data = json.load(fin)
     return np.array(data)
 
-def classify_images(datasets, options={}):
+def plot_iccv_figures(training_datasets, testing_datasets, options={}):
     data_folder = 'data/image-matching-classifiers-analysis'
     matching_classifiers.mkdir_p(data_folder)
-    for i,t in enumerate(datasets):
+    if False:
+        nbins = 500
+        epsilon = 0.00000001
+        labels = None
+
+        for i,t in enumerate(training_datasets):
+            data = dataset.DataSet(t)
+            _fns, [_R11s, _R12s, _R13s, _R21s, _R22s, _R23s, _R31s, _R32s, _R33s, _num_rmatches, _num_matches, _spatial_entropy_1_8x8, \
+                _spatial_entropy_2_8x8, _spatial_entropy_1_16x16, _spatial_entropy_2_16x16, _pe_histogram, _pe_polygon_area_percentage, \
+                _nbvs_im1, _nbvs_im2, _te_histogram, _ch_im1, _ch_im2, _vt_rank_percentage_im1_im2, _vt_rank_percentage_im2_im1, \
+                _sq_rank_scores_mean, _sq_rank_scores_min, _sq_rank_scores_max, _sq_distance_scores, \
+                _lcc_im1_15, _lcc_im2_15, _min_lcc_15, _max_lcc_15, \
+                _lcc_im1_20, _lcc_im2_20, _min_lcc_20, _max_lcc_20, \
+                _lcc_im1_25, _lcc_im2_25, _min_lcc_25, _max_lcc_25, \
+                _lcc_im1_30, _lcc_im2_30, _min_lcc_30, _max_lcc_30, \
+                _lcc_im1_35, _lcc_im2_35, _min_lcc_35, _max_lcc_35, \
+                _lcc_im1_40, _lcc_im2_40, _min_lcc_40, _max_lcc_40, \
+                _mds_rank_percentage_im1_im2, _mds_rank_percentage_im2_im1, \
+                _distance_rank_percentage_im1_im2_gt, _distance_rank_percentage_im2_im1_gt, \
+                _shortest_path_length, \
+                _num_gt_inliers, _labels] \
+                = data.load_image_matching_dataset(robust_matches_threshold=20, rmatches_min_threshold=options['image_match_classifier_min_match'], \
+                    rmatches_max_threshold=options['image_match_classifier_max_match'], spl=100000)
+            if i == 0:
+                num_rmatches = _num_rmatches.copy()
+                labels = _labels.copy()
+            else:
+                num_rmatches = np.concatenate((num_rmatches, _num_rmatches), axis=0)
+                labels = np.concatenate((labels, _labels), axis=0)
+
+        inliers_distribution = np.histogram(num_rmatches[np.where(labels >=1.0)[0]], bins=nbins, range=(8,2008))
+        outliers_distribution = np.histogram(num_rmatches[np.where(labels < 1.0)[0]], bins=nbins, range=(8,2008))
+
+        f1 = plt.figure(1)
+        plt.ylim(0,1.1)
+        plt.xlim(8,100)
+        f1.patch.set_facecolor('white')
+        plt.plot( \
+            np.linspace(8,2008,nbins), \
+            (inliers_distribution[0].astype(np.float) + epsilon)/(inliers_distribution[0].astype(np.float) + outliers_distribution[0].astype(np.float) + epsilon), \
+            'k-', linewidth=3 
+        )
+        # plt.axvspan(15, 50, ymin=0.0, ymax=1.0, alpha=0.25, color='red')
+        inlier_percentage = (inliers_distribution[0].astype(np.float) + epsilon)/(inliers_distribution[0].astype(np.float) + outliers_distribution[0].astype(np.float) + epsilon)
+        bins = inliers_distribution[1]
+        min_idx = np.where(bins >= 15)[0][0]
+        max_idx = np.where(bins > 50)[0][0]
+        plt.fill_between(bins[min_idx:max_idx], \
+            y1=0, y2=inlier_percentage[min_idx:max_idx], color='b', alpha=0.25)
+
+        plt.title('Inlier distribution', fontsize=16)
+        plt.xlabel('# of robust matches', fontsize=13)
+        plt.ylabel('% inliers', fontsize=13)
+        plt.tight_layout()
+        f1.set_size_inches(10, 10)
+        plt.savefig(os.path.join(data_folder, 'inlier-distribution-iccv.png'))
+        plt.clf()
+
+
+    num_rmatches = None
+    labels = None
+    for i,t in enumerate(testing_datasets):
         data = dataset.DataSet(t)
         _fns, [_R11s, _R12s, _R13s, _R21s, _R22s, _R23s, _R31s, _R32s, _R33s, _num_rmatches, _num_matches, _spatial_entropy_1_8x8, \
             _spatial_entropy_2_8x8, _spatial_entropy_1_16x16, _spatial_entropy_2_16x16, _pe_histogram, _pe_polygon_area_percentage, \
@@ -34,42 +99,243 @@ def classify_images(datasets, options={}):
             _lcc_im1_35, _lcc_im2_35, _min_lcc_35, _max_lcc_35, \
             _lcc_im1_40, _lcc_im2_40, _min_lcc_40, _max_lcc_40, \
             _shortest_path_length, \
+            _mds_rank_percentage_im1_im2, _mds_rank_percentage_im2_im1, \
+            _distance_rank_percentage_im1_im2_gt, _distance_rank_percentage_im2_im1_gt, \
             _num_gt_inliers, _labels] \
-            = data.load_image_matching_dataset(robust_matches_threshold=15, rmatches_min_threshold=options['image_match_classifier_min_match'], \
-                rmatches_max_threshold=options['image_match_classifier_max_match'], spl=2)
+            = data.load_image_matching_dataset(robust_matches_threshold=20, rmatches_min_threshold=15, \
+                rmatches_max_threshold=50, spl=100000)
+        if i == 0:
+            num_rmatches = _num_rmatches.copy()
+            labels = _labels.copy()
+        else:
+            num_rmatches = np.concatenate((num_rmatches, _num_rmatches), axis=0)
+            labels = np.concatenate((labels, _labels), axis=0)
 
-        print len(_fns)
-        if len(_labels) == 0:
-            continue
-        fns_te, R11s_te, R12s_te, R13s_te, R21s_te, R22s_te, R23s_te, R31s_te, R32s_te, R33s_te, num_rmatches_te, num_matches_te, spatial_entropy_1_8x8_te, \
-            spatial_entropy_2_8x8_te, spatial_entropy_1_16x16_te, spatial_entropy_2_16x16_te, pe_histogram_te, pe_polygon_area_percentage_te, \
-            nbvs_im1_te, nbvs_im2_te, te_histogram_te, ch_im1_te, ch_im2_te, vt_rank_percentage_im1_im2_te, vt_rank_percentage_im2_im1_te, \
-            sq_rank_scores_mean_te, sq_rank_scores_min_te, sq_rank_scores_max_te, sq_distance_scores_te, \
-            lcc_im1_15_te, lcc_im2_15_te, min_lcc_15_te, max_lcc_15_te, \
-            lcc_im1_20_te, lcc_im2_20_te, min_lcc_20_te, max_lcc_20_te, \
-            lcc_im1_25_te, lcc_im2_25_te, min_lcc_25_te, max_lcc_25_te, \
-            lcc_im1_30_te, lcc_im2_30_te, min_lcc_30_te, max_lcc_30_te, \
-            lcc_im1_35_te, lcc_im2_35_te, min_lcc_35_te, max_lcc_35_te, \
-            lcc_im1_40_te, lcc_im2_40_te, min_lcc_40_te, max_lcc_40_te, \
-            shortest_path_length_te, \
-            num_gt_inliers_te, labels_te \
-            = _fns, _R11s, _R12s, _R13s, _R21s, _R22s, _R23s, _R31s, _R32s, _R33s, _num_rmatches, _num_matches, _spatial_entropy_1_8x8, \
-            _spatial_entropy_2_8x8, _spatial_entropy_1_16x16, _spatial_entropy_2_16x16, _pe_histogram, _pe_polygon_area_percentage, \
-            _nbvs_im1, _nbvs_im2, _te_histogram, _ch_im1, _ch_im2, _vt_rank_percentage_im1_im2, _vt_rank_percentage_im2_im1, \
-            _sq_rank_scores_mean, _sq_rank_scores_min, _sq_rank_scores_max, _sq_distance_scores, \
-            _lcc_im1_15, _lcc_im2_15, _min_lcc_15, _max_lcc_15, \
-            _lcc_im1_20, _lcc_im2_20, _min_lcc_20, _max_lcc_20, \
-            _lcc_im1_25, _lcc_im2_25, _min_lcc_25, _max_lcc_25, \
-            _lcc_im1_30, _lcc_im2_30, _min_lcc_30, _max_lcc_30, \
-            _lcc_im1_35, _lcc_im2_35, _min_lcc_35, _max_lcc_35, \
-            _lcc_im1_40, _lcc_im2_40, _min_lcc_40, _max_lcc_40, \
-            _shortest_path_length, \
-            _num_gt_inliers, _labels
 
-        dsets_te = np.tile(t, (len(labels_te),))
-        labels_te[labels_te < 0] = 0
+    f2 = plt.figure(2)
+    f2.patch.set_facecolor('white')
+    plt.title('Precision-Recall Curves', fontsize=16)
+    plt.ylabel('Precision', fontsize=13)
+    plt.xlabel('Recall', fontsize=13)
+    plt.ylim(0,1.0)
+    plt.xlim(0,1.0)
+    f2.patch.set_facecolor('white')
+    auc_entire_ds_rm, _ = matching_classifiers.calculate_dataset_auc(num_rmatches, labels, color='green', ls='solid')
+    auc_entire_ds_cl = auc_entire_ds_rm
+    
+    plt.tight_layout()
+    f2.set_size_inches(10, 10)
+    plt.legend(
+        [
+        'Baseline AUC=' + str(round(auc_entire_ds_rm, 3)),
+        'Siamese Network AUC=' + str(round(auc_entire_ds_cl, 3))
+        ],
+        loc='lower right',
+        shadow=True,
+        fontsize=10
+    )
+    plt.savefig(os.path.join(data_folder, 'precision-recall-curves-iccv.png'))
 
+    plt.show()
+    
+
+def classification_and_reconstruction_correlation_analysis(datasets, option={}):
+    for i,t in enumerate(datasets):
+        print ('#'*100)
+        print ('Running analysis for dataset: {}'.format(t))
+        data = dataset.DataSet(t)
+        ate_results = data.load_ate_results()
+        rpe_results = data.load_rpe_results()
+        image_matching_results = data.load_image_matching_results()
+
+
+
+def classify_images(datasets, options={}):
+    data_folder = 'data/image-matching-classifiers-analysis'
+    matching_classifiers.mkdir_p(data_folder)
+    
+    print ('-'*100)
+    print ('Classifier: {}'.format(options['classifier']))
+    shortest_path_length = 1000000
+    if options['classifier'] == 'BDT':
         trained_classifier = matching_classifiers.load_classifier(options['image_match_classifier_file'])
+    elif options['classifier'] == 'CONVNET':
+        # load convnet checkpoint here
+        print ('Loading ConvNet checkpoint: {}'.format(options['convnet_checkpoint']))
+        checkpoint = torch.load(options['convnet_checkpoint'])
+        kwargs = {}
+        options['model'] = 'resnet34'
+        options['convnet_use_images'] = False
+        options['convnet_use_feature_match_map'] = True
+        options['convnet_use_track_map'] = False
+        options['features'] = 'RM+PE'
+        options['mlp-layer-size'] = 256
+        options['use_small_weights'] = False
+        options['num_workers'] = 10
+        options['batch_size'] = 10
+        options['shuffle'] = False
+        options['convnet_input_size'] = 224
+        options['triplet-sampling-strategy'] = 'normal'
+        options['log_interval'] = 1
+        options['experiment'] = 'RM+TM+SE+PE'
+        trained_classifier = convnet.ConvNet(options, **kwargs)
+        trained_classifier.cuda()
+        trained_classifier.load_state_dict(checkpoint['state_dict'])
+    print ('-'*100)
+    for i,t in enumerate(datasets):
+        print ('#'*100)
+        print ('Running classifier for dataset: {}'.format(t))
+        data = dataset.DataSet(t)
+        results = {}
+        # image_matching_classifier_thresholds = data.config.get('image_matching_classifier_thresholds')
+        if options['classifier'] == 'CONVNET':
+            shortest_paths = data.load_shortest_paths(label='rm-cost')
+            dsets_te_ = []
+            fns_te_ = []
+            num_rmatches_te_ = []
+            shortest_paths_te_ = []
+            
+            for im1 in data.images():
+                im1_all_matches, im1_valid_rmatches, im1_all_robust_matches = data.load_all_matches(im1)
+                for im2 in im1_all_robust_matches:
+                    rmatches = im1_all_robust_matches[im2]
+                    if len(rmatches) == 0:
+                        continue
+
+                    if len(rmatches) < options['image_match_classifier_min_match'] or \
+                        len(rmatches) > options['image_match_classifier_max_match']: # or \
+                        # len(shortest_paths[im1][im2]["shortest_path"]) > shortest_path_length:
+
+                        if len(rmatches) < options['image_match_classifier_min_match']: # or \
+                            # len(shortest_paths[im1][im2]["shortest_path"]) > shortest_path_length:
+                            score = 0.0
+                        elif len(rmatches) > options['image_match_classifier_min_match']:
+                            score = 1.0
+
+                        if im1 not in results:
+                            results[im1] = {}
+                        if im2 not in results:
+                            results[im2] = {}
+                        results[im1][im2] = {'im1': im1, 'im2': im2, 'score': score, 'num_rmatches': len(rmatches), 'shortest_path_length': len(shortest_paths[im1][im2]["shortest_path"])}
+                        results[im2][im1] = {'im1': im2, 'im2': im1, 'score': score, 'num_rmatches': len(rmatches), 'shortest_path_length': len(shortest_paths[im1][im2]["shortest_path"])}
+                    else:
+                        fns_te_.append([im1,im2])
+                        dsets_te_.append(t)
+                        num_rmatches_te_.append(len(im1_all_robust_matches[im2]))
+                        shortest_paths_te_.append(len(shortest_paths[im1][im2]["shortest_path"]))
+            dsets_te = np.array(dsets_te_)
+            fns_te = np.array(fns_te_)
+            R11s_te = np.ones((len(dsets_te),))
+            R12s_te = np.ones((len(dsets_te),))
+            R13s_te = np.ones((len(dsets_te),))
+            R21s_te = np.ones((len(dsets_te),))
+            R22s_te = np.ones((len(dsets_te),))
+            R23s_te = np.ones((len(dsets_te),))
+            R31s_te = np.ones((len(dsets_te),))
+            R32s_te = np.ones((len(dsets_te),))
+            R33s_te = np.ones((len(dsets_te),))
+            num_rmatches_te = np.array(num_rmatches_te_)
+            num_matches_te = np.ones((len(dsets_te),))
+            spatial_entropy_1_8x8_te = np.ones((len(dsets_te),))
+            spatial_entropy_2_8x8_te = np.ones((len(dsets_te),))
+            spatial_entropy_1_16x16_te = np.ones((len(dsets_te),))
+            spatial_entropy_2_16x16_te = np.ones((len(dsets_te),))
+            pe_histogram_te = np.ones((len(dsets_te),))
+            pe_polygon_area_percentage_te = np.ones((len(dsets_te),))
+            nbvs_im1_te = np.ones((len(dsets_te),))
+            nbvs_im2_te = np.ones((len(dsets_te),))
+            te_histogram_te = np.ones((len(dsets_te),))
+            ch_im1_te = np.ones((len(dsets_te),))
+            ch_im2_te = np.ones((len(dsets_te),))
+            vt_rank_percentage_im1_im2_te = np.ones((len(dsets_te),))
+            vt_rank_percentage_im2_im1_te = np.ones((len(dsets_te),))
+            sq_rank_scores_mean_te = np.ones((len(dsets_te),))
+            sq_rank_scores_min_te = np.ones((len(dsets_te),))
+            sq_rank_scores_max_te = np.ones((len(dsets_te),))
+            sq_distance_scores_te = np.ones((len(dsets_te),))
+            lcc_im1_15_te = np.ones((len(dsets_te),))
+            lcc_im2_15_te = np.ones((len(dsets_te),))
+            min_lcc_15_te = np.ones((len(dsets_te),))
+            max_lcc_15_te = np.ones((len(dsets_te),))
+            lcc_im1_20_te = np.ones((len(dsets_te),))
+            lcc_im2_20_te = np.ones((len(dsets_te),))
+            min_lcc_20_te = np.ones((len(dsets_te),))
+            max_lcc_20_te = np.ones((len(dsets_te),))
+            lcc_im1_25_te = np.ones((len(dsets_te),))
+            lcc_im2_25_te = np.ones((len(dsets_te),))
+            min_lcc_25_te = np.ones((len(dsets_te),))
+            max_lcc_25_te = np.ones((len(dsets_te),))
+            lcc_im1_30_te = np.ones((len(dsets_te),))
+            lcc_im2_30_te = np.ones((len(dsets_te),))
+            min_lcc_30_te = np.ones((len(dsets_te),))
+            max_lcc_30_te = np.ones((len(dsets_te),))
+            lcc_im1_35_te = np.ones((len(dsets_te),))
+            lcc_im2_35_te = np.ones((len(dsets_te),))
+            min_lcc_35_te = np.ones((len(dsets_te),))
+            max_lcc_35_te = np.ones((len(dsets_te),))
+            lcc_im1_40_te = np.ones((len(dsets_te),))
+            lcc_im2_40_te = np.ones((len(dsets_te),))
+            min_lcc_40_te = np.ones((len(dsets_te),))
+            max_lcc_40_te = np.ones((len(dsets_te),))
+            shortest_path_length_te = np.array(shortest_paths_te_)
+            mds_rank_percentage_im1_im2_te = np.ones((len(dsets_te),))
+            mds_rank_percentage_im2_im1_te = np.ones((len(dsets_te),))
+            distance_rank_percentage_im1_im2_gt_te = np.ones((len(dsets_te),))
+            distance_rank_percentage_im2_im1_gt_te = np.ones((len(dsets_te),))
+            labels_te = np.ones((len(dsets_te),))
+        else:
+            _fns, [_R11s, _R12s, _R13s, _R21s, _R22s, _R23s, _R31s, _R32s, _R33s, _num_rmatches, _num_matches, _spatial_entropy_1_8x8, \
+                _spatial_entropy_2_8x8, _spatial_entropy_1_16x16, _spatial_entropy_2_16x16, _pe_histogram, _pe_polygon_area_percentage, \
+                _nbvs_im1, _nbvs_im2, _te_histogram, _ch_im1, _ch_im2, _vt_rank_percentage_im1_im2, _vt_rank_percentage_im2_im1, \
+                _sq_rank_scores_mean, _sq_rank_scores_min, _sq_rank_scores_max, _sq_distance_scores, \
+                _lcc_im1_15, _lcc_im2_15, _min_lcc_15, _max_lcc_15, \
+                _lcc_im1_20, _lcc_im2_20, _min_lcc_20, _max_lcc_20, \
+                _lcc_im1_25, _lcc_im2_25, _min_lcc_25, _max_lcc_25, \
+                _lcc_im1_30, _lcc_im2_30, _min_lcc_30, _max_lcc_30, \
+                _lcc_im1_35, _lcc_im2_35, _min_lcc_35, _max_lcc_35, \
+                _lcc_im1_40, _lcc_im2_40, _min_lcc_40, _max_lcc_40, \
+                _shortest_path_length, \
+                _mds_rank_percentage_im1_im2, _mds_rank_percentage_im2_im1, \
+                _distance_rank_percentage_im1_im2_gt, _distance_rank_percentage_im2_im1_gt, \
+                _num_gt_inliers, _labels] \
+                = data.load_image_matching_dataset(robust_matches_threshold=20, rmatches_min_threshold=15, \
+                    rmatches_max_threshold=50, spl=shortest_path_length)
+
+            if len(_labels) == 0:
+                continue
+            fns_te, R11s_te, R12s_te, R13s_te, R21s_te, R22s_te, R23s_te, R31s_te, R32s_te, R33s_te, num_rmatches_te, num_matches_te, spatial_entropy_1_8x8_te, \
+                spatial_entropy_2_8x8_te, spatial_entropy_1_16x16_te, spatial_entropy_2_16x16_te, pe_histogram_te, pe_polygon_area_percentage_te, \
+                nbvs_im1_te, nbvs_im2_te, te_histogram_te, ch_im1_te, ch_im2_te, vt_rank_percentage_im1_im2_te, vt_rank_percentage_im2_im1_te, \
+                sq_rank_scores_mean_te, sq_rank_scores_min_te, sq_rank_scores_max_te, sq_distance_scores_te, \
+                lcc_im1_15_te, lcc_im2_15_te, min_lcc_15_te, max_lcc_15_te, \
+                lcc_im1_20_te, lcc_im2_20_te, min_lcc_20_te, max_lcc_20_te, \
+                lcc_im1_25_te, lcc_im2_25_te, min_lcc_25_te, max_lcc_25_te, \
+                lcc_im1_30_te, lcc_im2_30_te, min_lcc_30_te, max_lcc_30_te, \
+                lcc_im1_35_te, lcc_im2_35_te, min_lcc_35_te, max_lcc_35_te, \
+                lcc_im1_40_te, lcc_im2_40_te, min_lcc_40_te, max_lcc_40_te, \
+                shortest_path_length_te, \
+                mds_rank_percentage_im1_im2_te, mds_rank_percentage_im2_im1_te, \
+                distance_rank_percentage_im1_im2_gt_te, distance_rank_percentage_im2_im1_gt_te, \
+                num_gt_inliers_te, labels_te \
+                = _fns, _R11s, _R12s, _R13s, _R21s, _R22s, _R23s, _R31s, _R32s, _R33s, _num_rmatches, _num_matches, _spatial_entropy_1_8x8, \
+                _spatial_entropy_2_8x8, _spatial_entropy_1_16x16, _spatial_entropy_2_16x16, _pe_histogram, _pe_polygon_area_percentage, \
+                _nbvs_im1, _nbvs_im2, _te_histogram, _ch_im1, _ch_im2, _vt_rank_percentage_im1_im2, _vt_rank_percentage_im2_im1, \
+                _sq_rank_scores_mean, _sq_rank_scores_min, _sq_rank_scores_max, _sq_distance_scores, \
+                _lcc_im1_15, _lcc_im2_15, _min_lcc_15, _max_lcc_15, \
+                _lcc_im1_20, _lcc_im2_20, _min_lcc_20, _max_lcc_20, \
+                _lcc_im1_25, _lcc_im2_25, _min_lcc_25, _max_lcc_25, \
+                _lcc_im1_30, _lcc_im2_30, _min_lcc_30, _max_lcc_30, \
+                _lcc_im1_35, _lcc_im2_35, _min_lcc_35, _max_lcc_35, \
+                _lcc_im1_40, _lcc_im2_40, _min_lcc_40, _max_lcc_40, \
+                _shortest_path_length, \
+                _mds_rank_percentage_im1_im2, _mds_rank_percentage_im2_im1, \
+                _distance_rank_percentage_im1_im2_gt, _distance_rank_percentage_im2_im1_gt, \
+                _num_gt_inliers, _labels
+
+            dsets_te = np.tile(t, (len(labels_te),))
+            labels_te[labels_te < 0] = 0
+
+        
         arg = [ \
             dsets_te, fns_te, R11s_te, R12s_te, R13s_te, R21s_te, R22s_te, R23s_te, R31s_te, R32s_te, R33s_te, num_rmatches_te, num_matches_te, spatial_entropy_1_8x8_te, \
             spatial_entropy_2_8x8_te, spatial_entropy_1_16x16_te, spatial_entropy_2_16x16_te, pe_histogram_te, pe_polygon_area_percentage_te, \
@@ -82,24 +348,49 @@ def classify_images(datasets, options={}):
             lcc_im1_35_te, lcc_im2_35_te, min_lcc_35_te, max_lcc_35_te, \
             lcc_im1_40_te, lcc_im2_40_te, min_lcc_40_te, max_lcc_40_te, \
             shortest_path_length_te, \
+            mds_rank_percentage_im1_im2_te, mds_rank_percentage_im2_im1_te, \
+            distance_rank_percentage_im1_im2_gt_te, distance_rank_percentage_im2_im1_gt_te, \
             labels_te, np.ones((len(labels_te))), \
             False, trained_classifier, options
         ]
 
-        _, _, regr_bdt, scores, spl, _ = classifier.classify_boosted_dts_image_match(arg)
+        if options['classifier'] == 'BDT':
+            results_fns, _, regr_bdt, scores, spl, _ = classifier.classify_boosted_dts_image_match(arg)
+        elif options['classifier'] == 'CONVNET':
+            results_fns, results_rmatches, _, scores, spl, _ = convnet.classify_convnet_image_match_inference(arg)
+            # print '='*100
+            # print results_rmatches
+            # print spl
+            # import sys; sys.exit(1)
         print ("\tFinished classifying data for {} using {}".format(t.split('/')[-1], options['classifier']))  
 
-        analysis_data = np.concatenate(( \
-            fns_te, \
-            num_rmatches_te.reshape((len(labels_te),1)), \
-            vt_rank_percentage_im1_im2_te.reshape((len(labels_te),1)), \
-            vt_rank_percentage_im2_im1_te.reshape((len(labels_te),1)), \
-            scores.reshape((len(labels_te),1)), \
-            labels_te.reshape((len(labels_te),1))
-        ), axis=1)
+        # analysis_data = np.concatenate(( \
+        #     fns_te, \
+        #     num_rmatches_te.reshape((len(labels_te),1)), \
+        #     vt_rank_percentage_im1_im2_te.reshape((len(labels_te),1)), \
+        #     vt_rank_percentage_im2_im1_te.reshape((len(labels_te),1)), \
+        #     scores.reshape((len(labels_te),1)), \
+        #     labels_te.reshape((len(labels_te),1))
+        # ), axis=1)
 
-        fn = os.path.join(data_folder, t.split('/')[-1]) + '.json'
-        save_analysis_data(analysis_data, fn)
+        # fn = os.path.join(data_folder, t.split('/')[-1]) + '.json'
+        # save_analysis_data(analysis_data, fn)
+
+        for i,(im1,im2) in enumerate(results_fns):
+            if im1 not in results:
+                results[im1] = {}
+            if im2 not in results:
+                results[im2] = {}
+
+            score = round(scores[i], 3)
+            results[im1][im2] = {'im1': im1, 'im2': im2, 'score': score, 'num_rmatches': results_rmatches[i], 'shortest_path_length': spl[i]}
+            results[im2][im1] = {'im1': im2, 'im2': im1, 'score': score, 'num_rmatches': results_rmatches[i], 'shortest_path_length': spl[i]}
+        
+
+        # print (results)
+        # print (json.dumps(results, sort_keys=True, indent=4, separators=(',', ': ')))
+
+        data.save_image_matching_results(results)
 
 def get_precision_recall(fns, labels, criteria, k, debug=False):
     raw_results = []
@@ -641,6 +932,8 @@ def main(argv):
     parser.add_argument('-m', '--image_match_classifier_min_match', help='')
     parser.add_argument('-x', '--image_match_classifier_max_match', help='')
     parser.add_argument('-c', '--image_match_classifier_file', help='classifier to run')
+    parser.add_argument('--classifier', help='classifier type - BDT/CONVNET')
+    parser.add_argument('--convnet_checkpoint', help='checkpoint file for convnet')
   
     parser_options = parser.parse_args()
 
@@ -650,27 +943,61 @@ def main(argv):
     global matching, classifier, dataset
 
     options = {
-        'classifier': 'BDT', \
+        'classifier': parser_options.classifier, \
         'image_match_classifier_file': parser_options.image_match_classifier_file, \
         'image_match_classifier_min_match': int(parser_options.image_match_classifier_min_match), \
         'image_match_classifier_max_match': int(parser_options.image_match_classifier_max_match), \
-        'feature_selection': False
+        'feature_selection': False,
+        'convnet_checkpoint': parser_options.convnet_checkpoint
     }
 
-    datasets = [
+    training_datasets = [
+        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TanksAndTemples/Barn',
+        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TanksAndTemples/Caterpillar',
+        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TanksAndTemples/Church',
+        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TanksAndTemples/Courthouse',
+        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TanksAndTemples/Ignatius',
+    
+        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/ETH3D/courtyard',
+        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/ETH3D/delivery_area',
+        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/ETH3D/electro',
+        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/ETH3D/facade',
+        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/ETH3D/kicker',
+        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/ETH3D/meadow',
+    
+        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_360',
+        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_desk',
+        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_desk2',
+        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_floor',
+        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_plant',
+        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_room',
+        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_teddy',
+        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_360_hemisphere',
+        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_coke',
+        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_desk',
+        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_desk_with_person',
+        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_dishes',
+        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_flowerbouquet',
+        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_flowerbouquet_brownbackground',
+        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_large_no_loop',
+        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_large_with_loop',
+        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_metallic_sphere',
+        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_metallic_sphere2',
+        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_pioneer_360',
+        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_pioneer_slam',
+        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_pioneer_slam2',
+        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_pioneer_slam3',
+            
+    ]
+
+
+    testing_datasets = [
         '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TanksAndTemples/Meetingroom',
         '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TanksAndTemples/Truck',
 
         '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/ETH3D/exhibition_hall',
         '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/ETH3D/lecture_room',
         '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/ETH3D/living_room',
-
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0020',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0021',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0022',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0023',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0024',
-        '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/GTAV_540/0025',
 
         '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_cabinet',
         '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_large_cabinet',
@@ -693,15 +1020,105 @@ def main(argv):
         '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_walking_static',
         '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_walking_xyz',
     ]
-    datasets = [
-        # '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/ETH3D/exhibition_hall',
-        '/hdd/Research/psfm-iccv/data/completed-test-datasets/ETH3D/exhibition_hall',
-        # '/hdd/Research/psfm-iccv/data/completed-test-datasets/UIUCTag/ece_floor3_loop_cw',
 
+    training_datasets = ['/hdd/Research/psfm-iccv/data/completed-classifier-datasets/ETH3D/kicker']
+    # testing_datasets = ['/hdd/Research/psfm-iccv/data/completed-classifier-datasets/ETH3D/lecture_room']
+
+    testing_datasets = ['/hdd/Research/psfm-iccv/data/botanical_garden']
+
+
+    iccv_datasets = [
+        # '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/botanical_garden',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/boulders',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/bridge',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/door',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/exhibition_hall',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/lecture_room',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/living_room',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/lounge',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/observatory',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/office',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/old_computer',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/pipes',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/playground',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/relief',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/relief_2',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/statue',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/terrace',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/terrace_2',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/terrains',
+
+        # '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/ece_floor2_hall',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/ece_floor3_loop',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/ece_floor3_loop_ccw',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/ece_floor3_loop_cw',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/ece_floor5',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/ece_floor5_stairs',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/ece_floor5_wall',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/ece_stairs',
+        # # '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/fox_floor2_extra',
+        # # '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/fox_floor3_extra',
+        '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/yeh_day_all',
+        '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/yeh_day_atrium',
+        '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/yeh_day_backward',
+        '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/yeh_day_forward',
+        '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/yeh_night_all',
+        '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/yeh_night_atrium',
+        '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/yeh_night_backward',
+        '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/yeh_night_forward',
+
+        '/hdd/Research/psfm-iccv/data/iccv-results/TanksAndTemples/Auditorium',
+        '/hdd/Research/psfm-iccv/data/iccv-results/TanksAndTemples/Ballroom',
+        '/hdd/Research/psfm-iccv/data/iccv-results/TanksAndTemples/Courtroom',
+        '/hdd/Research/psfm-iccv/data/iccv-results/TanksAndTemples/Family',
+        '/hdd/Research/psfm-iccv/data/iccv-results/TanksAndTemples/Francis',
+        '/hdd/Research/psfm-iccv/data/iccv-results/TanksAndTemples/Horse',
+        '/hdd/Research/psfm-iccv/data/iccv-results/TanksAndTemples/Lighthouse',
+        '/hdd/Research/psfm-iccv/data/iccv-results/TanksAndTemples/M60',
+        '/hdd/Research/psfm-iccv/data/iccv-results/TanksAndTemples/Meetingroom',
+        '/hdd/Research/psfm-iccv/data/iccv-results/TanksAndTemples/Museum',
+        '/hdd/Research/psfm-iccv/data/iccv-results/TanksAndTemples/Palace',
+        '/hdd/Research/psfm-iccv/data/iccv-results/TanksAndTemples/Panther',
+        '/hdd/Research/psfm-iccv/data/iccv-results/TanksAndTemples/Playground',
+        '/hdd/Research/psfm-iccv/data/iccv-results/TanksAndTemples/Temple',
+        '/hdd/Research/psfm-iccv/data/iccv-results/TanksAndTemples/Train',
+        '/hdd/Research/psfm-iccv/data/iccv-results/TanksAndTemples/Truck',
+
+        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_cabinet',
+        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_large_cabinet',
+        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_long_office_household',
+        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_nostructure_notexture_far',
+        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_nostructure_notexture_near_withloop',
+        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_nostructure_texture_far',
+        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_nostructure_texture_near_withloop',
+        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_sitting_halfsphere',
+        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_sitting_rpy',
+        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_sitting_static',
+        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_sitting_xyz',
+        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_structure_notexture_far',
+        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_structure_notexture_near',
+        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_structure_texture_far',
+        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_structure_texture_near',
+        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_teddy',
+        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_walking_halfsphere',
+        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_walking_rpy',
+        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_walking_static',
+        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_walking_xyz',
     ]
-    classify_images(datasets, options)
+
+    # iccv_datasets = [
+    #     '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/ETH3D/courtyard/colmap',
+    # ]
+    iccv_datasets = [
+        '/hdd/Research/psfm-iccv/data/iccv-results/Sudipta/group3/oats/',
+    ]
+
+    # classify_images(iccv_datasets, options)
+    classification_and_reconstruction_correlation_analysis(datasets, options)
+    # plot_iccv_figures(training_datasets, testing_datasets, options)
+    
     # analyze_datasets(datasets, options)
-    analyze_datasets2(datasets, options)
+    # analyze_datasets2(datasets, options)
 
 if __name__ == '__main__':
     main(sys.argv)

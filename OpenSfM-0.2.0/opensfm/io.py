@@ -811,7 +811,7 @@ def reconstruction_to_ply(reconstruction, no_cameras=False, no_points=False):
 # NVM - Raj - used for colmap comparison purposes
 def reconstruction_from_nvm(data_path, nvm_file, reconstruction_file=None):
     if not nvm_file or not os.path.isfile(nvm_file):
-        logger.info('\tNo Colmap NVM file found!')
+        logger.info('\tNo NVM file found!')
         return None
 
     with open(nvm_file, 'r') as fin:

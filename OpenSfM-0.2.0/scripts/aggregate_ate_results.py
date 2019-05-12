@@ -12,45 +12,32 @@ def get_results(root_directory, experiments):
     metadata = {}
     datasets = glob.glob(root_directory + '/*/*/')
     for d in datasets:
+        # if 'ETH3D' not in d or 'botanical_garden' not in d:
+        #     continue
+        if 'DuplicateStructures' in d or 'Disambiguation' in d:
+            continue
         dataset_name = d.split('/')[-3]
         results_folder = os.path.join(d, 'results')
         ate_results_fn = '{}/ate_results.json'.format(results_folder)
+        rpe_results_fn = '{}/rpe_results.json'.format(results_folder)
         reconstruction_results_fn = '{}/reconstruction_results.json'.format(results_folder)
 
-        if os.path.exists(ate_results_fn):
-            with open(ate_results_fn, 'r') as fin:
-                data = json.load(fin)
-                for exp in experiments:
-                    if exp not in data:
-                        print ('\tDataset: "{}" missing results for experiment: "{}"'.format(d.split('/')[-2], exp))
-                        continue
-                    sequence_name = data[exp]['trajectory']
-                    r_key = '{}---{}'.format(dataset_name, sequence_name)
-                    if r_key not in results:
-                        results[r_key] = {}    
-                        metadata[r_key] = {
-                            'images': data[exp]["total images %f"],
-                            'dataset': dataset_name
-                        }
-                    results[r_key][exp] = {
-                        'sequence': sequence_name,
-                        'ATE dm': data[exp]['images aligned %f dm'],
-                        'ATE cm': data[exp]['images aligned %f cm'],
-                        'ATE m': data[exp]['images aligned %f m'],
-                        'images': data[exp]['total images %f'],
-                        }
-        
         if os.path.exists(reconstruction_results_fn):
             with open(reconstruction_results_fn, 'r') as fin:
                 data = json.load(fin)
                 for exp in experiments:
                     if exp not in data:
-                        print ('\tDataset: "{}" missing results for experiment: "{}"'.format(d.split('/')[-2], exp))
+                        print ('\tReconstruction Results  --  Dataset: "{}" missing results for experiment: "{}"'.format(d.split('/')[-2], exp))
                         continue
                     sequence_name = data[exp]['dataset']
                     r_key = '{}---{}'.format(dataset_name, sequence_name)
                     if r_key not in results:
                         results[r_key] = {}
+                        metadata[r_key] = {
+                            'images': data[exp]["total images in dataset"],
+                            'dataset': dataset_name
+                        }
+
                     if exp not in results[r_key]:
                          results[r_key][exp] = {}
 
@@ -60,6 +47,52 @@ def get_results(root_directory, experiments):
                         'time': data[exp]['time']
                         })
 
+        if os.path.exists(ate_results_fn):
+            with open(ate_results_fn, 'r') as fin:
+                data = json.load(fin)
+                for exp in experiments:
+                    if exp not in data:
+                        print ('\tATE Results  --  Dataset: "{}" missing results for experiment: "{}"'.format(d.split('/')[-2], exp))
+                        continue
+                    sequence_name = data[exp]['trajectory']
+                    r_key = '{}---{}'.format(dataset_name, sequence_name)
+                    if r_key not in results:
+                        results[r_key] = {}    
+
+                    results[r_key][exp].update({ \
+                        'sequence': sequence_name,
+                        'ATE dm': data[exp]['images aligned %f dm'],
+                        'ATE cm': data[exp]['images aligned %f cm'],
+                        'ATE m': data[exp]['images aligned %f m'],
+                        'images': data[exp]['total images %f'],
+                        })
+
+        if os.path.exists(rpe_results_fn):
+            with open(rpe_results_fn, 'r') as fin:
+                data = json.load(fin)
+                for exp in experiments:
+                    if exp not in data:
+                        print ('\tRPE Results  --  Dataset: "{}" missing results for experiment: "{}"'.format(d.split('/')[-2], exp))
+                        continue
+                    sequence_name = data[exp]['trajectory']
+                    r_key = '{}---{}'.format(dataset_name, sequence_name)
+                    if r_key not in results:
+                        results[r_key] = {}    
+
+                    results[r_key][exp].update({ \
+                        # 'sequence': sequence_name,
+                        'RPE < 0.5 deg': data[exp]['error < 0.5 deg'] if 'error < 0.5 deg' in data[exp] else 0,
+                        'RPE < 1.0 deg': data[exp]['error < 1.0 deg'] if 'error < 1.0 deg' in data[exp] else 0,
+                        'RPE < 2.0 deg': data[exp]['error < 2.0 deg'] if 'error < 2.0 deg' in data[exp] else 0,
+                        'RPE < 5.0 deg': data[exp]['error < 5.0 deg'] if 'error < 5.0 deg' in data[exp] else 0,
+                        'RPE < 10 deg': data[exp]['error < 10.0 deg'] if 'error < 10.0 deg' in data[exp] else 0,
+                        'RPE >= 10.0 deg': data[exp]['error >= 10.0 deg'] if 'error >= 10.0 deg' in data[exp] else 0,
+                        'rotational error mean (deg)': data[exp]['rotational error mean (deg)'],
+                        'total pairs': data[exp]['total pairs'],
+                        })
+
+    # print results
+    # import sys; sys.exit(1)
     return metadata, results
 
 def output_csv(metadata, experiments, results):
@@ -72,6 +105,13 @@ def output_csv(metadata, experiments, results):
                 'ATE (cm) - {}'.format(key), \
                 'ATE (dm) - {}'.format(key), \
                 'ATE (m) - {}'.format(key), \
+                'RPE < 0.5 deg - {}'.format(key), \
+                'RPE < 1.0 deg - {}'.format(key), \
+                'RPE < 2.0 deg - {}'.format(key), \
+                'RPE < 5.0 deg - {}'.format(key), \
+                'RPE < 10.0 deg - {}'.format(key), \
+                'RPE >= 10.0 deg - {}'.format(key), \
+                'Mean RPE (deg) - {}'.format(key), \
                 'Time - {}'.format(key), \
                 'Visual Inspection - {}'.format(key)
             ])
@@ -90,9 +130,16 @@ def output_csv(metadata, experiments, results):
                 row.update({
                     'Cameras Registered - {}'.format(experiments[exp]['key']): str(results[r_key][exp]['registered images']),
                     'Points Triangulated - {}'.format(experiments[exp]['key']): str(results[r_key][exp]['points triangulated']),
-                    'ATE (cm) - {}'.format(experiments[exp]['key']): str(results[r_key][exp]['ATE cm']),
-                    'ATE (dm) - {}'.format(experiments[exp]['key']): str(results[r_key][exp]['ATE dm']),
-                    'ATE (m) - {}'.format(experiments[exp]['key']): str(results[r_key][exp]['ATE m']),
+                    'ATE (cm) - {}'.format(experiments[exp]['key']): str(results[r_key][exp]['ATE cm']) if 'ATE cm' in results[r_key][exp] else 'X',
+                    'ATE (dm) - {}'.format(experiments[exp]['key']): str(results[r_key][exp]['ATE dm']) if 'ATE dm' in results[r_key][exp] else 'X',
+                    'ATE (m) - {}'.format(experiments[exp]['key']): str(results[r_key][exp]['ATE m']) if 'ATE m' in results[r_key][exp] else 'X',
+                    'RPE < 0.5 deg - {}'.format(experiments[exp]['key']): str(results[r_key][exp]['RPE < 0.5 deg']) if 'RPE < 0.5 deg' in results[r_key][exp] else 'X',
+                    'RPE < 1.0 deg - {}'.format(experiments[exp]['key']): str(results[r_key][exp]['RPE < 1.0 deg']) if 'RPE < 1.0 deg' in results[r_key][exp] else 'X',
+                    'RPE < 2.0 deg - {}'.format(experiments[exp]['key']): str(results[r_key][exp]['RPE < 2.0 deg']) if 'RPE < 2.0 deg' in results[r_key][exp] else 'X',
+                    'RPE < 5.0 deg - {}'.format(experiments[exp]['key']): str(results[r_key][exp]['RPE < 5.0 deg']) if 'RPE < 5.0 deg' in results[r_key][exp] else 'X',
+                    'RPE < 10.0 deg - {}'.format(experiments[exp]['key']): str(results[r_key][exp]['RPE < 10.0 deg']) if 'RPE < 10.0 deg' in results[r_key][exp] else 'X',
+                    'RPE >= 10.0 deg - {}'.format(experiments[exp]['key']): str(results[r_key][exp]['RPE >= 10.0 deg']) if 'RPE >= 10.0 deg' in results[r_key][exp] else 'X',
+                    'Mean RPE (deg) - {}'.format(experiments[exp]['key']): str(results[r_key][exp]['rotational error mean (deg)']) if 'rotational error mean (deg)' in results[r_key][exp] else 'X',
                     'Time - {}'.format(experiments[exp]['key']): str(results[r_key][exp]['time']),
                     'Visual Inspection - {}'.format(experiments[exp]['key']): str("-")
                 })
@@ -110,22 +157,30 @@ def main(argv):
     parser_options = parser.parse_args()
 
     experiments = {
-        'baseline': \
-            {'key': 0, 'desc': 'OpenSfM baseline'},
         'colmap': \
             {'key': 1, 'desc': 'Colmap baseline'},
-        'imc-True-wr-False-gm-False-wfm-False-imt-False': \
-            {'key': 2, 'desc': 'Image matching classifier and NO thresholding on image matching scores'},
-        'imc-True-wr-False-gm-False-wfm-True-imt-False': \
-            {'key': 3, 'desc': 'Feature and image matching classifiers (with weighted Ransac) and NO thresholding on image matching scores'},
-        'imc-True-wr-False-gm-True-wfm-False-imt-False': \
-            {'key': 4, 'desc': 'Ground-truth image matching scores'},
-        'imc-True-wr-True-gm-False-wfm-False-imt-False': \
-            {'key': 5, 'desc': 'Image matching classifier and NO thresholding on image matching scores with weighted resectioning (uses image and feature matching scores)'},
-        'imc-True-wr-True-gm-False-wfm-True-imt-False': \
-            {'key': 6, 'desc': 'Feature and image matching classifiers (with weighted Ransac) and NO thresholding image matching scores with weighted resectioning (uses image and feature matching scores)'},
-        'imc-True-wr-True-gm-True-wfm-False-imt-False': \
-            {'key': 7, 'desc': 'Ground-truth image matching scores with weighted resectioning (uses image and feature matching scores)'}
+        # 'imc-False-wr-False-colmapr-True-gm-False-gsm-False-wfm-False-imt-False-imtv-0.5-spp-False-cip-False-cipk-10': \
+        #     {'key': 2, 'desc': 'Baseline with colmap resectioning'},
+        # 'imc-True-wr-False-colmapr-True-gm-False-gsm-False-wfm-False-imt-True-imtv-0.2-spp-False-cip-False-cipk-10': \
+        #     {'key': 3, 'desc': 'Image matching classifier (0.2) with colmap resectioning'},
+        # 'imc-True-wr-False-colmapr-True-gm-False-gsm-False-wfm-False-imt-True-imtv-0.3-spp-False-cip-False-cipk-10': \
+        #     {'key': 4, 'desc': 'Image matching classifier (0.3) with colmap resectioning'},
+        # 'imc-True-wr-False-colmapr-True-gm-False-gsm-False-wfm-False-imt-True-imtv-0.4-spp-False-cip-False-cipk-10': \
+        #     {'key': 5, 'desc': 'Image matching classifier (0.4) with colmap resectioning'},
+        # 'imc-True-wr-False-colmapr-True-gm-False-gsm-False-wfm-False-imt-True-imtv-0.5-spp-False-cip-False-cipk-10': \
+        #     {'key': 6, 'desc': 'Image matching classifier (0.5) with colmap resectioning'}
+        'imc-False-wr-False-colmapr-True-gm-False-gsm-False-wfm-False-imt-False-imtv-0.5-spp-False-cip-False-cipgt-False-cipk-H': \
+            {'key': 2, 'desc': 'Baseline with colmap resectioning'},
+        'imc-True-wr-False-colmapr-True-gm-False-gsm-False-wfm-False-imt-True-imtv-0.2-spp-False-cip-False-cipgt-False-cipk-H': \
+            {'key': 3, 'desc': 'Image matching classifier (0.2) with colmap resectioning'},
+        'imc-True-wr-False-colmapr-True-gm-False-gsm-False-wfm-False-imt-True-imtv-0.3-spp-False-cip-False-cipgt-False-cipk-H': \
+            {'key': 4, 'desc': 'Image matching classifier (0.3) with colmap resectioning'},
+        'imc-True-wr-False-colmapr-True-gm-False-gsm-False-wfm-False-imt-True-imtv-0.4-spp-False-cip-False-cipgt-False-cipk-H': \
+            {'key': 5, 'desc': 'Image matching classifier (0.4) with colmap resectioning'},
+        'imc-True-wr-False-colmapr-True-gm-False-gsm-False-wfm-False-imt-True-imtv-0.5-spp-False-cip-False-cipgt-False-cipk-H': \
+            {'key': 6, 'desc': 'Image matching classifier (0.5) with colmap resectioning'}
+        # 'imc-True-wr-True-gm-True-wfm-False-imt-False': \
+        #     {'key': 7, 'desc': 'Ground-truth image matching scores with weighted resectioning (uses image and feature matching scores)'}
     }
     metadata, results = get_results(parser_options.root_directory, experiments)
     output_csv(metadata, experiments, results)

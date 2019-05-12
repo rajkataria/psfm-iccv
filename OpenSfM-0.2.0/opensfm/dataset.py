@@ -96,6 +96,12 @@ class DataSet:
         io.mkdir_p(self._undistorted_image_path())
         cv2.imwrite(self._undistorted_image_file(image), array[:, :, ::-1])
 
+    def __processed_image_file(self, image, image1_pair, image2_pair):
+        return os.path.join(self.__processed_image_path(), '{}---{}-{}-processed.png'.format(image, image1_pair, image2_pair))
+
+    def __resized_image_file(self, image):
+        return os.path.join(self.__resized_image_path(), image) # extension is part of the file name
+
     def masks(self):
         """Return list of file names of all masks in this dataset"""
         return self.mask_list
@@ -347,8 +353,17 @@ class DataSet:
     def __classifier_dataset_path(self):
         return os.path.join(self.data_path, 'classifier_dataset')
 
+    def __yan_path(self):
+        return os.path.join(self.data_path, 'yan')
+
     def __results_path(self):
         return os.path.join(self.data_path, 'results')
+
+    def __processed_image_path(self):
+        return os.path.join(self.data_path, 'images-resized-processed')
+
+    def __resized_image_path(self):
+        return os.path.join(self.data_path, 'images-resized')
 
     def __classifier_dataset_unthresholded_matches_path(self):
         return os.path.join(self.__classifier_dataset_path(), 'unthresholded_matches')
@@ -366,9 +381,18 @@ class DataSet:
         """Return path of all matches directory"""
         return os.path.join(self.__classifier_features_path(), 'match_maps')
 
+    def __classifier_features_feature_map_path(self):
+        return os.path.join(self.__classifier_features_path(), 'feature_maps')
+
+    def __classifier_features_track_map_path(self):
+        return os.path.join(self.__classifier_features_path(), 'track_maps')
+
     def __classifier_features_photometric_errors_map_path(self):
         """Return path of all matches directory"""
-        return os.path.join(self.__classifier_features_path(), 'pe_maps-10-iterations-size-224')
+        return os.path.join(self.__classifier_features_path(), 'pe_maps_gamma_adjusted')
+
+    def __classifier_features_photometric_errors_triangle_transformations_path(self):
+        return os.path.join(self.__classifier_features_path(), 'pe_triangle_transformations_gamma_adjusted')
 
     def __classifier_features_graph_path(self):
         """Return path of all matches directory"""
@@ -378,9 +402,20 @@ class DataSet:
         """File for matches for an image"""
         return os.path.join(self.__classifier_features_match_map_path(), '{}.png'.format(image))
 
+    def __feature_map_file(self, image):
+        """File for matches for an image"""
+        return os.path.join(self.__classifier_features_feature_map_path(), '{}.png'.format(image))
+
+    def __track_map_file(self, image):
+        """File for matches for an image"""
+        return os.path.join(self.__classifier_features_track_map_path(), '{}.png'.format(image))
+
     def __photometric_errors_map_file(self, image):
         """File for matches for an image"""
         return os.path.join(self.__classifier_features_photometric_errors_map_path(), '{}.png'.format(image))
+    
+    def __photometric_error_triangle_transformations_file(self, im1, im2):
+        return os.path.join(self.__classifier_features_photometric_errors_triangle_transformations_path(), '{}--{}.json'.format(im1, im2))
 
     def __matches_file(self, image):
         """File for matches for an image"""
@@ -452,9 +487,9 @@ class DataSet:
         """File for flags indicating whether calibrated robust matching occured"""
         return os.path.join(self.__classifier_features_path(), 'spatial_entropies.{}'.format(ext))
 
-    def __feature_shortest_paths_file(self, ext='pkl.gz'):
+    def __feature_shortest_paths_file(self, label, ext='pkl.gz'):
         """File for flags indicating whether calibrated robust matching occured"""
-        return os.path.join(self.__classifier_features_path(), 'shortest_paths.{}'.format(ext))
+        return os.path.join(self.__classifier_features_path(), 'shortest_paths-{}.{}'.format(label, ext))
 
     def __feature_color_histograms_file(self, ext='pkl.gz'):
         """File for flags indicating whether calibrated robust matching occured"""
@@ -462,11 +497,17 @@ class DataSet:
 
     def __feature_photometric_errors_file(self, ext='pkl.gz'):
         """File for flags indicating whether calibrated robust matching occured"""
-        return os.path.join(self.__classifier_features_path(), 'pe-10-iterations-size-224.{}'.format(ext))
+        return os.path.join(self.__classifier_features_path(), 'pe_gamma_adjusted.{}'.format(ext))
 
     def __feature_nbvs_file(self, ext='pkl.gz'):
         """File for flags indicating whether calibrated robust matching occured"""
         return os.path.join(self.__classifier_features_path(), 'nbvs.{}'.format(ext))
+
+    def __feature_closest_images(self, label=None, ext='pkl.gz'):
+        """File for flags indicating whether calibrated robust matching occured"""
+        if label is not None:
+            return os.path.join(self.__classifier_features_path(), 'closest_images-{}.{}'.format(label, ext))
+        return os.path.join(self.__classifier_features_path(), 'closest_images.{}'.format(ext))
 
     def __feature_image_matching_results_file(self, ext='pkl.gz'):
         """File for flags indicating whether calibrated robust matching occured"""
@@ -498,6 +539,10 @@ class DataSet:
         """File for flags indicating whether calibrated robust matching occured"""
         return os.path.join(self.__results_path(), 'ate_results.{}'.format(ext))
 
+    def __rpe_results_file(self, ext='pkl.gz'):
+        """File for flags indicating whether calibrated robust matching occured"""
+        return os.path.join(self.__results_path(), 'rpe_results.{}'.format(ext))
+
     def __match_graph_results_file(self, ext='pkl.gz'):
         """File for flags indicating whether calibrated robust matching occured"""
         return os.path.join(self.__results_path(), 'match_graph_results.{}'.format(ext))
@@ -518,6 +563,12 @@ class DataSet:
         """File for flags indicating whether calibrated robust matching occured"""
         return os.path.join(self.__results_path(), 'resectioning_order_common_tracks-{}'.format(run))
 
+    def __iconic_image_list_file(self, ext):
+        return os.path.join(self.__yan_path(), 'iconic_images.{}'.format(ext))
+
+    def __non_iconic_image_list_file(self, ext):
+        return os.path.join(self.__yan_path(), 'non_iconic_images.{}'.format(ext))
+
     def graph_exists(self, graph_label, edge_threshold):
         return os.path.isfile(self.__graph_file(graph_label, edge_threshold))
 
@@ -528,15 +579,15 @@ class DataSet:
         io.mkdir_p(self.__classifier_features_graph_path())
         nx.write_gpickle(G, self.__graph_file(graph_label, edge_threshold))
 
-    def save_shortest_paths(self, shortest_paths):
+    def save_shortest_paths(self, shortest_paths, label):
         io.mkdir_p(self.__classifier_features_path())
-        with gzip.open(self.__feature_shortest_paths_file('pkl.gz'), 'wb') as fout:
+        with gzip.open(self.__feature_shortest_paths_file(label=label, ext='pkl.gz'), 'wb') as fout:
             pickle.dump(shortest_paths, fout)
-        with open(self.__feature_shortest_paths_file('json'), 'w') as fout:
+        with open(self.__feature_shortest_paths_file(label=label, ext='json'), 'w') as fout:
             json.dump(shortest_paths, fout, sort_keys=True, indent=4, separators=(',', ': '))
 
-    def load_shortest_paths(self):
-        with gzip.open(self.__feature_shortest_paths_file(), 'rb') as fin:
+    def load_shortest_paths(self, label):
+        with gzip.open(self.__feature_shortest_paths_file(label=label), 'rb') as fin:
             shortest_paths = pickle.load(fin)
         return shortest_paths
 
@@ -720,6 +771,16 @@ class DataSet:
         # resized_match_map = cv2.resize(match_map, (224, 224))
         # cv2.imwrite(self.__match_map_file(image), resized_match_map)
 
+    def save_feature_map(self, image, feature_map):
+        io.mkdir_p(self.__classifier_features_feature_map_path())
+        scipy.misc.imsave(self.__feature_map_file(image), feature_map)
+        # resized_match_map = cv2.resize(match_map, (224, 224))
+        # cv2.imwrite(self.__match_map_file(image), resized_match_map)
+
+    def save_track_map(self, image, track_map):
+        io.mkdir_p(self.__classifier_features_track_map_path())
+        scipy.misc.imsave(self.__track_map_file(image), track_map)
+
     def save_photometric_errors_map(self, image, photometric_errors_map, size=None):
         io.mkdir_p(self.__classifier_features_photometric_errors_map_path())
         # scipy.misc.imsave(self.__photometric_errors_map_file(image), photometric_errors_map)
@@ -785,6 +846,18 @@ class DataSet:
             nbvs = pickle.load(fin)
         return nbvs
 
+    def save_closest_images(self, closest_images, label=None):
+        io.mkdir_p(self.__classifier_features_path())
+        with gzip.open(self.__feature_closest_images(label=label, ext='pkl.gz'), 'wb') as fout:
+            pickle.dump(closest_images, fout)
+        with open(self.__feature_closest_images(label=label, ext='json'), 'w') as fout:
+            json.dump(closest_images, fout, sort_keys=True, indent=4, separators=(',', ': '))
+
+    def load_closest_images(self, label=None):
+        with gzip.open(self.__feature_closest_images(label=label, ext='pkl.gz'), 'rb') as fin:
+            closest_images = pickle.load(fin)
+        return closest_images
+
     def save_image_matching_results(self, results):
         io.mkdir_p(self.__classifier_features_path())
         with gzip.open(self.__feature_image_matching_results_file('pkl.gz'), 'wb') as fout:
@@ -808,7 +881,33 @@ class DataSet:
         with gzip.open(self.__feature_matching_results_file(image), 'rb') as fin:
             results = pickle.load(fin)
         return results
+
+    def save_iconic_image_list(self, image_list):
+        io.mkdir_p(self.__yan_path())
+        with open(self.__iconic_image_list_file('json'), 'w') as fout:
+            json.dump(image_list, fout, sort_keys=True, indent=4, separators=(',', ': '))
     
+    def load_iconic_image_list(self):
+        with open(self.__iconic_image_list_file('json'), 'r') as fin:
+            image_list = json.load(fin)
+        return image_list
+
+    def iconic_image_list_exists(self):
+        return os.path.isfile(self.__iconic_image_list_file('json'))
+
+    def save_non_iconic_image_list(self, image_list):
+        io.mkdir_p(self.__yan_path())
+        with open(self.__non_iconic_image_list_file('json'), 'w') as fout:
+            json.dump(image_list, fout, sort_keys=True, indent=4, separators=(',', ': '))
+    
+    def load_non_iconic_image_list(self):
+        with open(self.__non_iconic_image_list_file('json'), 'r') as fin:
+            image_list = json.load(fin)
+        return image_list
+
+    def non_iconic_image_list_exists(self):
+        return os.path.isfile(self.__non_iconic_image_list_file('json'))
+
     def load_groundtruth_image_matching_results(self, image_matching_classifier_thresholds):
         # Load all path lengths
         fns, [R11s, R12s, R13s, R21s, R22s, R23s, R31s, R32s, R33s, num_rmatches, num_matches, spatial_entropy_1_8x8, \
@@ -1019,7 +1118,7 @@ class DataSet:
         write_header = True
         lowes_threshold = 0.8
         transformations = self.load_transformations()
-        shortest_paths = self.load_shortest_paths()
+        shortest_paths = self.load_shortest_paths('rm-cost')
         spatial_entropies = self.load_spatial_entropies()
         photometric_errors = self.load_photometric_errors()
         nbvs = self.load_nbvs()
@@ -1028,6 +1127,8 @@ class DataSet:
         color_histograms = self.load_color_histograms()
         vt_ranks, vt_scores = self.load_vocab_ranks_and_scores()
         lccs = self.load_lccs()
+        im_closest_images = self.load_closest_images('rm-cost-lmds-False')
+        im_closest_images_gt = self.load_closest_images('gt-lmds-False')
         sequence_scores_mean, sequence_scores_min, sequence_scores_max, sequence_distance_scores = \
             self.sequence_rank_adapter()
 
@@ -1049,7 +1150,12 @@ class DataSet:
                         continue
                     # print ('{} / {}'.format(im1, im2))
                     # te_histogram = np.array(triplet_pairwise_errors[im1][im2]['histogram-cumsum'])
-                    te_histogram = np.array(consistency_errors[im1][im2]['histogram-cumsum'])
+                    
+
+                    te_histogram = np.zeros((80,))
+                    if im1 in consistency_errors and im2 in consistency_errors[im1]:
+                        te_histogram = np.array(consistency_errors[im1][im2]['histogram-cumsum'])
+
                     # mu, sigma = scipy.stats.norm.fit(te_histogram)
                     # te_histogram = np.zeros((len(te_histogram),))
                     # te_histogram[0] = mu
@@ -1079,7 +1185,18 @@ class DataSet:
                     ch_im2 = ','.join(map(str, np.around(np.array(color_histograms[im2]['histogram']), decimals=2)))
                     vt_rank_percentage_im1_im2 = 100.0 * vt_ranks[im1][im2] / len(self.images())
                     vt_rank_percentage_im2_im1 = 100.0 * vt_ranks[im2][im1] / len(self.images())
+                    mds_rank_percentage_im1_im2 = 100.0 * im_closest_images[im1].index(im2) / len(self.images())
+                    mds_rank_percentage_im2_im1 = 100.0 * im_closest_images[im2].index(im1) / len(self.images())
 
+                    if im1 not in im_closest_images_gt or im2 not in im_closest_images_gt[im1]:
+                        distance_rank_percentage_im1_im2_gt = 99.99
+                    else:
+                        distance_rank_percentage_im1_im2_gt = 100.0 * im_closest_images_gt[im1].index(im2) / len(self.images())
+
+                    if im2 not in im_closest_images_gt or im1 not in im_closest_images_gt[im2]:
+                        distance_rank_percentage_im2_im1_gt = 99.99
+                    else:
+                        distance_rank_percentage_im2_im1_gt = 100.0 * im_closest_images_gt[im2].index(im1) / len(self.images())
 
 
                     if im2 not in im_unthresholded_inliers or \
@@ -1130,6 +1247,8 @@ class DataSet:
                             lcc im1 35, lcc im2 35, min lcc 35, max lcc 35, \
                             lcc im1 40, lcc im2 40, min lcc 40, max lcc 40, \
                             path length, \
+                            mds rank percentage im1-im2, mds rank percentage im2-im1,\
+                            distance rank percentage im1-im2 gt, distance rank percentage im2-im1 gt,\
                             # of gt inliers, label\n'.format(\
                                 ','*len(pe_histogram.split(',')), \
                                 ','*len(te_histogram.split(',')), \
@@ -1171,6 +1290,8 @@ class DataSet:
                         {}, {}, {}, {}, \
                         {}, {}, {}, {}, \
                         {}, \
+                        {}, {}, \
+                        {}, {}, \
                         {}, {}\n'.format( \
                         im1, im2, \
                         R[0,0], R[0,1], R[0,2], R[1,0], R[1,1], R[1,2], R[2,0], R[2,1], R[2,2], \
@@ -1190,6 +1311,8 @@ class DataSet:
                         lccs[im1][35], lccs[im2][35], min(lccs[im1][35],lccs[im2][35]), max(lccs[im1][35],lccs[im2][35]), \
                         lccs[im1][40], lccs[im2][40], min(lccs[im1][40],lccs[im2][40]), max(lccs[im1][40],lccs[im2][40]), \
                         len(shortest_paths[im1][im2]["shortest_path"]), \
+                        mds_rank_percentage_im1_im2, mds_rank_percentage_im2_im1, \
+                        distance_rank_percentage_im1_im2_gt, distance_rank_percentage_im2_im1_gt, \
                         num_thresholded_gt_inliers, label))
 
     def load_image_matching_dataset(self, robust_matches_threshold, rmatches_min_threshold=0, rmatches_max_threshold=10000, spl=10000):
@@ -1247,8 +1370,12 @@ class DataSet:
         min_lcc_40 = data[:,945]
         max_lcc_40 = data[:,946]
         shortest_path_length = data[:,947]
-        gt_inliers = data[:,948]
-        labels = data[:,949]
+        mds_rank_percentage_im1_im2 = data[:,948]
+        mds_rank_percentage_im2_im1 = data[:,949]
+        distance_rank_percentage_im1_im2_gt = data[:,950]
+        distance_rank_percentage_im2_im1_gt = data[:,951]
+        gt_inliers = data[:,952]
+        labels = data[:,953]
 
         ri = np.where( \
             (num_rmatches >= rmatches_min_threshold) & \
@@ -1272,6 +1399,8 @@ class DataSet:
           lcc_im1_35[ri], lcc_im2_35[ri], min_lcc_35[ri], max_lcc_35[ri], \
           lcc_im1_40[ri], lcc_im2_40[ri], min_lcc_40[ri], max_lcc_40[ri], \
           shortest_path_length[ri], \
+          mds_rank_percentage_im1_im2[ri], mds_rank_percentage_im2_im1[ri], \
+          distance_rank_percentage_im1_im2_gt[ri], distance_rank_percentage_im2_im1_gt[ri], \
           gt_inliers[ri], labels[ri]]
 
     def save_tum_format(self, reconstruction, suffix):
@@ -1301,6 +1430,23 @@ class DataSet:
             pickle.dump(results, fout)
         with open(self.__ate_results_file('json'), 'w') as fout:
             json.dump(results, fout, sort_keys=True, indent=4, separators=(',', ': '))
+
+    def load_ate_results(self):
+        with gzip.open(self.__ate_results_file('pkl.gz'), 'rb') as fin:
+            results = pickle.load(fin)
+        return results
+
+    def save_rpe_results(self, results):
+        io.mkdir_p(self.__results_path())
+        with gzip.open(self.__rpe_results_file('pkl.gz'), 'wb') as fout:
+            pickle.dump(results, fout)
+        with open(self.__rpe_results_file('json'), 'w') as fout:
+            json.dump(results, fout, sort_keys=True, indent=4, separators=(',', ': '))
+
+    def load_rpe_results(self):
+        with gzip.open(self.__rpe_results_file('pkl.gz'), 'rb') as fin:
+            results = pickle.load(fin)
+        return results
 
     def save_match_graph_results(self, results):
         io.mkdir_p(self.__results_path())
@@ -1550,6 +1696,70 @@ class DataSet:
         with open(self.__ground_control_points_file()) as fin:
             return io.read_ground_control_points_list(
                 fin, self.load_reference_lla(), exif)
+
+    def save_processed_image(self, im1_fn, im2_fn, image, grid_size=None):
+        io.mkdir_p(self.__processed_image_path())
+        if grid_size is None:
+            cv2.imwrite(self.__processed_image_file(im1_fn, min(im1_fn, im2_fn), max(im1_fn, im2_fn)), image)
+        else:
+            cv2.imwrite(self.__processed_image_file(im1_fn, min(im1_fn, im2_fn), max(im1_fn, im2_fn)), cv2.resize(image, (grid_size, grid_size)))
+
+        return self.__processed_image_file(im1_fn, min(im1_fn, im2_fn), max(im1_fn, im2_fn))
+
+    def load_processed_image(self, im1_fn, im2_fn):
+        image = cv2.imread(self.__processed_image_file(im1_fn, min(im1_fn, im2_fn), max(im1_fn, im2_fn)), cv2.IMREAD_COLOR)
+        with open(os.path.join(self.__resized_image_file(im1_fn) + '.json'), 'r') as fin:
+            metadata = json.load(fin)
+            
+        return self.__processed_image_file(im1_fn, min(im1_fn, im2_fn), max(im1_fn, im2_fn)), image, metadata
+
+    def processed_image_exists(self, im1_fn, im2_fn):
+        return os.path.isfile(self.__processed_image_file(im1_fn, min(im1_fn, im2_fn), max(im1_fn, im2_fn)))
+
+    def save_resized_image(self, im_fn, image, grid_size=None):
+        io.mkdir_p(self.__resized_image_path())
+        if grid_size is None:
+            cv2.imwrite(self.__resized_image_file(im_fn), image)
+        else:
+            cv2.imwrite(self.__resized_image_file(im_fn), cv2.resize(image, (grid_size, grid_size)))
+        
+        # Save metadata of the original file along with the resized file
+        with open(os.path.join(self.__resized_image_file(im_fn) + '.json'), 'w') as fout:
+            metadata = {'height': image.shape[0], 'width': image.shape[1]}
+            json.dump(metadata, fout, sort_keys=True, indent=4, separators=(',', ': '))
+
+        return metadata
+
+    def load_resized_image(self, im_fn):
+        image = cv2.imread(self.__resized_image_file(im_fn), cv2.IMREAD_COLOR)
+        with open(os.path.join(self.__resized_image_file(im_fn) + '.json'), 'r') as fin:
+            metadata = json.load(fin)
+        return image, self.__resized_image_file(im_fn), metadata
+
+    def resized_image_exists(self, im_fn):
+        return os.path.isfile(self.__resized_image_file(im_fn))
+
+    def photometric_error_triangle_transformations_exists(self, im1, im2):
+        return os.path.isfile(self.__photometric_error_triangle_transformations_file(im1, im2) + '.json')
+
+    def load_photometric_error_triangle_transformations(self, im1, im2):
+        with open(self.__photometric_error_triangle_transformations_file(im1, im2) + '.json', 'r') as fin:
+            result = json.load(fin)
+
+        result['Ms'] = np.array(result['Ms'])
+        result['triangle_pts_img1'] = np.array(result['triangle_pts_img1'])
+        result['triangle_pts_img2'] = np.array(result['triangle_pts_img2'])
+        return result
+
+    def save_photometric_error_triangle_transformations(self, im1, im2, triangles_data):
+        io.mkdir_p(self.__classifier_features_photometric_errors_triangle_transformations_path())
+        
+        triangles_data['Ms'] = triangles_data['Ms'].tolist()
+        triangles_data['triangle_pts_img1'] = triangles_data['triangle_pts_img1'].tolist()
+        triangles_data['triangle_pts_img2'] = triangles_data['triangle_pts_img2'].tolist()
+
+        with open(os.path.join(self.__photometric_error_triangle_transformations_file(im1, im2) + '.json'), 'w') as fout:
+            json.dump(triangles_data, fout, sort_keys=True, indent=4, separators=(',', ': '))
 
 
 def load_tracks_graph(fileobj):
