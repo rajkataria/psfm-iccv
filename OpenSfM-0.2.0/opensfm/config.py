@@ -49,7 +49,7 @@ flann_iterations: 10          # See OpenCV doc
 flann_checks: 200             # Smaller -> Faster (but might lose good matches)
 
 # Params for VOCAB_TREE matching
-relevant_ranks: 500
+relevant_ranks: 5000
 
 # Libraries
 libvot: ../libvot/
