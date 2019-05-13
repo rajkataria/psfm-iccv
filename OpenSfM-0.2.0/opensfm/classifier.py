@@ -2332,9 +2332,10 @@ def solve_mds(data, distances_gt, distances, num_fns, opts, debug):
     scale = np.max(np.abs(pos))
     inferred_positions = pos / scale
 
-    if distances_gt is not None:
-        plot_mds(data=data, pos_gt=pos_gt, pos=None, iteration=0, opts=opts)
-    plot_mds(data=data, pos_gt=None, pos=inferred_positions, iteration=1, opts=opts)
+    if debug:
+        if distances_gt is not None:
+            plot_mds(data=data, pos_gt=pos_gt, pos=None, iteration=0, opts=opts)
+        plot_mds(data=data, pos_gt=None, pos=inferred_positions, iteration=1, opts=opts)
     updated_distances = euclidean_distances(inferred_positions)
 
     if distances_gt is not None:
@@ -2426,6 +2427,7 @@ def distance_based_triangulation(data, landmark_positions, delta_a):
     return x
 
 def infer_cleaner_positions(ctx):
+    debug = False
     logger.info('#'*100)
     logger.info('#'*25 + ' Inferring cleaner camera positions using shortest paths... ' + '#'*25)
     logger.info('#'*100)
@@ -2622,9 +2624,10 @@ def infer_cleaner_positions(ctx):
 
         # print (all_positions_inferred)
         updated_distances = euclidean_distances(all_positions_inferred)
-        plot_mds(data=data, pos_gt=None, pos=all_positions_inferred, iteration=1, opts=options)
-        if data.reconstruction_exists('reconstruction_gt.json'):
-            plot_mds(data=data, pos_gt=all_positions_inferred_gt, pos=None, iteration=-1, opts=options)
+        if debug:
+            plot_mds(data=data, pos_gt=None, pos=all_positions_inferred, iteration=1, opts=options)
+            if data.reconstruction_exists('reconstruction_gt.json'):
+                plot_mds(data=data, pos_gt=all_positions_inferred_gt, pos=None, iteration=-1, opts=options)
 
         for i in range(0,num_fns):
             order = np.argsort(np.array(updated_distances[:,i]))

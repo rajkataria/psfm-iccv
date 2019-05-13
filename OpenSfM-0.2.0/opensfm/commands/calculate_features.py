@@ -44,12 +44,12 @@ class Command:
         # classifier.calculate_spatial_entropies(ctx)
 
         
-        # grid_size = 224
-        # for i,im1 in enumerate(sorted(data.images())):
-        #     for j,im2 in enumerate(sorted(data.images())):
-        #         if j <= i:
-        #             continue
-        #         classifier.perform_gamma_adjustment(data, im1, im2, grid_size)
+        grid_size = 224
+        for i,im1 in enumerate(sorted(data.images())):
+            for j,im2 in enumerate(sorted(data.images())):
+                if j <= i:
+                    continue
+                classifier.perform_gamma_adjustment(data, im1, im2, grid_size)
         
 
 
