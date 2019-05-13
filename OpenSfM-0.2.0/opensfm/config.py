@@ -131,7 +131,7 @@ depthmap_min_consistent_views: 3      # Min number of views that should reconstr
 depthmap_save_debug_files: no         # Save debug files with partial reconstruction results
 
 # Other params
-processes: 72                          # Number of threads to use
+processes: 60                          # Number of threads to use
 
 # Classifier/new params
 # relative_pose_method: fivept_stewenius           # ransac, eightpt, sevenpt, fivept_kneip, fivept_nister, fivept_stewenius
