@@ -12,6 +12,7 @@ from timeit import default_timer as timer
 
 from networkx.algorithms import bipartite
 
+from opensfm import classifier
 from opensfm import dataset
 from opensfm import evaluate_ate_scale, associate
 from opensfm import io
@@ -35,6 +36,10 @@ class Command:
         parser.add_argument('dataset', help='dataset to process')
 
     def run(self, args):
+        options = {
+            'robust_matches_threshold': 15
+        }
+
         data = dataset.DataSet(args.dataset)
 
         reconstruction_results = get_reconstruction_results(data)
@@ -43,7 +48,7 @@ class Command:
         if not data.reconstruction_exists('reconstruction_gt.json'):
             logger.info('Skipping ground-truth calculations since no ground-truth exists...')
         else:
-            ate_results, rpe_results = get_gt_results(data)
+            ate_results, rpe_results = get_gt_results(data, options)
             data.save_ate_results(ate_results)
             data.save_rpe_results(rpe_results)
 
@@ -72,19 +77,6 @@ def get_reconstruction_results(data):
         'create_tracks_classifier',
         'reconstruct'
     ]
-
-    # if data.tracks_graph_exists('tracks.csv'):
-    #     graph_ = data.load_tracks_graph('tracks.csv')
-    # if data.tracks_graph_exists('tracks-thresholded-matches.csv'):
-    #     graph_thresholded_matches = data.load_tracks_graph('tracks-thresholded-matches.csv')
-    # if data.tracks_graph_exists('tracks-all-matches.csv'):
-    #     graph_all_matches = data.load_tracks_graph('tracks-all-matches.csv')
-    # if data.tracks_graph_exists('tracks-thresholded-weighted-matches.csv'):
-    #     graph_thresholded_weighted_matches = data.load_tracks_graph('tracks-thresholded-weighted-matches.csv')
-    # if data.tracks_graph_exists('tracks-all-weighted-matches.csv'):
-    #     graph_all_weighted_matches = data.load_tracks_graph('tracks-all-weighted-matches.csv')
-    # if data.tracks_graph_exists('tracks-gt-matches.csv'):
-    #     graph_gt_matches = data.load_tracks_graph('tracks-gt-matches.csv')
 
     if data.tracks_graph_exists('tracks.csv'):
         tracks_graph = data.load_tracks_graph('tracks.csv')    
@@ -158,8 +150,45 @@ def get_reconstruction_results(data):
 
     return reconstruction_results
 
-def get_gt_results(data):
+def get_gt_results(data, options):
     relevant_reconstructions = []
+
+    if data.image_matching_dataset_exists(options['robust_matches_threshold']):
+        _fns, [_R11s, _R12s, _R13s, _R21s, _R22s, _R23s, _R31s, _R32s, _R33s, _num_rmatches, _num_matches, _spatial_entropy_1_8x8, \
+            _spatial_entropy_2_8x8, _spatial_entropy_1_16x16, _spatial_entropy_2_16x16, _pe_histogram, _pe_polygon_area_percentage, \
+            _nbvs_im1, _nbvs_im2, _te_histogram, _ch_im1, _ch_im2, _vt_rank_percentage_im1_im2, _vt_rank_percentage_im2_im1, \
+            _sq_rank_scores_mean, _sq_rank_scores_min, _sq_rank_scores_max, _sq_distance_scores, \
+            _lcc_im1_15, _lcc_im2_15, _min_lcc_15, _max_lcc_15, \
+            _lcc_im1_20, _lcc_im2_20, _min_lcc_20, _max_lcc_20, \
+            _lcc_im1_25, _lcc_im2_25, _min_lcc_25, _max_lcc_25, \
+            _lcc_im1_30, _lcc_im2_30, _min_lcc_30, _max_lcc_30, \
+            _lcc_im1_35, _lcc_im2_35, _min_lcc_35, _max_lcc_35, \
+            _lcc_im1_40, _lcc_im2_40, _min_lcc_40, _max_lcc_40, \
+            _shortest_path_length, \
+            _mds_rank_percentage_im1_im2, _mds_rank_percentage_im2_im1, \
+            _distance_rank_percentage_im1_im2_gt, _distance_rank_percentage_im2_im1_gt, \
+            _num_gt_inliers, _labels] \
+            = data.load_image_matching_dataset(robust_matches_threshold=options['robust_matches_threshold'])
+        image_matching_results = data.load_image_matching_results(options['robust_matches_threshold'])
+
+        fns = []
+        y_gt = []
+        y = []
+        for im1 in image_matching_results:
+            for im2 in image_matching_results[im1]:
+                fns.append([im1,im2])
+                y.append(image_matching_results[im1][im2]['score'])
+                ri = np.where((_fns[:,0] == im1) & (_fns[:,1] == im2) | (_fns[:,1] == im1) & (_fns[:,0] == im2))
+                y_gt.append(_labels[ri])
+
+        auc, _ = classifier.calculate_dataset_auc(np.array(y), np.array(y_gt), debug=False)
+        _, _, f_auc, _ = classifier.calculate_per_image_mean_auc(np.array(fns), np.array(y), np.array(y_gt), debug=False)
+
+        baseline_auc, _ = classifier.calculate_dataset_auc(np.array(y), np.array(y_gt), debug=False)
+        _, _, baseline_f_auc, _ = classifier.calculate_per_image_mean_auc(np.array(fns), np.array(y), np.array(y_gt), debug=False)
+
+    else:
+        baseline_auc, baseline_f_auc, auc, f_auc = None, None, None, None
 
     # Get results for baselines
     if data.reconstruction_exists('reconstruction.json'):
@@ -209,6 +238,18 @@ def get_gt_results(data):
      
     ate_results = ransac_based_ate_evaluation(data, relevant_reconstructions)
     rpe_results = rpe_evaluation(data, relevant_reconstructions)
+
+    auc_results = {
+        'Baseline AUC': baseline_auc,
+        'Baseline AUCPI': baseline_f_auc,
+        'Experiment AUC': auc,
+        'Experiment AUCPI': f_auc
+    }
+    for k in ate_results.keys():
+        ate_results[k].update(auc_results)
+    for k in rpe_results.keys():
+        rpe_results[k].update(auc_results)
+
     return ate_results, rpe_results
 
 def prune_reconstructions(data, reconstruction):

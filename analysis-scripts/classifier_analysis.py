@@ -164,20 +164,29 @@ def classify_images(datasets, options={}):
         print ('Loading ConvNet checkpoint: {}'.format(options['convnet_checkpoint']))
         checkpoint = torch.load(options['convnet_checkpoint'])
         kwargs = {}
-        options['model'] = 'resnet34'
+        options['model'] = 'resnet18'
+        # options['convnet_lr'] = 0.01
         options['convnet_use_images'] = False
+        options['convnet_use_warped_images'] = False
         options['convnet_use_feature_match_map'] = True
         options['convnet_use_track_map'] = False
-        options['features'] = 'RM+PE'
+        options['convnet_use_non_rmatches_map'] = True
+        options['convnet_use_rmatches_map'] = True
+        options['convnet_use_matches_map'] = True
+        options['convnet_use_photometric_error_maps'] = True
+
+        options['features'] = 'RM'
         options['mlp-layer-size'] = 256
         options['use_small_weights'] = False
         options['num_workers'] = 10
-        options['batch_size'] = 10
+        options['batch_size'] = 64
         options['shuffle'] = False
         options['convnet_input_size'] = 224
         options['triplet-sampling-strategy'] = 'normal'
         options['log_interval'] = 1
         options['experiment'] = 'RM+TM+SE+PE'
+        options['convnet_load_dataset_in_memory'] = False
+
         trained_classifier = convnet.ConvNet(options, **kwargs)
         trained_classifier.cuda()
         trained_classifier.load_state_dict(checkpoint['state_dict'])
@@ -390,7 +399,7 @@ def classify_images(datasets, options={}):
         # print (results)
         # print (json.dumps(results, sort_keys=True, indent=4, separators=(',', ': ')))
 
-        data.save_image_matching_results(results)
+        data.save_image_matching_results(results, options['robust_matches_threshold'])
 
 def get_precision_recall(fns, labels, criteria, k, debug=False):
     raw_results = []
@@ -931,9 +940,9 @@ def main(argv):
     parser.add_argument('-l', '--opensfm_path', help='opensfm path')
     parser.add_argument('-m', '--image_match_classifier_min_match', help='')
     parser.add_argument('-x', '--image_match_classifier_max_match', help='')
-    parser.add_argument('-c', '--image_match_classifier_file', help='classifier to run')
+    parser.add_argument('-c', '--classifier_file', help='classifier to run')
     parser.add_argument('--classifier', help='classifier type - BDT/CONVNET')
-    parser.add_argument('--convnet_checkpoint', help='checkpoint file for convnet')
+    # parser.add_argument('--convnet_checkpoint', help='checkpoint file for convnet')
   
     parser_options = parser.parse_args()
 
@@ -944,11 +953,12 @@ def main(argv):
 
     options = {
         'classifier': parser_options.classifier, \
-        'image_match_classifier_file': parser_options.image_match_classifier_file, \
+        'image_match_classifier_file': parser_options.classifier_file, \
         'image_match_classifier_min_match': int(parser_options.image_match_classifier_min_match), \
         'image_match_classifier_max_match': int(parser_options.image_match_classifier_max_match), \
         'feature_selection': False,
-        'convnet_checkpoint': parser_options.convnet_checkpoint
+        'convnet_checkpoint': parser_options.classifier_file,
+        'robust_matches_threshold': 15
     }
 
     training_datasets = [
@@ -1028,25 +1038,25 @@ def main(argv):
 
 
     iccv_datasets = [
-        # '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/botanical_garden',
-        # '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/boulders',
-        # '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/bridge',
-        # '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/door',
-        # '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/exhibition_hall',
-        # '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/lecture_room',
-        # '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/living_room',
-        # '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/lounge',
-        # '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/observatory',
-        # '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/office',
-        # '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/old_computer',
-        # '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/pipes',
-        # '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/playground',
-        # '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/relief',
-        # '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/relief_2',
-        # '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/statue',
-        # '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/terrace',
-        # '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/terrace_2',
-        # '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/terrains',
+        '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/botanical_garden',
+        '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/boulders',
+        '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/bridge',
+        '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/door',
+        '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/exhibition_hall',
+        '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/lecture_room',
+        '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/living_room',
+        '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/lounge',
+        '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/observatory',
+        '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/office',
+        '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/old_computer',
+        '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/pipes',
+        '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/playground',
+        '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/relief',
+        '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/relief_2',
+        '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/statue',
+        '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/terrace',
+        '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/terrace_2',
+        '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/terrains',
 
         # '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/ece_floor2_hall',
         # '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/ece_floor3_loop',
@@ -1058,63 +1068,63 @@ def main(argv):
         # '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/ece_stairs',
         # # '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/fox_floor2_extra',
         # # '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/fox_floor3_extra',
-        '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/yeh_day_all',
-        '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/yeh_day_atrium',
-        '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/yeh_day_backward',
-        '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/yeh_day_forward',
-        '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/yeh_night_all',
-        '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/yeh_night_atrium',
-        '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/yeh_night_backward',
-        '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/yeh_night_forward',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/yeh_day_all',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/yeh_day_atrium',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/yeh_day_backward',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/yeh_day_forward',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/yeh_night_all',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/yeh_night_atrium',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/yeh_night_backward',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/yeh_night_forward',
 
-        '/hdd/Research/psfm-iccv/data/iccv-results/TanksAndTemples/Auditorium',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TanksAndTemples/Ballroom',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TanksAndTemples/Courtroom',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TanksAndTemples/Family',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TanksAndTemples/Francis',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TanksAndTemples/Horse',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TanksAndTemples/Lighthouse',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TanksAndTemples/M60',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TanksAndTemples/Meetingroom',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TanksAndTemples/Museum',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TanksAndTemples/Palace',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TanksAndTemples/Panther',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TanksAndTemples/Playground',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TanksAndTemples/Temple',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TanksAndTemples/Train',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TanksAndTemples/Truck',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/TanksAndTemples/Auditorium',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/TanksAndTemples/Ballroom',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/TanksAndTemples/Courtroom',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/TanksAndTemples/Family',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/TanksAndTemples/Francis',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/TanksAndTemples/Horse',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/TanksAndTemples/Lighthouse',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/TanksAndTemples/M60',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/TanksAndTemples/Meetingroom',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/TanksAndTemples/Museum',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/TanksAndTemples/Palace',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/TanksAndTemples/Panther',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/TanksAndTemples/Playground',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/TanksAndTemples/Temple',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/TanksAndTemples/Train',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/TanksAndTemples/Truck',
 
-        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_cabinet',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_large_cabinet',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_long_office_household',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_nostructure_notexture_far',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_nostructure_notexture_near_withloop',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_nostructure_texture_far',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_nostructure_texture_near_withloop',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_sitting_halfsphere',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_sitting_rpy',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_sitting_static',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_sitting_xyz',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_structure_notexture_far',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_structure_notexture_near',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_structure_texture_far',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_structure_texture_near',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_teddy',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_walking_halfsphere',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_walking_rpy',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_walking_static',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_walking_xyz',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_cabinet',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_large_cabinet',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_long_office_household',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_nostructure_notexture_far',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_nostructure_notexture_near_withloop',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_nostructure_texture_far',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_nostructure_texture_near_withloop',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_sitting_halfsphere',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_sitting_rpy',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_sitting_static',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_sitting_xyz',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_structure_notexture_far',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_structure_notexture_near',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_structure_texture_far',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_structure_texture_near',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_teddy',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_walking_halfsphere',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_walking_rpy',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_walking_static',
+        # '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_walking_xyz',
     ]
 
     # iccv_datasets = [
     #     '/hdd/Research/psfm-iccv/data/completed-classifier-datasets/ETH3D/courtyard/colmap',
     # ]
-    iccv_datasets = [
-        '/hdd/Research/psfm-iccv/data/iccv-results/Sudipta/group3/oats/',
-    ]
+    # iccv_datasets = [
+    #     '/hdd/Research/psfm-iccv/data/iccv-results/Sudipta/group3/oats/',
+    # ]
 
-    # classify_images(iccv_datasets, options)
-    classification_and_reconstruction_correlation_analysis(datasets, options)
+    classify_images(iccv_datasets, options)
+    # classification_and_reconstruction_correlation_analysis(datasets, options)
     # plot_iccv_figures(training_datasets, testing_datasets, options)
     
     # analyze_datasets(datasets, options)

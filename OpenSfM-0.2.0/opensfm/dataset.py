@@ -509,9 +509,9 @@ class DataSet:
             return os.path.join(self.__classifier_features_path(), 'closest_images-{}.{}'.format(label, ext))
         return os.path.join(self.__classifier_features_path(), 'closest_images.{}'.format(ext))
 
-    def __feature_image_matching_results_file(self, ext='pkl.gz'):
+    def __feature_image_matching_results_file(self, ext='pkl.gz', suffix=15):
         """File for flags indicating whether calibrated robust matching occured"""
-        return os.path.join(self.__classifier_features_path(), 'image_matching_results.{}'.format(ext))
+        return os.path.join(self.__classifier_features_path(), 'image_matching_results_{}.{}'.format(suffix, ext))
 
     def __feature_matching_results_file(self, image, ext='pkl.gz'):
         """File for flags indicating whether calibrated robust matching occured"""
@@ -858,11 +858,11 @@ class DataSet:
             closest_images = pickle.load(fin)
         return closest_images
 
-    def save_image_matching_results(self, results):
+    def save_image_matching_results(self, results, robust_matches_threshold):
         io.mkdir_p(self.__classifier_features_path())
-        with gzip.open(self.__feature_image_matching_results_file('pkl.gz'), 'wb') as fout:
+        with gzip.open(self.__feature_image_matching_results_file(ext='pkl.gz', suffix=robust_matches_threshold), 'wb') as fout:
             pickle.dump(results, fout)
-        with open(self.__feature_image_matching_results_file('json'), 'w') as fout:
+        with open(self.__feature_image_matching_results_file(ext='json', suffix=robust_matches_threshold), 'w') as fout:
             json.dump(results, fout, sort_keys=True, indent=4, separators=(',', ': '))
 
     def save_feature_matching_results(self, image, results):
@@ -872,8 +872,8 @@ class DataSet:
         with open(self.__feature_matching_results_file(image, 'json'), 'w') as fout:
             json.dump(results, fout, sort_keys=True, indent=4, separators=(',', ': '))
 
-    def load_image_matching_results(self):
-        with gzip.open(self.__feature_image_matching_results_file(), 'rb') as fin:
+    def load_image_matching_results(self, robust_matches_threshold):
+        with gzip.open(self.__feature_image_matching_results_file(ext='pkl.gz', suffix=robust_matches_threshold), 'rb') as fin:
             results = pickle.load(fin)
         return results
 
@@ -922,7 +922,7 @@ class DataSet:
             lcc_im1_40, lcc_im2_40, min_lcc_40, max_lcc_40, \
             shortest_path_length, \
             num_gt_inliers, labels] \
-            = self.load_image_matching_dataset(robust_matches_threshold=20)
+            = self.load_image_matching_dataset(robust_matches_threshold=15)
 
         gt_results = {}
         for idx, _ in enumerate(fns[:,0]):
@@ -1166,7 +1166,9 @@ class DataSet:
                     # pe_histogram = np.zeros((len(pe_histogram),))
                     # pe_histogram[0] = mu
                     # pe_histogram[1] = sigma
-                    pe_histogram = np.array(photometric_errors[im1][im2]['histogram-cumsum'])
+                    if False:
+                        pe_histogram = np.array(photometric_errors[im1][im2]['histogram-cumsum'])
+                    pe_histogram = np.zeros((51,))
                     # mu, sigma = scipy.stats.norm.fit(pe_histogram)
                     # pe_histogram = np.zeros((len(pe_histogram),))
                     # pe_histogram[0] = mu
@@ -1176,7 +1178,10 @@ class DataSet:
                     se = spatial_entropies[im1][im2]
                     # pe_histogram = ','.join(map(str, np.around(np.array(photometric_errors[im1][im2]['histogram-cumsum']), decimals=2)))
                     pe_histogram = ','.join(map(str, np.around(pe_histogram, decimals=2)))
-                    pe_polygon_area_percentage = photometric_errors[im1][im2]['polygon_area_percentage']
+
+                    if False:
+                        pe_polygon_area_percentage = photometric_errors[im1][im2]['polygon_area_percentage']
+                    pe_polygon_area_percentage = 0.0
                     
                     nbvs_im1 = nbvs[im1][im2]['nbvs_im1']
                     nbvs_im2 = nbvs[im1][im2]['nbvs_im2']
@@ -1314,6 +1319,9 @@ class DataSet:
                         mds_rank_percentage_im1_im2, mds_rank_percentage_im2_im1, \
                         distance_rank_percentage_im1_im2_gt, distance_rank_percentage_im2_im1_gt, \
                         num_thresholded_gt_inliers, label))
+
+    def image_matching_dataset_exists(self, robust_matches_threshold):
+        return os.path.isfile(self.__image_matching_dataset_file(suffix=robust_matches_threshold))
 
     def load_image_matching_dataset(self, robust_matches_threshold, rmatches_min_threshold=0, rmatches_max_threshold=10000, spl=10000):
         fns, data = self.load_general_dataset(self.__image_matching_dataset_file(suffix=robust_matches_threshold))

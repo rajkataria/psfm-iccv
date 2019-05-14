@@ -42,23 +42,24 @@ class Command:
         # import sys; sys.exit(1)
 
         # classifier.calculate_spatial_entropies(ctx)
+        # # classifier.calculate_gamma_adjusted_images(ctx)
+        # # classifier.calculate_photometric_errors(ctx)
+        # classifier.create_image_matching_dataset(ctx)
+        # import sys; sys.exit(1)
 
         
-        grid_size = 224
-        for i,im1 in enumerate(sorted(data.images())):
-            for j,im2 in enumerate(sorted(data.images())):
-                if j <= i:
-                    continue
-                classifier.perform_gamma_adjustment(data, im1, im2, grid_size)
-        
+        # grid_size = 224
+        # for i,im1 in enumerate(sorted(data.images())):
+        #     for j,im2 in enumerate(sorted(data.images())):
+        #         if j <= i:
+        #             continue
+        #         classifier.perform_gamma_adjustment(data, im1, im2, grid_size)
 
-
-        # _, num_pairs = classifier.calculate_transformations(ctx)
-        # classifier.calculate_spatial_entropies(ctx)
 
         _, num_pairs = classifier.calculate_transformations(ctx)
         classifier.create_feature_matching_dataset(ctx)
         classifier.calculate_spatial_entropies(ctx)
+        classifier.calculate_gamma_adjusted_images(ctx)
         classifier.calculate_photometric_errors(ctx)
         classifier.output_image_keypoints(ctx)
         classifier.calculate_sequence_ranks(ctx)
@@ -72,6 +73,7 @@ class Command:
         classifier.calculate_color_histograms(ctx)
         classifier.calculate_lccs(ctx)
         classifier.create_image_matching_dataset(ctx)
+        
         import sys; sys.exit(1)
         
 

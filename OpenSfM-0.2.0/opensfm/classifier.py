@@ -32,6 +32,58 @@ from timeit import default_timer as timer
 
 logger = logging.getLogger(__name__)
 
+def calculate_dataset_auc(y, y_gt, debug):
+    precision, recall, threshs = sklearn.metrics.precision_recall_curve(y_gt, y)
+    auc = sklearn.metrics.average_precision_score(y_gt, y)
+    auc_roc = sklearn.metrics.roc_auc_score(y_gt, y)
+    if debug:
+        plt.step(recall, precision, color='green', alpha=10,
+            where='post')
+    return auc, auc_roc
+
+def calculate_per_image_mean_auc(fns, y, y_gt, debug):
+# def calculate_per_image_mean_auc(dsets, fns, y, y_gt):
+    a_fns, a_precision_recall_auc = [], [], []
+    # a_dsets, a_fns, a_precision_recall_auc = [], [], []
+    # for dset in sorted(list(set(dsets))):
+        # ri = np.where(dsets == dset)[0]
+        # dset_fns = fns[ri]
+        # dset_y = y[ri]
+        # dset_y_gt = y_gt[ri]
+
+    unique_dset_fns = sorted(list(set(np.concatenate((fns[:,0], fns[:,1])).tolist())))
+    for f in unique_dset_fns:
+        ri_ = np.where((fns[:,0] == f) | (fns[:,1] == f))[0]
+        f_y = y[ri_]
+        f_y_gt = y_gt[ri_]
+
+        f_precision, f_recall, f_threshs = sklearn.metrics.precision_recall_curve(f_y_gt, f_y)
+        f_auc = sklearn.metrics.average_precision_score(f_y_gt, f_y)
+        f_auc_roc = 0.0
+        if np.isnan(f_auc):
+            continue
+        # a_dsets.append(dset)
+        a_fns.append(f)
+        a_precision_recall_auc.append([f_precision, f_recall, f_auc, f_auc_roc])
+
+    # a_dsets = np.array(a_dsets)
+    a_fns = np.array(a_fns)
+    a_precision_recall_auc = np.array(a_precision_recall_auc)
+
+    # auc_dset_means = []
+    # auc_roc_dset_means = []
+    # auc_cum = 0.0
+    # for i, d in enumerate(list(set(a_dsets))):
+    #     ri = np.where(a_dsets == d)[0]
+    #     auc_dset_means.append([d, np.mean(a_precision_recall_auc[ri][:,2])])
+    #     auc_roc_dset_means.append([d, np.mean(a_precision_recall_auc[ri][:,3])])
+
+    auc_overall_mean = np.sum(a_precision_recall_auc[:,2]) / len(a_precision_recall_auc)
+    auc_roc_overall_mean = np.sum(a_precision_recall_auc[:,3]) / len(a_precision_recall_auc)
+
+    # return a_dsets, a_fns, a_precision_recall_auc, auc_dset_means, auc_roc_dset_means, auc_overall_mean, auc_roc_overall_mean
+    return a_fns, a_precision_recall_auc, auc_overall_mean, auc_roc_overall_mean
+
 def weighted_samples(p1, p2, weights, num_samples, cum_sum_weights):
     # Get samples
     samples = np.random.rand(num_samples) * cum_sum_weights[-1]
@@ -376,82 +428,160 @@ def calculate_transformations(ctx):
     data.save_transformations(transformations)
     return transformations, num_pairs
 
+def calculate_image_spatial_entropies(arg):
+    data, cached_p, im1, im1_all_robust_matches, im1_all_matches = arg
+    
+    entropies = {}
+    p1 = cached_p[im1]
+
+    for im2 in im1_all_robust_matches:
+        if im1 == im2:
+            continue
+        rmatches = im1_all_robust_matches[im2]
+        matches = im1_all_matches[im2]
+        p2 = cached_p[im2]
+
+        if len(rmatches) == 0:
+            p1_non_rmatches = p1
+            p2_non_rmatches = p2
+            entropy_non_rmatches_im1_224, non_rmatches_map_im1 = calculate_spatial_entropy(p1_non_rmatches, 224)
+            entropy_non_rmatches_im2_224, non_rmatches_map_im2 = calculate_spatial_entropy(p2_non_rmatches, 224)
+            data.save_match_map('non_rmatches---{}-{}'.format(im1,im2), non_rmatches_map_im1)
+            data.save_match_map('non_rmatches---{}-{}'.format(im2,im1), non_rmatches_map_im2)
+            continue
+
+        p1_rmatches = p1[rmatches[:, 0].astype(int)]
+        p2_rmatches = p2[rmatches[:, 1].astype(int)]
+
+        p1_non_rmatches = p1[np.array(list(set(list(range(0,len(p1)))) - set(rmatches[:, 0].astype(int))))]
+        p2_non_rmatches = p2[np.array(list(set(list(range(0,len(p2)))) - set(rmatches[:, 1].astype(int))))]
+
+        entropy_im1_8, _ = calculate_spatial_entropy(p1_rmatches, 8)
+        entropy_im2_8, _ = calculate_spatial_entropy(p2_rmatches, 8)
+        entropy_im1_16, _ = calculate_spatial_entropy(p1_rmatches, 16)
+        entropy_im2_16, _ = calculate_spatial_entropy(p2_rmatches, 16)
+        
+        p1_matches = p1[matches[:, 0].astype(int)]
+        p2_matches = p2[matches[:, 1].astype(int)]
+        entropy_rmatches_im1_224, rmatches_map_im1 = calculate_spatial_entropy(p1_rmatches, 224)
+        entropy_rmatches_im2_224, rmatches_map_im2 = calculate_spatial_entropy(p2_rmatches, 224)
+        entropy_matches_im1_224, matches_map_im1 = calculate_spatial_entropy(p1_matches, 224)
+        entropy_matches_im2_224, matches_map_im2 = calculate_spatial_entropy(p2_matches, 224)
+        entropy_non_rmatches_im1_224, non_rmatches_map_im1 = calculate_spatial_entropy(p1_non_rmatches, 224)
+        entropy_non_rmatches_im2_224, non_rmatches_map_im2 = calculate_spatial_entropy(p2_non_rmatches, 224)
+
+        data.save_match_map('rmatches---{}-{}'.format(im1,im2), rmatches_map_im1)
+        data.save_match_map('rmatches---{}-{}'.format(im2,im1), rmatches_map_im2)
+        data.save_match_map('matches---{}-{}'.format(im1,im2), matches_map_im1)
+        data.save_match_map('matches---{}-{}'.format(im2,im1), matches_map_im2)
+        data.save_match_map('non_rmatches---{}-{}'.format(im1,im2), non_rmatches_map_im1)
+        data.save_match_map('non_rmatches---{}-{}'.format(im2,im1), non_rmatches_map_im2)
+
+        if im2 not in entropies:
+            entropies[im2] = {}
+
+        result = {
+            'entropy_im1_8': entropy_im1_8, 'entropy_im2_8': entropy_im2_8, \
+            'entropy_im1_16': entropy_im1_16, 'entropy_im2_16': entropy_im2_16 \
+            }
+        entropies[im2] = result
+    return im1, entropies
+
 def calculate_spatial_entropies(ctx):
     data = ctx.data
-    cameras = data.load_camera_models()
+    # cameras = data.load_camera_models()
     images = data.images()
-    exifs = ctx.exifs
+    # exifs = ctx.exifs
     config = data.config
+    processes = config['processes']
     cached_p = {}
-    entropies = {}
-    
+    # entropies = {}
+    args = []
+
     if data.spatial_entropies_exists():
         logger.info('Spatial entropies exist!')
         return
 
+    for im in images:
+        p, f, c = ctx.data.load_features(im)
+        cached_p[im] = p
+
     logger.info('Calculating spatial entropies...')
     for im1 in images:
         im1_all_matches, im1_valid_rmatches, im1_all_robust_matches = data.load_all_matches(im1)
-        
-        if im1 not in cached_p:
-            p1, f1, c1 = ctx.data.load_features(im1)
-            cached_p[im1] = p1
-        else:
-            p1 = cached_p[im1]
+        args.append([data, cached_p, im1, im1_all_robust_matches, im1_all_matches])
+    
+    p_results = []
+    results = {}
+    p = Pool(processes)
+    if processes == 1:
+        for arg in args:
+            p_results.append(calculate_image_spatial_entropies(arg))
+    else:
+        p_results = p.map(calculate_image_spatial_entropies, args)
+        p.close()
 
-        for im2 in im1_all_robust_matches:
-            print '{} - {}'.format(im1, im2)
-            rmatches = im1_all_robust_matches[im2]
-            matches = im1_all_matches[im2]
+    for im, entropies in p_results:
+        results[im] = entropies
+        # if im1 not in cached_p:
+        #     p1, f1, c1 = ctx.data.load_features(im1)
+        #     cached_p[im1] = p1
+        # else:
+        #     p1 = cached_p[im1]
+
+        # for im2 in im1_all_robust_matches:
+        #     print '{} - {}'.format(im1, im2)
+        #     rmatches = im1_all_robust_matches[im2]
+        #     matches = im1_all_matches[im2]
             
-            p2, f2, c2 = ctx.data.load_features(im2)
-            if im2 not in cached_p:
-                p2, f2, c2 = ctx.data.load_features(im2)
-                cached_p[im2] = p2
-            else:
-                p2 = cached_p[im2]
-            if len(rmatches) == 0:
-                continue
+        #     p2, f2, c2 = ctx.data.load_features(im2)
+        #     if im2 not in cached_p:
+        #         p2, f2, c2 = ctx.data.load_features(im2)
+        #         cached_p[im2] = p2
+        #     else:
+        #         p2 = cached_p[im2]
+        #     if len(rmatches) == 0:
+        #         continue
 
-            p1_rmatches = p1[rmatches[:, 0].astype(int)]
-            p2_rmatches = p2[rmatches[:, 1].astype(int)]
+        #     p1_rmatches = p1[rmatches[:, 0].astype(int)]
+        #     p2_rmatches = p2[rmatches[:, 1].astype(int)]
 
-            p1_non_rmatches = p1[np.array(list(set(list(range(0,len(p1)))) - set(rmatches[:, 0].astype(int))))]
-            p2_non_rmatches = p2[np.array(list(set(list(range(0,len(p2)))) - set(rmatches[:, 1].astype(int))))]
+        #     p1_non_rmatches = p1[np.array(list(set(list(range(0,len(p1)))) - set(rmatches[:, 0].astype(int))))]
+        #     p2_non_rmatches = p2[np.array(list(set(list(range(0,len(p2)))) - set(rmatches[:, 1].astype(int))))]
 
-            entropy_im1_8, _ = calculate_spatial_entropy(p1_rmatches, 8)
-            entropy_im2_8, _ = calculate_spatial_entropy(p2_rmatches, 8)
-            entropy_im1_16, _ = calculate_spatial_entropy(p1_rmatches, 16)
-            entropy_im2_16, _ = calculate_spatial_entropy(p2_rmatches, 16)
+        #     entropy_im1_8, _ = calculate_spatial_entropy(p1_rmatches, 8)
+        #     entropy_im2_8, _ = calculate_spatial_entropy(p2_rmatches, 8)
+        #     entropy_im1_16, _ = calculate_spatial_entropy(p1_rmatches, 16)
+        #     entropy_im2_16, _ = calculate_spatial_entropy(p2_rmatches, 16)
             
-            p1_matches = p1[matches[:, 0].astype(int)]
-            p2_matches = p2[matches[:, 1].astype(int)]
-            entropy_rmatches_im1_224, rmatches_map_im1 = calculate_spatial_entropy(p1_rmatches, 224)
-            entropy_rmatches_im2_224, rmatches_map_im2 = calculate_spatial_entropy(p2_rmatches, 224)
-            entropy_matches_im1_224, matches_map_im1 = calculate_spatial_entropy(p1_matches, 224)
-            entropy_matches_im2_224, matches_map_im2 = calculate_spatial_entropy(p2_matches, 224)
-            entropy_non_rmatches_im1_224, non_rmatches_map_im1 = calculate_spatial_entropy(p1_non_rmatches, 224)
-            entropy_non_rmatches_im2_224, non_rmatches_map_im2 = calculate_spatial_entropy(p2_non_rmatches, 224)
+        #     p1_matches = p1[matches[:, 0].astype(int)]
+        #     p2_matches = p2[matches[:, 1].astype(int)]
+        #     entropy_rmatches_im1_224, rmatches_map_im1 = calculate_spatial_entropy(p1_rmatches, 224)
+        #     entropy_rmatches_im2_224, rmatches_map_im2 = calculate_spatial_entropy(p2_rmatches, 224)
+        #     entropy_matches_im1_224, matches_map_im1 = calculate_spatial_entropy(p1_matches, 224)
+        #     entropy_matches_im2_224, matches_map_im2 = calculate_spatial_entropy(p2_matches, 224)
+        #     entropy_non_rmatches_im1_224, non_rmatches_map_im1 = calculate_spatial_entropy(p1_non_rmatches, 224)
+        #     entropy_non_rmatches_im2_224, non_rmatches_map_im2 = calculate_spatial_entropy(p2_non_rmatches, 224)
 
-            data.save_match_map('rmatches---{}-{}'.format(im1,im2), rmatches_map_im1)
-            data.save_match_map('rmatches---{}-{}'.format(im2,im1), rmatches_map_im2)
-            data.save_match_map('matches---{}-{}'.format(im1,im2), matches_map_im1)
-            data.save_match_map('matches---{}-{}'.format(im2,im1), matches_map_im2)
-            data.save_match_map('non_rmatches---{}-{}'.format(im1,im2), non_rmatches_map_im1)
-            data.save_match_map('non_rmatches---{}-{}'.format(im2,im1), non_rmatches_map_im2)
+        #     data.save_match_map('rmatches---{}-{}'.format(im1,im2), rmatches_map_im1)
+        #     data.save_match_map('rmatches---{}-{}'.format(im2,im1), rmatches_map_im2)
+        #     data.save_match_map('matches---{}-{}'.format(im1,im2), matches_map_im1)
+        #     data.save_match_map('matches---{}-{}'.format(im2,im1), matches_map_im2)
+        #     data.save_match_map('non_rmatches---{}-{}'.format(im1,im2), non_rmatches_map_im1)
+        #     data.save_match_map('non_rmatches---{}-{}'.format(im2,im1), non_rmatches_map_im2)
 
-            if im1 not in entropies:
-                entropies[im1] = {}
-            if im2 not in entropies:
-                entropies[im2] = {}
+        #     if im1 not in entropies:
+        #         entropies[im1] = {}
+        #     if im2 not in entropies:
+        #         entropies[im2] = {}
 
-            result = {
-                'entropy_im1_8': entropy_im1_8, 'entropy_im2_8': entropy_im2_8, \
-                'entropy_im1_16': entropy_im1_16, 'entropy_im2_16': entropy_im2_16 \
-                }
-            entropies[im1][im2] = result.copy()
-            entropies[im2][im1] = result.copy()
-    data.save_spatial_entropies(entropies)
+        #     result = {
+        #         'entropy_im1_8': entropy_im1_8, 'entropy_im2_8': entropy_im2_8, \
+        #         'entropy_im1_16': entropy_im1_16, 'entropy_im2_16': entropy_im2_16 \
+        #         }
+        #     entropies[im1][im2] = result.copy()
+        #     entropies[im2][im1] = result.copy()
+    data.save_spatial_entropies(results)
 
 def calculate_histogram(full_image, mask, x, y, w, h, histSize, color_image, debug):
     if color_image:
@@ -949,7 +1079,7 @@ def get_resized_image(data, im, grid_size):
 
 def get_processed_images(data, im1, im2, grid_size):
     if not data.processed_image_exists(im1, im2) or not data.processed_image_exists(im2, im1):
-        im1_a_fn, im2_a_fn, img1_adjusted_denormalized, img2_adjusted_denormalized, m1, m2 = perform_gamma_adjustment(data, im1, im2, grid_size, debug=False)
+        im1_a_fn, im2_a_fn, img1_adjusted_denormalized, img2_adjusted_denormalized, m1, m2 = perform_gamma_adjustment([data, im1, im2, grid_size, False])
     else:
         im1_a_fn, img1_adjusted_denormalized, m1 = data.load_processed_image(im1, im2)
         im2_a_fn, img2_adjusted_denormalized, m2 = data.load_processed_image(im1, im2)
@@ -1012,7 +1142,8 @@ def calculate_photometric_error_convex_hull(arg):
     else:
         ransac_count = 0
         polygon_area, polygon_area_percentage, total_triangles, histogram_counts, histogram_cumsum, histogram, bins, error_map, masked_image, warped_image = \
-            tesselate_matches(ransac_count, grid_size, data, im1_fn, im2_fn, img1, img2, matches, renormalized_p1_points, renormalized_p2_points, patchdataset, flags, ii, jj)
+            tesselate_matches(ransac_count, grid_size, data, im1, im2, img1, img2, matches, renormalized_p1_points, renormalized_p2_points, patchdataset, flags, ii, jj)
+            # tesselate_matches(ransac_count, grid_size, data, im1_fn, im2_fn, img1, img2, matches, renormalized_p1_points, renormalized_p2_points, patchdataset, flags, ii, jj)
         if False:
             for ransac_count in range(0,1):
                 # First iteration always has all matches
@@ -1053,9 +1184,9 @@ def calculate_photometric_error_convex_hull(arg):
             logger.info('Best error: {} rid: {}'.format(best_error, best_rid))
             end_t = timer()
 
-    return im1, im2, polygon_area, polygon_area_percentage, total_triangles, histogram_counts, histogram_cumsum, histogram, bins
+    # return im1, im2, polygon_area, polygon_area_percentage, total_triangles, histogram_counts, histogram_cumsum, histogram, bins
    # return im1, im2, best_polygon_area, best_polygon_area_percentage, best_total_triangles, best_histogram_counts, best_histogram_cumsum, best_histogram, best_bins
-    # return im1, im2
+    return im1, im2
 
 def calculate_photometric_errors(ctx):
     data = ctx.data
@@ -1130,22 +1261,22 @@ def calculate_photometric_errors(ctx):
         p.close()
 
     for r in p_results:
-        # if False:
-        im1, im2, polygon_area, polygon_area_percentage, total_triangles, histogram_counts, histogram_cumsum, histogram, bins = r
-        if polygon_area is None or polygon_area_percentage is None:
-            continue
 
-        element = {'polygon_area': polygon_area, 'polygon_area_percentage': polygon_area_percentage, \
-          'total_triangles': total_triangles, 'histogram': histogram, 'histogram-cumsum': histogram_cumsum, \
-          'histogram-counts': histogram_counts, 'bins': bins}
-        if im1 not in results:
-            results[im1] = {}
-        results[im1][im2] = element
+        # im1, im2, polygon_area, polygon_area_percentage, total_triangles, histogram_counts, histogram_cumsum, histogram, bins = r
+        # if polygon_area is None or polygon_area_percentage is None:
+        #     continue
 
-        # im1, im2 = r
+        # element = {'polygon_area': polygon_area, 'polygon_area_percentage': polygon_area_percentage, \
+        #   'total_triangles': total_triangles, 'histogram': histogram, 'histogram-cumsum': histogram_cumsum, \
+        #   'histogram-counts': histogram_counts, 'bins': bins}
         # if im1 not in results:
         #     results[im1] = {}
-        # results[im1][im2] = True
+        # results[im1][im2] = element
+
+        im1, im2 = r
+        if im1 not in results:
+            results[im1] = {}
+        results[im1][im2] = True
 
     data.save_photometric_errors(results)
 
@@ -1156,7 +1287,8 @@ def calculate_photometric_errors(ctx):
 #     else:
 #         cv2.imwrite(os.path.join(data.data_path,'images-resized-processed',im_fn), cv2.resize(img, (grid_size, grid_size)))
 
-def perform_gamma_adjustment(data, im1, im2, grid_size, debug=False):
+def perform_gamma_adjustment(arg):
+    data, im1, im2, grid_size, debug = arg
     im1_fn = os.path.basename(im1)
     im2_fn = os.path.basename(im2)
 
@@ -1194,6 +1326,27 @@ def perform_gamma_adjustment(data, im1, im2, grid_size, debug=False):
     # save_processed_image(data, im_fn='{}---{}-{}-unprocessed.png'.format(im2_fn, im1_fn, im2_fn), img=img2, grid_size=grid_size)
 
     return im1_a_fn, im2_a_fn, img1_adjusted_denormalized, img2_adjusted_denormalized, m1, m2
+
+def calculate_gamma_adjusted_images(ctx):
+    data = ctx.data
+    processes = ctx.data.config['processes']
+    args = []
+
+    grid_size = 224
+    for i,im1 in enumerate(sorted(data.images())):
+        for j,im2 in enumerate(sorted(data.images())):
+            if j <= i:
+                continue
+            args.append([data, im1, im2, grid_size, False])
+
+    p = Pool(processes)
+    p_results = []
+    if processes == 1:    
+        for arg in args:
+            p_results.append(perform_gamma_adjustment(arg))
+    else:
+        p_results = p.map(perform_gamma_adjustment, args)
+
 
 def output_image_keypoints(ctx):
     data = ctx.data

@@ -23,27 +23,30 @@ class Command:
         start = timer()
         features, colors = self.load_features(data)
         features_end = timer()
-
-        matches_pruned = self.load_pruned_matches(data, spl=2)
-        matches_distance_pruned = self.load_distance_pruned_matches(data)
-        matches_distance_w_seq_pruned = self.load_distance_w_seq_pruned_matches(data)
-        matches_all = self.load_all_matches(data)
-        matches_thresholded = self.load_thresholded_matches(data)
-        matches_pruned_thresholded = self.load_pruned_thresholded_matches(data, spl=2)
-        matches_distance_pruned_thresholded = self.load_distance_pruned_thresholded_matches(data)
-        matches_distance_w_seq_pruned_thresholded = self.load_distance_w_seq_pruned_thresholded_matches(data)
-        matches_all_weighted = self.load_all_weighted_matches(data)
-        matches_thresholded_weighted = self.load_thresholded_weighted_matches(data)
-        matches_pruned_thresholded_weighted = self.load_pruned_thresholded_weighted_matches(data, spl=2)
+        options = {
+            'robust_matches_threshold': 15
+        }
+        
+        matches_pruned = self.load_pruned_matches(data, spl=2, options=options)
+        matches_distance_pruned = self.load_distance_pruned_matches(data, options=options)
+        matches_distance_w_seq_pruned = self.load_distance_w_seq_pruned_matches(data, options=options)
+        matches_all = self.load_all_matches(data, options=options)
+        matches_thresholded = self.load_thresholded_matches(data, options=options)
+        matches_pruned_thresholded = self.load_pruned_thresholded_matches(data, spl=2, options=options)
+        matches_distance_pruned_thresholded = self.load_distance_pruned_thresholded_matches(data, options=options)
+        matches_distance_w_seq_pruned_thresholded = self.load_distance_w_seq_pruned_thresholded_matches(data, options=options)
+        matches_all_weighted = self.load_all_weighted_matches(data, options=options)
+        matches_thresholded_weighted = self.load_thresholded_weighted_matches(data, options=options)
+        matches_pruned_thresholded_weighted = self.load_pruned_thresholded_weighted_matches(data, spl=2, options=options)
         if not config.get('production_mode', True) and data.reconstruction_exists('reconstruction_gt.json'):
-            matches_gt_distance_pruned = self.load_gt_distance_pruned_matches(data)
-            matches_gt_distance_pruned_thresholded = self.load_gt_distance_pruned_thresholded_matches(data)
-            matches_gt = self.load_gt_matches(data)
-            matches_gt_pruned = self.load_gt_pruned_matches(data, spl=2)
-            matches_gt_selective = self.load_selective_gt_matches(data)
+            matches_gt_distance_pruned = self.load_gt_distance_pruned_matches(data, options=options)
+            matches_gt_distance_pruned_thresholded = self.load_gt_distance_pruned_thresholded_matches(data, options=options)
+            matches_gt = self.load_gt_matches(data, options=options)
+            matches_gt_pruned = self.load_gt_pruned_matches(data, spl=2, options=options)
+            matches_gt_selective = self.load_selective_gt_matches(data, options=options)
         elif data.reconstruction_exists('reconstruction_gt.json'):
-            matches_gt_distance_pruned = self.load_gt_distance_pruned_matches(data)
-            matches_gt_distance_pruned_thresholded = self.load_gt_distance_pruned_thresholded_matches(data)
+            matches_gt_distance_pruned = self.load_gt_distance_pruned_matches(data, options=options)
+            matches_gt_distance_pruned_thresholded = self.load_gt_distance_pruned_thresholded_matches(data, options=options)
 
         matches_end = timer()
         logger.info('Creating tracks graph using pruned rmatches')
@@ -148,7 +151,7 @@ class Command:
         return features, colors
 
     # Modified original
-    def load_matches(self, data):
+    def load_matches(self, data, options):
         matches = {}
         robust_matching_min_match = data.config['robust_matching_min_match']
         for im1 in data.images():
@@ -161,10 +164,10 @@ class Command:
                     matches[im1, im2] = im1_matches[im2]
         return matches
 
-    def load_pruned_matches(self, data, spl):
+    def load_pruned_matches(self, data, spl, options):
         matches = {}
         shortest_path_rmatches_threshold = data.config['shortest_path_rmatches_threshold']
-        im_matching_results = data.load_image_matching_results()
+        im_matching_results = data.load_image_matching_results(options['robust_matches_threshold'])
         for im1 in data.images():
             try:
                 im1_matches = data.load_matches(im1)
@@ -197,10 +200,10 @@ class Command:
             k = 10
         return k
 
-    def load_distance_pruned_matches(self, data):
+    def load_distance_pruned_matches(self, data, options):
         matches = {}
         closest_images_top_k = self.get_top_k(data, data.config['closest_images_top_k'])
-        im_matching_results = data.load_image_matching_results()
+        im_matching_results = data.load_image_matching_results(options['robust_matches_threshold'])
         im_closest_images = data.load_closest_images('rm-cost')
         for im1 in data.images():
             try:
@@ -216,10 +219,10 @@ class Command:
                     matches[im1, im2] = im1_matches[im2]
         return matches
 
-    def load_distance_w_seq_pruned_matches(self, data):
+    def load_distance_w_seq_pruned_matches(self, data, options):
         matches = {}
         closest_images_top_k = self.get_top_k(data, data.config['closest_images_top_k'])
-        im_matching_results = data.load_image_matching_results()
+        im_matching_results = data.load_image_matching_results(options['robust_matches_threshold'])
         seq_cost_factor = 1.0
         im_closest_images = data.load_closest_images('rm-seq-cost-{}'.format(seq_cost_factor))
         for im1 in data.images():
@@ -236,10 +239,10 @@ class Command:
                     matches[im1, im2] = im1_matches[im2]
         return matches
 
-    def load_gt_distance_pruned_matches(self, data):
+    def load_gt_distance_pruned_matches(self, data, options):
         matches = {}
         closest_images_top_k = self.get_top_k(data, data.config['closest_images_top_k'])
-        im_matching_results = data.load_image_matching_results()
+        im_matching_results = data.load_image_matching_results(options['robust_matches_threshold'])
         im_closest_images = data.load_closest_images('gt')
         for im1 in data.images():
             try:
@@ -255,7 +258,7 @@ class Command:
                     matches[im1, im2] = im1_matches[im2]
         return matches
 
-    def load_all_matches(self, data):
+    def load_all_matches(self, data, options):
         matches = {}
         for im1 in data.images():
             try:
@@ -266,11 +269,11 @@ class Command:
                 matches[im1, im2] = im1_matches[im2]
         return matches
 
-    def load_thresholded_matches(self, data):
+    def load_thresholded_matches(self, data, options):
         matches = {}
         image_matching_classifier_threshold = data.config.get('image_matching_classifier_threshold')
         image_matching_classifier_range = data.config.get('image_matching_classifier_range')
-        im_matching_results = data.load_image_matching_results()
+        im_matching_results = data.load_image_matching_results(options['robust_matches_threshold'])
         for im1 in data.images():
             try:
                 _, _, im1_matches = data.load_all_matches(im1)
@@ -290,11 +293,11 @@ class Command:
                         matches[im1, im2] = im1_matches[im2]
         return matches
 
-    def load_pruned_thresholded_matches(self, data, spl):
+    def load_pruned_thresholded_matches(self, data, spl, options):
         matches = {}
         shortest_path_rmatches_threshold = data.config['shortest_path_rmatches_threshold']
         image_matching_classifier_threshold = data.config.get('image_matching_classifier_threshold')
-        im_matching_results = data.load_image_matching_results()
+        im_matching_results = data.load_image_matching_results(options['robust_matches_threshold'])
         for im1 in data.images():
             try:
                 _, _, im1_matches = data.load_all_matches(im1)
@@ -313,11 +316,11 @@ class Command:
                     matches[im1, im2] = im1_matches[im2]
         return matches    
 
-    def load_distance_pruned_thresholded_matches(self, data):
+    def load_distance_pruned_thresholded_matches(self, data, options):
         matches = {}
         image_matching_classifier_threshold = data.config.get('image_matching_classifier_threshold')
         closest_images_top_k = self.get_top_k(data, data.config['closest_images_top_k'])
-        im_matching_results = data.load_image_matching_results()
+        im_matching_results = data.load_image_matching_results(options['robust_matches_threshold'])
         im_closest_images = data.load_closest_images('rm-cost')
         for im1 in data.images():
             try:
@@ -341,11 +344,11 @@ class Command:
                     matches[im1, im2] = im1_matches[im2]
         return matches
 
-    def load_distance_w_seq_pruned_thresholded_matches(self, data):
+    def load_distance_w_seq_pruned_thresholded_matches(self, data, options):
         matches = {}
         image_matching_classifier_threshold = data.config.get('image_matching_classifier_threshold')
         closest_images_top_k = self.get_top_k(data, data.config['closest_images_top_k'])
-        im_matching_results = data.load_image_matching_results()
+        im_matching_results = data.load_image_matching_results(options['robust_matches_threshold'])
         seq_cost_factor = 1.0
         im_closest_images = data.load_closest_images('rm-seq-cost-{}'.format(seq_cost_factor))
         for im1 in data.images():
@@ -370,11 +373,11 @@ class Command:
                     matches[im1, im2] = im1_matches[im2]
         return matches
 
-    def load_gt_distance_pruned_thresholded_matches(self, data):
+    def load_gt_distance_pruned_thresholded_matches(self, data, options):
         matches = {}
         image_matching_classifier_threshold = data.config.get('image_matching_classifier_threshold')
         closest_images_top_k = self.get_top_k(data, data.config['closest_images_top_k'])
-        im_matching_results = data.load_image_matching_results()
+        im_matching_results = data.load_image_matching_results(options['robust_matches_threshold'])
         im_closest_images = data.load_closest_images('gt')
         for im1 in data.images():
             try:
@@ -398,7 +401,7 @@ class Command:
                     matches[im1, im2] = im1_matches[im2]
         return matches
 
-    def load_all_weighted_matches(self, data):
+    def load_all_weighted_matches(self, data, options):
         matches = {}
         for im1 in data.images():
             try:
@@ -409,10 +412,10 @@ class Command:
                 matches[im1, im2] = im1_matches[im2]
         return matches
 
-    def load_thresholded_weighted_matches(self, data):
+    def load_thresholded_weighted_matches(self, data, options):
         matches = {}
         image_matching_classifier_threshold = data.config.get('image_matching_classifier_threshold')
-        im_matching_results = data.load_image_matching_results()
+        im_matching_results = data.load_image_matching_results(options['robust_matches_threshold'])
         for im1 in data.images():
             try:
                 im1_matches = data.load_weighted_matches(im1)
@@ -427,12 +430,12 @@ class Command:
                     matches[im1, im2] = im1_matches[im2]
         return matches
 
-    def load_pruned_thresholded_weighted_matches(self, data, spl):
+    def load_pruned_thresholded_weighted_matches(self, data, spl, options):
         # Pruning refers to shortest path length (=2)
         matches = {}
         shortest_path_rmatches_threshold = data.config['shortest_path_rmatches_threshold']
         image_matching_classifier_threshold = data.config.get('image_matching_classifier_threshold')
-        im_matching_results = data.load_image_matching_results()
+        im_matching_results = data.load_image_matching_results(options['robust_matches_threshold'])
         for im1 in data.images():
             try:
                 im1_matches = data.load_weighted_matches(im1)
@@ -451,7 +454,7 @@ class Command:
                     matches[im1, im2] = im1_matches[im2]
         return matches
 
-    def load_gt_matches(self, data):
+    def load_gt_matches(self, data, options):
         matches = {}
         image_matching_classifier_range = data.config.get('image_matching_classifier_range')
         im_matching_results = data.load_groundtruth_image_matching_results(image_matching_classifier_range)
@@ -469,7 +472,7 @@ class Command:
                     matches[im1, im2] = im1_matches[im2]
         return matches
 
-    def load_selective_gt_matches(self, data):
+    def load_selective_gt_matches(self, data, options):
         matches = {}
         image_matching_classifier_range = data.config.get('image_matching_classifier_range')
         gt_matches_selective_threshold = data.config.get('gt_matches_selective_threshold')
@@ -494,7 +497,7 @@ class Command:
                         matches[im1, im2] = im1_all_matches[im2]
         return matches
 
-    def load_gt_pruned_matches(self, data, spl):
+    def load_gt_pruned_matches(self, data, spl, options):
         matches = {}
         shortest_path_rmatches_threshold = data.config['shortest_path_rmatches_threshold']
         image_matching_classifier_range = data.config.get('image_matching_classifier_range')
