@@ -1068,7 +1068,8 @@ def mkdir_p(path):
     except os.error as exc:
         pass
 
-def get_resized_image(data, im, grid_size):
+def get_resized_image(arg):
+    data, im, grid_size, debug = arg
     if not data.resized_image_exists(im):
         image_original = cv2.imread(os.path.join(data.data_path,'images',im),cv2.IMREAD_COLOR)
         data.save_resized_image(im_fn=im, image=image_original, grid_size=grid_size)
@@ -1292,8 +1293,8 @@ def perform_gamma_adjustment(arg):
     im1_fn = os.path.basename(im1)
     im2_fn = os.path.basename(im2)
 
-    img1, _, m1 = get_resized_image(data, im1, grid_size)
-    img2, _, m2 = get_resized_image(data, im2, grid_size)
+    img1, _, m1 = get_resized_image([data, im1, grid_size, False])
+    img2, _, m2 = get_resized_image([data, im2, grid_size, False])
 
     img1_normalized = cv2.normalize(img1, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
     img2_normalized = cv2.normalize(img2, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
@@ -1354,7 +1355,7 @@ def calculate_resized_images(ctx):
 
     grid_size = 224
     for i,im in enumerate(sorted(data.images())):
-        args.append([data, im1, grid_size, False])
+        args.append([data, im, grid_size, False])
 
     p = Pool(processes)
     p_results = []
