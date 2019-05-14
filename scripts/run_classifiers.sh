@@ -101,7 +101,7 @@ declare -A run6=(
 	)
 
 # all_runs=(run1 run2 run3 run4 run5 run6)
-all_runs=(run6)
+all_runs=(run1)
 
 for run_name in "${all_runs[@]}"; do
 	echo "**********************************************************************************";

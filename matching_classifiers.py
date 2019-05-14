@@ -1338,7 +1338,7 @@ def main(argv):
     options = {
         'feature_matching_data_folder': 'data/feature-matching-classifiers-results',
         'image_matching_data_folder': 'data/image-matching-classifiers-results',
-        'image_matching_gt_threshold': 20,
+        'image_matching_gt_threshold': 15,
         'use_all_training_data': True if parser_options.use_all_training_data == 'yes' else False,
         'train_on_val': True if parser_options.train_on_val == 'yes' else False,
         # 'classifier': 'BDT',
