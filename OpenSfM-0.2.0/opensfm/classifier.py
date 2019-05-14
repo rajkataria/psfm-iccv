@@ -1347,6 +1347,23 @@ def calculate_gamma_adjusted_images(ctx):
     else:
         p_results = p.map(perform_gamma_adjustment, args)
 
+def calculate_resized_images(ctx):
+    data = ctx.data
+    processes = ctx.data.config['processes']
+    args = []
+
+    grid_size = 224
+    for i,im in enumerate(sorted(data.images())):
+        args.append([data, im1, grid_size, False])
+
+    p = Pool(processes)
+    p_results = []
+    if processes == 1:    
+        for arg in args:
+            p_results.append(get_resized_image(arg))
+    else:
+        p_results = p.map(get_resized_image, args)
+
 
 def output_image_keypoints(ctx):
     data = ctx.data

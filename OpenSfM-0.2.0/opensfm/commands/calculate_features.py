@@ -58,6 +58,7 @@ class Command:
 
         _, num_pairs = classifier.calculate_transformations(ctx)
         classifier.create_feature_matching_dataset(ctx)
+        classifier.calculate_resized_images(ctx)
         classifier.calculate_spatial_entropies(ctx)
         classifier.calculate_gamma_adjusted_images(ctx)
         classifier.calculate_photometric_errors(ctx)
