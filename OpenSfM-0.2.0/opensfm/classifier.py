@@ -2561,7 +2561,7 @@ def infer_cleaner_positions(ctx):
         # for i in range(0, int(math.floor(0.5*len(images)))): # remove maximum 50% of images
         # for i in range(0, int(math.floor(0.2*len(images)))): # remove maximum 20% of images
         # for i in range(0, int(math.floor(0.1*len(images)))): # remove maximum 20% of images
-        for i in range(0, 1): # remove maximum 50% of images
+        for i in range(0, 0): # remove maximum 50% of images
             # r, c = np.where(distances_baseline_pruned > 100.0/1.0)
             r, c = np.where(distances_baseline_pruned > 1.0/15.0)
             # r, c = np.where(distances_baseline_pruned > 1.0/100.0)
