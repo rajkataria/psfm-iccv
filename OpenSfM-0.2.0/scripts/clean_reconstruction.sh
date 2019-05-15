@@ -1,6 +1,7 @@
 dataset=$1
 
 rm -R $dataset/all_matches
+rm -R $dataset/rmatches_secondary
 rm -R $dataset/weighted_matches
 rm -R $dataset/camera_models.json
 rm -R $dataset/classifier_dataset
