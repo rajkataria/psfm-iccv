@@ -174,19 +174,20 @@ def get_gt_results(data, options):
         fns = []
         y_gt = []
         y = []
+        num_rmatches = []
         for im1 in image_matching_results:
             for im2 in image_matching_results[im1]:
                 fns.append([im1,im2])
                 y.append(image_matching_results[im1][im2]['score'])
                 ri = np.where((_fns[:,0] == im1) & (_fns[:,1] == im2) | (_fns[:,1] == im1) & (_fns[:,0] == im2))
                 y_gt.append(_labels[ri])
+                num_rmatches.append(_num_rmatches[ri])
 
         auc, _ = classifier.calculate_dataset_auc(np.array(y), np.array(y_gt), debug=False)
         _, _, f_auc, _ = classifier.calculate_per_image_mean_auc(np.array(fns), np.array(y), np.array(y_gt), debug=False)
 
-        baseline_auc, _ = classifier.calculate_dataset_auc(np.array(y), np.array(y_gt), debug=False)
-        _, _, baseline_f_auc, _ = classifier.calculate_per_image_mean_auc(np.array(fns), np.array(y), np.array(y_gt), debug=False)
-
+        baseline_auc, _ = classifier.calculate_dataset_auc(np.array(num_rmatches), np.array(y_gt), debug=False)
+        _, _, baseline_f_auc, _ = classifier.calculate_per_image_mean_auc(np.array(fns), np.array(num_rmatches), np.array(y_gt), debug=False)
     else:
         baseline_auc, baseline_f_auc, auc, f_auc = None, None, None, None
 

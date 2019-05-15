@@ -117,6 +117,8 @@ class ResNet(nn.Module):
             input_dimensions += 2
         if opts['convnet_use_non_rmatches_map']:
             input_dimensions += 1
+        if opts['convnet_use_rmatches_secondary_motion_map']:
+            input_dimensions += 1
         if opts['convnet_use_images']:
             input_dimensions += 3
         if opts['convnet_use_feature_match_map']:
