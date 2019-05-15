@@ -12,11 +12,13 @@ import random
 import re
 import scipy
 import opensfm 
+import sklearn
 import sys
 import matplotlib.pyplot as plt
 
 from opensfm import features, multiview
 from opensfm import context
+from opensfm import matching
 from opensfm import types
 # from opensfm.commands import formulate_graphs
 from multiprocessing import Pool
@@ -43,7 +45,7 @@ def calculate_dataset_auc(y, y_gt, debug):
 
 def calculate_per_image_mean_auc(fns, y, y_gt, debug):
 # def calculate_per_image_mean_auc(dsets, fns, y, y_gt):
-    a_fns, a_precision_recall_auc = [], [], []
+    a_fns, a_precision_recall_auc = [], []
     # a_dsets, a_fns, a_precision_recall_auc = [], [], []
     # for dset in sorted(list(set(dsets))):
         # ri = np.where(dsets == dset)[0]
@@ -429,7 +431,7 @@ def calculate_transformations(ctx):
     return transformations, num_pairs
 
 def calculate_image_spatial_entropies(arg):
-    data, cached_p, im1, im1_all_robust_matches, im1_all_matches = arg
+    data, grid_size, cached_p, im1, im1_all_robust_matches, im1_all_matches = arg
     
     entropies = {}
     p1 = cached_p[im1]
@@ -444,8 +446,8 @@ def calculate_image_spatial_entropies(arg):
         if len(rmatches) == 0:
             p1_non_rmatches = p1
             p2_non_rmatches = p2
-            entropy_non_rmatches_im1_224, non_rmatches_map_im1 = calculate_spatial_entropy(p1_non_rmatches, 224)
-            entropy_non_rmatches_im2_224, non_rmatches_map_im2 = calculate_spatial_entropy(p2_non_rmatches, 224)
+            entropy_non_rmatches_im1_224, non_rmatches_map_im1 = calculate_spatial_entropy(p1_non_rmatches, grid_size)
+            entropy_non_rmatches_im2_224, non_rmatches_map_im2 = calculate_spatial_entropy(p2_non_rmatches, grid_size)
             data.save_match_map('non_rmatches---{}-{}'.format(im1,im2), non_rmatches_map_im1)
             data.save_match_map('non_rmatches---{}-{}'.format(im2,im1), non_rmatches_map_im2)
             continue
@@ -463,12 +465,12 @@ def calculate_image_spatial_entropies(arg):
         
         p1_matches = p1[matches[:, 0].astype(int)]
         p2_matches = p2[matches[:, 1].astype(int)]
-        entropy_rmatches_im1_224, rmatches_map_im1 = calculate_spatial_entropy(p1_rmatches, 224)
-        entropy_rmatches_im2_224, rmatches_map_im2 = calculate_spatial_entropy(p2_rmatches, 224)
-        entropy_matches_im1_224, matches_map_im1 = calculate_spatial_entropy(p1_matches, 224)
-        entropy_matches_im2_224, matches_map_im2 = calculate_spatial_entropy(p2_matches, 224)
-        entropy_non_rmatches_im1_224, non_rmatches_map_im1 = calculate_spatial_entropy(p1_non_rmatches, 224)
-        entropy_non_rmatches_im2_224, non_rmatches_map_im2 = calculate_spatial_entropy(p2_non_rmatches, 224)
+        entropy_rmatches_im1_224, rmatches_map_im1 = calculate_spatial_entropy(p1_rmatches, grid_size)
+        entropy_rmatches_im2_224, rmatches_map_im2 = calculate_spatial_entropy(p2_rmatches, grid_size)
+        entropy_matches_im1_224, matches_map_im1 = calculate_spatial_entropy(p1_matches, grid_size)
+        entropy_matches_im2_224, matches_map_im2 = calculate_spatial_entropy(p2_matches, grid_size)
+        entropy_non_rmatches_im1_224, non_rmatches_map_im1 = calculate_spatial_entropy(p1_non_rmatches, grid_size)
+        entropy_non_rmatches_im2_224, non_rmatches_map_im2 = calculate_spatial_entropy(p2_non_rmatches, grid_size)
 
         data.save_match_map('rmatches---{}-{}'.format(im1,im2), rmatches_map_im1)
         data.save_match_map('rmatches---{}-{}'.format(im2,im1), rmatches_map_im2)
@@ -493,6 +495,7 @@ def calculate_spatial_entropies(ctx):
     images = data.images()
     # exifs = ctx.exifs
     config = data.config
+    grid_size = ctx.grid_size
     processes = config['processes']
     cached_p = {}
     # entropies = {}
@@ -509,7 +512,7 @@ def calculate_spatial_entropies(ctx):
     logger.info('Calculating spatial entropies...')
     for im1 in images:
         im1_all_matches, im1_valid_rmatches, im1_all_robust_matches = data.load_all_matches(im1)
-        args.append([data, cached_p, im1, im1_all_robust_matches, im1_all_matches])
+        args.append([data, grid_size, cached_p, im1, im1_all_robust_matches, im1_all_matches])
     
     p_results = []
     results = {}
@@ -712,10 +715,10 @@ def sample_points_polygon(denormalized_points, v, n):
 
   return polygon, points
 
-def warp_image(data, Ms, triangle_pts_img1, triangle_pts_img2, img1, img2, im1, im2, flags, colors, grid_size, save_individual_triangles=False):
+def warp_image(data, Ms, triangle_pts_img1, triangle_pts_img2, img1, img2, im1, im2, flags, colors, grid_size):
     # img2_o_final = -255 * np.ones(img1.shape, dtype=img1.dtype)
     imgs_per_triangle = []
-
+    use_gamma_adjusted_images = flags['use_gamma_adjusted_images']
     for s, _ in enumerate(triangle_pts_img1):
         pts_img1 = triangle_pts_img1[s].reshape((1,3,2))
         pts_img2 = triangle_pts_img2[s].reshape((1,3,2))
@@ -742,92 +745,80 @@ def warp_image(data, Ms, triangle_pts_img1, triangle_pts_img2, img1, img2, im1, 
         img2_o[r2[1]:r2[1]+r2[3], r2[0]:r2[0]+r2[2]] = img2_o[r2[1]:r2[1]+r2[3], r2[0]:r2[0]+r2[2]] + img2_cropped
 
         imgs_per_triangle.append(img2_o)
-        # masks_per_triangle.append(mask_o)
-
-        # img2_o_final[r2[1]:r2[1]+r2[3], r2[0]:r2[0]+r2[2]] = img2_o_final[r2[1]:r2[1]+r2[3], r2[0]:r2[0]+r2[2]] * ( (1.0, 1.0, 1.0) - mask )
-        # img2_o_final[r2[1]:r2[1]+r2[3], r2[0]:r2[0]+r2[2]] = img2_o_final[r2[1]:r2[1]+r2[3], r2[0]:r2[0]+r2[2]] + img2_cropped
-
         if flags['draw_points']:
             for i, _ in enumerate(pts_img1[0]):
                 color_index = random.randint(0,len(colors)-1)
                 cv2.circle(img1, (int(pts_img1[0][i][0]), int(pts_img1[0][i][1])), 2, colors[color_index], 2)
                 cv2.circle(img2, (int(pts_img2[0][i][0]), int(pts_img2[0][i][1])), 2, colors[color_index], 2)
     
-    triangle_ids, normalized_error_per_triangle, aggregated_wi, aggregated_m, aggregated_em, wi_cache, m_cache, em_cache = \
-        calculate_individual_errors_and_aggregate_triangles(data, img1, img2, np.array(imgs_per_triangle).copy(), grid_size, \
-            outlier_indices=[], cached_wi=[], cached_m=[], cached_em=[])
+    # s_time_calculate_individual_errors_and_aggregate_triangles = timer()
+    triangle_ids, normalized_error_per_triangle, aggregated_wi, aggregated_m, aggregated_em = \
+        calculate_individual_errors_and_aggregate_triangles(data, img1, img2, np.array(imgs_per_triangle).copy(), grid_size, outlier_indices=[])
+    # logger.info('\t\t\t\tcalculate_individual_errors_and_aggregate_triangles 1: {} - {}: Time: {}'.format(os.path.basename(im1), os.path.basename(im2), timer() - s_time_calculate_individual_errors_and_aggregate_triangles))
 
-    normalized_error_per_triangle = np.array(normalized_error_per_triangle)
-    order = np.argsort(-normalized_error_per_triangle)
-    outliers, outlier_indices = detect_outliers(normalized_error_per_triangle)
-    # print 'here'
-    # print wi_cache
-    _, _, aggregated_wi_filtered, aggregated_m_filtered, aggregated_em_filtered, _, _, _ = \
-        calculate_individual_errors_and_aggregate_triangles(data, img1, img2, np.array(imgs_per_triangle).copy(), grid_size, \
-        outlier_indices=outlier_indices, cached_wi=wi_cache, cached_m=m_cache, cached_em=em_cache)
+    if False:
+        normalized_error_per_triangle = np.array(normalized_error_per_triangle)
+        order = np.argsort(-normalized_error_per_triangle)
+        outliers, outlier_indices = detect_outliers(normalized_error_per_triangle)
 
+        s_time_calculate_individual_errors_and_aggregate_triangles = timer()
+        _, _, aggregated_wi_filtered, aggregated_m_filtered, aggregated_em_filtered = \
+            calculate_individual_errors_and_aggregate_triangles(data, img1, img2, np.array(imgs_per_triangle).copy(), grid_size, outlier_indices=outlier_indices)
+        logger.info('\t\t\t\tcalculate_individual_errors_and_aggregate_triangles 2: {} - {}: Time: {}'.format(os.path.basename(im1), os.path.basename(im2), timer() - s_time_calculate_individual_errors_and_aggregate_triangles))
 
-    data.save_photometric_errors_map('{}-{}-a-wi-unfiltered'.format(os.path.basename(im1), os.path.basename(im2)), aggregated_wi, size=grid_size)
-    data.save_photometric_errors_map('{}-{}-a-m-unfiltered'.format(os.path.basename(im1), os.path.basename(im2)), aggregated_m, size=grid_size)
-    data.save_photometric_errors_map('{}-{}-a-em-unfiltered'.format(os.path.basename(im1), os.path.basename(im2)), aggregated_em, size=grid_size)
+    if use_gamma_adjusted_images:
+        data.save_photometric_errors_map('{}-{}-a-wi-unfiltered-ga'.format(os.path.basename(im1), os.path.basename(im2)), aggregated_wi, size=grid_size)
+        data.save_photometric_errors_map('{}-{}-a-m-unfiltered-ga'.format(os.path.basename(im1), os.path.basename(im2)), aggregated_m, size=grid_size)
+        data.save_photometric_errors_map('{}-{}-a-em-unfiltered-ga'.format(os.path.basename(im1), os.path.basename(im2)), aggregated_em, size=grid_size)
 
-    data.save_photometric_errors_map('{}-{}-a-wi-filtered'.format(os.path.basename(im1), os.path.basename(im2)), aggregated_wi_filtered, size=grid_size)
-    data.save_photometric_errors_map('{}-{}-a-m-filtered'.format(os.path.basename(im1), os.path.basename(im2)), aggregated_m_filtered, size=grid_size)
-    data.save_photometric_errors_map('{}-{}-a-em-filtered'.format(os.path.basename(im1), os.path.basename(im2)), aggregated_em_filtered, size=grid_size)
+        # data.save_photometric_errors_map('{}-{}-a-wi-filtered-ga'.format(os.path.basename(im1), os.path.basename(im2)), aggregated_wi_filtered, size=grid_size)
+        # data.save_photometric_errors_map('{}-{}-a-m-filtered-ga'.format(os.path.basename(im1), os.path.basename(im2)), aggregated_m_filtered, size=grid_size)
+        # data.save_photometric_errors_map('{}-{}-a-em-filtered-ga'.format(os.path.basename(im1), os.path.basename(im2)), aggregated_em_filtered, size=grid_size)
+    else:
+        data.save_photometric_errors_map('{}-{}-a-wi-unfiltered'.format(os.path.basename(im1), os.path.basename(im2)), aggregated_wi, size=grid_size)
+        data.save_photometric_errors_map('{}-{}-a-m-unfiltered'.format(os.path.basename(im1), os.path.basename(im2)), aggregated_m, size=grid_size)
+        data.save_photometric_errors_map('{}-{}-a-em-unfiltered'.format(os.path.basename(im1), os.path.basename(im2)), aggregated_em, size=grid_size)
 
-    # return img2_o_final, aggregated_m
-    return aggregated_wi_filtered, aggregated_m_filtered
+        data.save_photometric_errors_map('{}-{}-a-wi-filtered'.format(os.path.basename(im1), os.path.basename(im2)), aggregated_wi_filtered, size=grid_size)
+        data.save_photometric_errors_map('{}-{}-a-m-filtered'.format(os.path.basename(im1), os.path.basename(im2)), aggregated_m_filtered, size=grid_size)
+        data.save_photometric_errors_map('{}-{}-a-em-filtered'.format(os.path.basename(im1), os.path.basename(im2)), aggregated_em_filtered, size=grid_size)
 
-def calculate_individual_errors_and_aggregate_triangles(data, img1, img2, imgs_per_triangle, grid_size, outlier_indices=[], cached_wi=[], cached_m=[], cached_em=[]):
+def calculate_individual_errors_and_aggregate_triangles(data, img1, img2, imgs_per_triangle, grid_size, outlier_indices=[]):
     triangle_ids = []
     normalized_error_per_triangle = []
-    wi_cache = []
-    m_cache = []
-    em_cache = []
     aggregated_wi = np.zeros(img1.shape, dtype=img1.dtype)
     aggregated_m = np.zeros((grid_size, grid_size), dtype=img1.dtype)
     aggregated_em = np.zeros((grid_size, grid_size), dtype=img1.dtype)
 
-    # print imgs_per_triangle
+    s_time_error_maps = 0
     for count, _ in enumerate(imgs_per_triangle):
         if count in outlier_indices:
             continue
-        if len(cached_wi) > 0 and len(cached_m) > 0 and len(cached_em) > 0:
-            rr,rc,rd = np.where(cached_wi[count] >= 0)
-            aggregated_wi[cached_wi[count] > 0] = cached_wi[count][cached_wi[count] > 0].astype(np.uint8)
-            aggregated_m[cached_m[count] > 0] = cached_m[count][cached_m[count] > 0].astype(np.uint8)
-            aggregated_em[rr,rc] = cached_em[count][rr,rc]
-        else:
-            wi = imgs_per_triangle[count]
-            m = np.zeros((grid_size, grid_size), dtype=img1.dtype)
-            rr,rc,rd = np.where(wi >= 0)
-            rr_,rc_,rd_ = np.where(wi < 0)
-            
-            m[rr,rc] = 255
-            m[rr_,rc_] = 0
-            
-            em = calculate_error_map(img2, wi)
+        wi = imgs_per_triangle[count]
+        m = np.zeros((grid_size, grid_size), dtype=img1.dtype)
+        rr,rc,rd = np.where(wi >= 0)
+        rr_,rc_,rd_ = np.where(wi < 0)
+        
+        m[rr,rc] = 255
+        m[rr_,rc_] = 0
+        
+        # s_time_error_map = timer()
+        em = calculate_error_map(img2, wi, range=(rr,rc,rd))
+        # s_time_error_maps += timer() - s_time_error_map
 
-            aggregated_wi[wi > 0] = wi[wi > 0].astype(np.uint8)
-            aggregated_m[m > 0] = m[m > 0].astype(np.uint8)
-            aggregated_em[rr,rc] = em[rr,rc]
-            wi_cache.append(wi)
-            m_cache.append(m)
-            em_cache.append(em)
-            wi[wi < 0] = 0
-            
-            triangle_ids.append(count)
-            normalized_error = 1.0*np.sum(em)/len(rr)
-            normalized_error_per_triangle.append(normalized_error)
-            # if count < 0:
-            #     data.save_photometric_errors_map('{}-{}-t-{}-w'.format(os.path.basename(im1), os.path.basename(im2), count), wi, size=224)
-            #     data.save_photometric_errors_map('{}-{}-t-{}-m'.format(os.path.basename(im1), os.path.basename(im2), count), m, size=224)
-            #     data.save_photometric_errors_map('{}-{}-t-{}-em'.format(os.path.basename(im1), os.path.basename(im2), count), em, size=224)
-
-    return triangle_ids, normalized_error_per_triangle, aggregated_wi, aggregated_m, aggregated_em, wi_cache, m_cache, em_cache
+        aggregated_wi[wi > 0] = wi[wi > 0].astype(np.uint8)
+        aggregated_m[m > 0] = m[m > 0].astype(np.uint8)
+        aggregated_em[m > 0] = em[m > 0]
+        wi[wi < 0] = 0
+        
+        triangle_ids.append(count)
+        normalized_error = 1.0*np.sum(em)/len(rr)
+        normalized_error_per_triangle.append(normalized_error)
+    # logger.info('\t\t\t\terror_maps: Time: {}'.format(s_time_error_maps))
+    return triangle_ids, normalized_error_per_triangle, aggregated_wi, aggregated_m, aggregated_em
 
 def detect_outliers(data_pts):
-    threshold = 2
+    threshold = 1.5
     outliers = []
     outlier_indices = []
     # mean = np.mean(data_pts)
@@ -905,15 +896,13 @@ def get_photometric_error(f_img1, f_img2, sampled_points_img1, img1_original, sa
     errors.append(error)
   return errors
 
-def tesselate_matches(ransac_count, grid_size, data, im1, im2, img1, img2, matches, p1, p2, patchdataset, flags, ii, jj):
+def tesselate_matches(grid_size, data, im1, im2, img1, img2, matches, p1, p2, patchdataset, flags, ii, jj):
     n, outlier_threshold, debug, error_threshold, num_clusters, sample_matches = [flags['num_samples'], flags['outlier_threshold_percentage'], \
         flags['debug'], flags['lab_error_threshold'], flags['kmeans_num_clusters'], flags['use_kmeans']]
-
     Ms = []
     triangle_pts_img1 = []
     triangle_pts_img2 = []
     colors = [(int(random.random()*255), int(random.random()*255), int(random.random()*255)) for i in xrange(0,100)]
-    t_start_img_loading = timer()
 
     img1_o = img1
     img2_o = img2
@@ -923,113 +912,59 @@ def tesselate_matches(ransac_count, grid_size, data, im1, im2, img1, img2, match
     img2_original = img2
     im1_fn = os.path.basename(im1)
     im2_fn = os.path.basename(im2)
-    if False and data.photometric_error_triangle_transformations_exists(im1_fn,im2_fn):
-        logger.info('Loading cached triangles')
-        triangles_data = data.load_photometric_error_triangle_transformations(im1_fn, im2_fn)
-        Ms = triangles_data['Ms']
-        triangle_pts_img1 = triangles_data['triangle_pts_img1']
-        triangle_pts_img2 = triangles_data['triangle_pts_img2']
-    else:
-        p1_points = p1[ matches[:,0].astype(np.int) ]
-        p2_points = p2[ matches[:,1].astype(np.int) ]
-        denormalized_p1_points = features.denormalized_image_coordinates(p1_points, grid_size, grid_size)
-        denormalized_p2_points = features.denormalized_image_coordinates(p2_points, grid_size, grid_size)
 
-        # hull_img1, hull_img2 = calculate_convex_hull(data, img1_o, denormalized_p1_points, img2_o, denormalized_p2_points, flags)
-        # if hull_img1 is None or hull_img2 is None:
-        #     return None, None, 0, np.array([]), np.array([]), np.array([]), np.array([]), None, None, None
+    p1_points = p1[ matches[:,0].astype(np.int) ]
+    p2_points = p2[ matches[:,1].astype(np.int) ]
+    denormalized_p1_points = features.denormalized_image_coordinates(p1_points, grid_size, grid_size)
+    denormalized_p2_points = features.denormalized_image_coordinates(p2_points, grid_size, grid_size)
 
-        tesselation_vertices_im1 = denormalized_p1_points[:,0:2]
-        tesselation_vertices_im2 = denormalized_p2_points[:,0:2]
+    tesselation_vertices_im1 = denormalized_p1_points[:,0:2]
+    tesselation_vertices_im2 = denormalized_p2_points[:,0:2]
 
-        if debug and flags['draw_matches']:
-            for i, cc in enumerate(tesselation_vertices_im1):
-                color_index = random.randint(0,len(colors)-1)
-                cv2.circle(img1_o, (int(cc[0]), int(cc[1])), 5, colors[color_index], -1)
-                cv2.circle(img2_o, (int(tesselation_vertices_im2[i, 0]), int(tesselation_vertices_im2[i, 1])), 5, colors[color_index], -1)
-
-        try:
-            triangles_img1 = Delaunay(tesselation_vertices_im1, qhull_options='Pp Qt', incremental=True)
-        except:
-            return None, None, 0, np.array([]), np.array([]), np.array([]), np.array([]), None, None, None
-
-        # x = np.linspace(0, grid_size - 1, grid_size).astype(int)
-        # y = np.linspace(0, grid_size - 1, grid_size).astype(int)
-
-        # z_img1 = [None] * 3
-        # z_img2 = [None] * 3
-        # f_img1 = [None] * 3
-        # f_img2 = [None] * 3
-        # for i in xrange(0,3):
-        #     z_img1[i] = img1_original[0:grid_size,0:grid_size,i]
-        #     z_img2[i] = img2_original[0:grid_size,0:grid_size,i]
-        #     f_img1[i] = interpolate.interp2d(x, y, z_img1[i], kind='cubic')
-        #     f_img2[i] = interpolate.interp2d(x, y, z_img2[i], kind='cubic')
-
-        t_start_triangle_loop = timer()
-        for s, simplex in enumerate(triangles_img1.simplices):
+    if debug and flags['draw_matches']:
+        for i, cc in enumerate(tesselation_vertices_im1):
             color_index = random.randint(0,len(colors)-1)
-            pts_img1_ = np.array([ 
-                tesselation_vertices_im1[simplex[0], 0:2], \
-                tesselation_vertices_im1[simplex[1], 0:2], \
-                tesselation_vertices_im1[simplex[2], 0:2], \
-                ])
-            pts_img2_ = np.array([ 
-                tesselation_vertices_im2[simplex[0], 0:2], \
-                tesselation_vertices_im2[simplex[1], 0:2], \
-                tesselation_vertices_im2[simplex[2], 0:2], \
+            cv2.circle(img1_o, (int(cc[0]), int(cc[1])), 5, colors[color_index], -1)
+            cv2.circle(img2_o, (int(tesselation_vertices_im2[i, 0]), int(tesselation_vertices_im2[i, 1])), 5, colors[color_index], -1)
+
+    try:
+        triangles_img1 = Delaunay(tesselation_vertices_im1, qhull_options='Pp Qt', incremental=True)
+    except:
+        return None, None, 0, np.array([]), np.array([]), np.array([]), np.array([]), None, None, None
+
+    for s, simplex in enumerate(triangles_img1.simplices):
+        color_index = random.randint(0,len(colors)-1)
+        pts_img1_ = np.array([ 
+            tesselation_vertices_im1[simplex[0], 0:2], \
+            tesselation_vertices_im1[simplex[1], 0:2], \
+            tesselation_vertices_im1[simplex[2], 0:2], \
             ])
-            pts_img1 = pts_img1_.astype(np.int32).reshape((-1,1,2))
-            pts_img2 = pts_img2_.astype(np.int32).reshape((-1,1,2))
+        pts_img2_ = np.array([ 
+            tesselation_vertices_im2[simplex[0], 0:2], \
+            tesselation_vertices_im2[simplex[1], 0:2], \
+            tesselation_vertices_im2[simplex[2], 0:2], \
+        ])
+        pts_img1 = pts_img1_.astype(np.int32).reshape((-1,1,2))
+        pts_img2 = pts_img2_.astype(np.int32).reshape((-1,1,2))
 
-            M = cv2.getAffineTransform(np.float32(pts_img1_),np.float32(pts_img2_))
-            triangle_pts_img1.append(pts_img1)
-            triangle_pts_img2.append(pts_img2)
+        M = cv2.getAffineTransform(np.float32(pts_img1_),np.float32(pts_img2_))
+        triangle_pts_img1.append(pts_img1)
+        triangle_pts_img2.append(pts_img2)
 
-            Ms.append(M)
+        Ms.append(M)
 
-            if debug and flags['draw_triangles']:
-                cv2.polylines(img1_o,[pts_img1],True,colors[color_index])
-                cv2.polylines(img2_o,[pts_img2],True,colors[color_index])
-        Ms = np.array(Ms)
-        if False:
-            triangle_pts_img1 = np.array(triangle_pts_img1)
-            triangle_pts_img2 = np.array(triangle_pts_img2)
-            triangles_data = {
-                'im1': im1,
-                'im2': im2,
-                'Ms': Ms,
-                'triangle_pts_img1': triangle_pts_img1,
-                'triangle_pts_img2': triangle_pts_img2
-            }
+        if debug and flags['draw_triangles']:
+            cv2.polylines(img1_o,[pts_img1],True,colors[color_index])
+            cv2.polylines(img2_o,[pts_img2],True,colors[color_index])
+    Ms = np.array(Ms)
 
-            data.save_photometric_error_triangle_transformations(im1_fn, im2_fn, triangles_data)
-        if debug:
-            imgs = np.concatenate((img1_o,img2_o),axis=1)
-            data.save_photometric_errors_map('{}-{}-d-{}-{}'.format(os.path.basename(im1), os.path.basename(im2), os.path.basename(im1), ransac_count), img1_o, size=grid_size)
-            data.save_photometric_errors_map('{}-{}-d-{}-{}'.format(os.path.basename(im1), os.path.basename(im2), os.path.basename(im2), ransac_count), img2_o, size=grid_size)
+    if debug:
+        imgs = np.concatenate((img1_o,img2_o),axis=1)
+        data.save_photometric_errors_map('{}-{}-d-{}'.format(os.path.basename(im1), os.path.basename(im2), os.path.basename(im1)), img1_o, size=grid_size)
+        data.save_photometric_errors_map('{}-{}-d-{}'.format(os.path.basename(im1), os.path.basename(im2), os.path.basename(im2)), img2_o, size=grid_size)
 
-    warped_image, masked_image = warp_image(data, Ms, triangle_pts_img1, triangle_pts_img2, img1_w, img2_w, im1, im2, flags, colors, grid_size, save_individual_triangles=True)
-    # masked_image = warp_image(data, Ms, triangle_pts_img1, triangle_pts_img2, 255*np.ones(img1_w.shape), np.zeros(img2_w.shape), im1, im2, flags, colors, grid_size, save_individual_triangles=False)
-
-    # try:
-    #     warped_image = warp_image(Ms, triangle_pts_img1, triangle_pts_img2, img1_w, img2_w, im1, im2, flags, colors)
-    #     masked_image = warp_image(Ms, triangle_pts_img1, triangle_pts_img2, 255*np.ones(img1_w.shape), np.zeros(img2_w.shape), im1, im2, flags, colors)
-    # except:
-    #     # TODO(raj): debug error with ece_floor5_wall images: 2017-11-22_19-46-21_218.jpeg ---2017-11-22_19-46-33_796.jpeg
-    #     return None, None, 0, np.array([]), np.array([]), np.array([]), np.array([]), None, None, None
-    
-    # masked_image = masked_image[:,:,0]
-    # masked_image[masked_image < 0] = 0
-
-    # if False:
-    error_map = calculate_error_map(img2_w, warped_image)
-    cum_errors = get_l2_errors(error_map)
-
-    histogram_counts, histogram_cumsum, histogram, bins = calculate_photometric_error_histogram(cum_errors)
-    polygon_area, polygon_area_percentage = get_polygon_area(masked_image)
-    return polygon_area, polygon_area_percentage, len(triangles_img1.simplices), histogram_counts, histogram_cumsum, histogram, bins, error_map, masked_image, warped_image
-    # return 
+    warp_image(data, Ms, triangle_pts_img1, triangle_pts_img2, img1_w, img2_w, im1, im2, flags, colors, grid_size)
+    return 
 
 def get_polygon_area(masked_image):
     polygon_area =  1.0*len(np.where(masked_image > 0)[0])
@@ -1043,23 +978,19 @@ def get_l2_errors(error_map):
         cum_errors.append(error_map[ii[i],jj[i]])
     return cum_errors
 
-def calculate_error_map(img_o, warped_image):
+def calculate_error_map(img_o, warped_image, range):
     error_map = np.zeros((img_o.shape[0], img_o.shape[1])).astype(np.int)
-    ii,jj,kk = np.where(warped_image > -255)
-    for i,_ in enumerate(ii):
-        error = np.power( \
-            np.power(img_o[ii[i],jj[i],0] - warped_image[ii[i],jj[i],0], 2) + \
-            np.power(img_o[ii[i],jj[i],1] - warped_image[ii[i],jj[i],1], 2) + \
-            np.power(img_o[ii[i],jj[i],2] - warped_image[ii[i],jj[i],2], 2), \
-            0.5 )
-        error_map[ii[i],jj[i]] = min(error, 255)
-        # error_map[ii[i],jj[i]] = \
-        #     np.power(np.power(img_o[ii[i],jj[i],0] - warped_image[ii[i],jj[i],0], 2), 0.5) + \
-        #     np.power(np.power(img_o[ii[i],jj[i],1] - warped_image[ii[i],jj[i],1], 2), 0.5) + \
-        #     np.power(np.power(img_o[ii[i],jj[i],2] - warped_image[ii[i],jj[i],2], 2), 0.5)
-    
-    # error_map[error_map > 50] = 255
-    # error_map[error_map <= 50] = 0
+    # ii,jj,kk = np.where(warped_image > -255)
+    # for i,_ in enumerate(ii):
+    #     error = np.power( \
+    #         max(np.power(img_o[ii[i],jj[i],0] - warped_image[ii[i],jj[i],0], 2) + \
+    #         np.power(img_o[ii[i],jj[i],1] - warped_image[ii[i],jj[i],1], 2) + \
+    #         np.power(img_o[ii[i],jj[i],2] - warped_image[ii[i],jj[i],2], 2), 0), \
+    #         0.5 )
+    #     error_map[ii[i],jj[i]] = min(error, 255)
+    error_map[range[0], range[1]] = np.power(np.power(img_o[range[0], range[1], 0] - warped_image[range[0], range[1], 0], 2) + \
+        np.power(img_o[range[0], range[1], 1] - warped_image[range[0], range[1], 1], 2) + \
+        np.power(img_o[range[0], range[1], 2] - warped_image[range[0], range[1], 2], 2), 0.5)
     return error_map
 
 def mkdir_p(path):
@@ -1083,16 +1014,14 @@ def get_processed_images(data, im1, im2, grid_size):
         im1_a_fn, im2_a_fn, img1_adjusted_denormalized, img2_adjusted_denormalized, m1, m2 = perform_gamma_adjustment([data, im1, im2, grid_size, False])
     else:
         im1_a_fn, img1_adjusted_denormalized, m1 = data.load_processed_image(im1, im2)
-        im2_a_fn, img2_adjusted_denormalized, m2 = data.load_processed_image(im1, im2)
+        im2_a_fn, img2_adjusted_denormalized, m2 = data.load_processed_image(im2, im1)
 
     return im1_a_fn, im2_a_fn, img1_adjusted_denormalized, img2_adjusted_denormalized, m1, m2
 
 def calculate_photometric_error_convex_hull(arg):
-    ii, jj, patchdataset, data, im1, im2, matches, flags = arg
+    grid_size, ii, jj, patchdataset, data, im1, im2, matches, flags = arg
     best_error = sys.float_info.max
-    start_t = timer()
-    grid_size = 224
-    logger.info('Starting to process {} / {}'.format(im1, im2))
+    logger.info('\tStarting to process {} / {}'.format(im1, im2))
     if flags['masked_tags']:
         p1, f1, c1 = data.load_features_masked(im1)
         p2, f2, c2 = data.load_features_masked(im2)
@@ -1101,10 +1030,12 @@ def calculate_photometric_error_convex_hull(arg):
         p2, f2, c2 = data.load_features(im2)
   
     mkdir_p(os.path.join(data.data_path,'images-resized'))
-    # img1, im1_fn, m1 = get_resized_image(data, im1, grid_size)
-    # img2, im2_fn, m2 = get_resized_image(data, im2, grid_size)
-    im1_fn, im2_fn, img1, img2, m1, m2 = get_processed_images(data, im1, im2, grid_size)
-
+    if flags['use_gamma_adjusted_images']:
+        im1_fn, im2_fn, img1, img2, m1, m2 = get_processed_images(data, im1, im2, grid_size)
+    else:
+        logger.info('RAJ: Load gamma adjusted images instead')
+        img1, im1_fn, m1 = get_resized_image([data, im1, grid_size, False])
+        img2, im2_fn, m2 = get_resized_image([data, im2, grid_size, False])
 
     denormalized_p1_points = features.denormalized_image_coordinates(p1[:,0:2], m1['width'], m1['height'])
     denormalized_p2_points = features.denormalized_image_coordinates(p2[:,0:2], m2['width'], m2['height'])
@@ -1123,70 +1054,11 @@ def calculate_photometric_error_convex_hull(arg):
     renormalized_p1_points = features.normalized_image_coordinates(scaled_denormalized_p1_points, grid_size, grid_size)
     renormalized_p2_points = features.normalized_image_coordinates(scaled_denormalized_p2_points, grid_size, grid_size)
 
-    best_warped_image = None
-    best_error_map = None
-    best_masked_image = None
-    best_polygon_area, best_polygon_area_percentage, best_total_triangles, best_histogram_counts, best_histogram_cumsum, best_histogram, best_bins = \
-        None, None, 0, np.array([]), np.array([]), np.array([]), np.array([])
+    em_fn = '{}-{}-a-em-unfiltered-ga'.format(os.path.basename(im1), os.path.basename(im2))
+    m_fn = '{}-{}-a-m-unfiltered-ga'.format(os.path.basename(im1), os.path.basename(im2))
 
-    wi_fn = '{}-{}-wi'.format(os.path.basename(im1), os.path.basename(im2))
-    em_fn = '{}-{}-em'.format(os.path.basename(im1), os.path.basename(im2))
-    m_fn = '{}-{}-m'.format(os.path.basename(im1), os.path.basename(im2))
-    # print 'here-1'
-    if data.photometric_errors_map_exists(wi_fn):
-        best_warped_image = data.load_photometric_errors_map(wi_fn)
-        best_error_map = data.load_photometric_errors_map(em_fn, grayscale=True)
-        best_masked_image = data.load_photometric_errors_map(m_fn, grayscale=True)
-        cum_errors = get_l2_errors(best_error_map)
-        best_histogram_counts, best_histogram_cumsum, best_histogram, best_bins = calculate_photometric_error_histogram(cum_errors)
-        best_polygon_area, best_polygon_area_percentage = get_polygon_area(best_masked_image)
-    else:
-        ransac_count = 0
-        polygon_area, polygon_area_percentage, total_triangles, histogram_counts, histogram_cumsum, histogram, bins, error_map, masked_image, warped_image = \
-            tesselate_matches(ransac_count, grid_size, data, im1, im2, img1, img2, matches, renormalized_p1_points, renormalized_p2_points, patchdataset, flags, ii, jj)
-            # tesselate_matches(ransac_count, grid_size, data, im1_fn, im2_fn, img1, img2, matches, renormalized_p1_points, renormalized_p2_points, patchdataset, flags, ii, jj)
-        if False:
-            for ransac_count in range(0,1):
-                # First iteration always has all matches
-                if ransac_count == 0:
-                    rid = []
-                else:
-                    random_match_count = np.random.randint(1,int(0.5 * len(matches)))
-                    rid = np.sort(np.random.choice(len(matches), random_match_count, replace=False))
-
-                random_matches = np.ones(len(matches)).astype(np.bool)
-                random_matches[rid] = False
-                # print 'here'
-                polygon_area, polygon_area_percentage, total_triangles, histogram_counts, histogram_cumsum, histogram, bins, error_map, masked_image, warped_image = \
-                    tesselate_matches(ransac_count, grid_size, data, \
-                        im1_fn, im2_fn, \
-                        img1, img2, \
-                        matches[random_matches], renormalized_p1_points, renormalized_p2_points, patchdataset, flags, ii, jj)
-                # print 'here2'
-                if warped_image is None or error_map is None or masked_image is None:
-                    continue
-
-                error = np.sum(np.multiply(error_map, masked_image)) / np.sum(masked_image > 0)
-                if error < best_error:
-                    best_rid = rid
-                    best_warped_image = warped_image.copy()
-                    best_error_map = error_map.copy()
-                    best_masked_image = masked_image.copy()
-                    best_polygon_area = polygon_area
-                    best_polygon_area_percentage = polygon_area_percentage
-                    best_total_triangles = total_triangles
-                    best_histogram_counts = histogram_counts
-                    best_histogram_cumsum = histogram_cumsum
-                    best_histogram = histogram
-                    best_bins = bins
-                    best_error = error
-
-
-            logger.info('Best error: {} rid: {}'.format(best_error, best_rid))
-            end_t = timer()
-
-    # return im1, im2, polygon_area, polygon_area_percentage, total_triangles, histogram_counts, histogram_cumsum, histogram, bins
-   # return im1, im2, best_polygon_area, best_polygon_area_percentage, best_total_triangles, best_histogram_counts, best_histogram_cumsum, best_histogram, best_bins
+    if data.photometric_errors_map_exists(em_fn) or not data.photometric_errors_map_exists(m_fn):
+        tesselate_matches(grid_size, data, im1, im2, img1, img2, matches, renormalized_p1_points, renormalized_p2_points, patchdataset, flags, ii, jj)
     return im1, im2
 
 def calculate_photometric_errors(ctx):
@@ -1196,8 +1068,9 @@ def calculate_photometric_errors(ctx):
     exifs = ctx.exifs
     config = data.config
     processes = config['processes']
+    grid_size = ctx.grid_size
     args = []
-    flags = {'masked_tags': False, 'num_samples': 500, 'outlier_threshold_percentage': 0.7, 'debug': False, 'lab_error_threshold': 50, \
+    flags = {'use_gamma_adjusted_images': True, 'masked_tags': False, 'num_samples': 500, 'outlier_threshold_percentage': 0.7, 'debug': False, 'lab_error_threshold': 50, \
         'use_kmeans': False, 'sampling_method': 'sample_polygon_uniformly', 'draw_hull': False, 'draw_matches': False, 'draw_triangles': False, 'draw_points': False, \
         'processes': processes, 'draw_outliers': False, 'kmeans_num_clusters': None }
 
@@ -1243,9 +1116,10 @@ def calculate_photometric_errors(ctx):
             #     im1 == 'DSC_1773.JPG' and im2 == 'DSC_1778.JPG' or \
             #     im1 == 'DSC_1744.JPG' and im2 == 'DSC_1780.JPG' or \
             #     im1 == 'DSC_1761.JPG' and im2 == 'DSC_1762.JPG':
-
-            args.append([0, 1, None, ctx.data, im1, im2, rmatches[:, 0:2].astype(int), flags])
-            args.append([0, 1, None, ctx.data, im2, im1, np.concatenate((rmatches[:, 1].reshape((-1,1)), rmatches[:, 0].reshape((-1,1))), axis=1).astype(int), flags])
+            
+            # if im1 == 'DSC_0286.JPG' and im2 == 'DSC_0289.JPG' or im1 == 'DSC_0286.JPG' and im2 == 'DSC_0288.JPG' or im1 == 'DSC_0286.JPG' and im2 == 'DSC_0287.JPG':
+            args.append([grid_size, 0, 1, None, ctx.data, im1, im2, rmatches[:, 0:2].astype(int), flags])
+            args.append([grid_size, 0, 1, None, ctx.data, im2, im1, np.concatenate((rmatches[:, 1].reshape((-1,1)), rmatches[:, 0].reshape((-1,1))), axis=1).astype(int), flags])
 
     t_start = timer()
     p_results = []
@@ -1302,42 +1176,33 @@ def perform_gamma_adjustment(arg):
     gamma_im1 = 1.0 * max(np.sum(img1_normalized), np.sum(img2_normalized)) / np.sum(img1_normalized)
     gamma_im2 = 1.0 * max(np.sum(img1_normalized), np.sum(img2_normalized)) / np.sum(img2_normalized)
 
-    # print img1_normalized
-
     img1_adjusted = np.power(img1_normalized, 1.0/gamma_im1)
     img2_adjusted = np.power(img2_normalized, 1.0/gamma_im2)
 
-    img1_adjusted_denormalized = cv2.normalize(img1_adjusted, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_16S)
-    img2_adjusted_denormalized = cv2.normalize(img2_adjusted, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_16S)
-    # print img1_adjusted_denormalized
-    # print '{} / {} : {}'.format(np.sum(img1), np.sum(img2), 1.0 * )
+    # img1_adjusted_denormalized = cv2.normalize(img1_adjusted, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32S)
+    # img2_adjusted_denormalized = cv2.normalize(img2_adjusted, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32S)
 
+    img1_adjusted_denormalized = cv2.normalize(img1_adjusted, None, 0, 255, cv2.NORM_MINMAX)
+    img2_adjusted_denormalized = cv2.normalize(img2_adjusted, None, 0, 255, cv2.NORM_MINMAX)
 
-    # if debug: 
-    #     imgs_u = np.concatenate((img1,cv2.resize(img2, (img1.shape[1], img1.shape[0]))),axis=1)
-    #     imgs_p = np.concatenate((img1_adjusted_denormalized,cv2.resize(img2_adjusted_denormalized, (img1_adjusted_denormalized.shape[1], img1_adjusted_denormalized.shape[0]))),axis=1)
-    #     imgs_ = np.concatenate((imgs_u, cv2.resize(imgs_p, (imgs_u.shape[1], imgs_u.shape[0]))),axis=1)
-    #     save_processed_image(data, im_fn='{}-{}.png'.format(im1_fn, im1_fn), img=imgs_, grid_size=None)
-    
-    # im1_a_fn = '{}---{}-{}-processed.png'.format(im1_fn, im1_fn, im2_fn)
-    # im2_a_fn = '{}---{}-{}-processed.png'.format(im2_fn, im1_fn, im2_fn)
     im1_a_fn = data.save_processed_image(im1_fn=im1_fn, im2_fn=im2_fn, image=img1_adjusted_denormalized, grid_size=grid_size)
     im2_a_fn = data.save_processed_image(im1_fn=im2_fn, im2_fn=im1_fn, image=img2_adjusted_denormalized, grid_size=grid_size)
-    # save_processed_image(data, im_fn='{}---{}-{}-unprocessed.png'.format(im1_fn, im1_fn, im2_fn), img=img1, grid_size=grid_size)
-    # save_processed_image(data, im_fn='{}---{}-{}-unprocessed.png'.format(im2_fn, im1_fn, im2_fn), img=img2, grid_size=grid_size)
-
+    
     return im1_a_fn, im2_a_fn, img1_adjusted_denormalized, img2_adjusted_denormalized, m1, m2
 
 def calculate_gamma_adjusted_images(ctx):
     data = ctx.data
     processes = ctx.data.config['processes']
     args = []
-
-    grid_size = 224
+    logger.info('Calculating gamma adjusted image pairs...')
+    grid_size = ctx.grid_size
     for i,im1 in enumerate(sorted(data.images())):
         for j,im2 in enumerate(sorted(data.images())):
             if j <= i:
                 continue
+            # if im1 == 'DSC_0286.JPG' and im2 == 'DSC_0289.JPG' or im2 == 'DSC_0286.JPG' and im1 == 'DSC_0289.JPG' or \
+            #     im1 == 'DSC_0286.JPG' and im2 == 'DSC_0288.JPG' or im2 == 'DSC_0286.JPG' and im1 == 'DSC_0288.JPG' or \
+            #     im1 == 'DSC_0286.JPG' and im2 == 'DSC_0287.JPG' or im2 == 'DSC_0286.JPG' and im1 == 'DSC_0287.JPG':
             args.append([data, im1, im2, grid_size, False])
 
     p = Pool(processes)
@@ -1351,9 +1216,9 @@ def calculate_gamma_adjusted_images(ctx):
 def calculate_resized_images(ctx):
     data = ctx.data
     processes = ctx.data.config['processes']
+    grid_size = ctx.grid_size
     args = []
 
-    grid_size = 224
     for i,im in enumerate(sorted(data.images())):
         args.append([data, im, grid_size, False])
 
@@ -1372,13 +1237,14 @@ def output_image_keypoints(ctx):
     images = data.images()
     exifs = ctx.exifs
     config = data.config
+    grid_size = ctx.grid_size
     processes = config['processes']
     args = []
 
     logger.info('Outputting image keypoint maps...')
     for im in images:
         p, f, c = ctx.data.load_features(im)
-        _, feature_map_im = calculate_spatial_entropy(p, 224)
+        _, feature_map_im = calculate_spatial_entropy(p, grid_size)
         data.save_feature_map('feature---{}'.format(im), feature_map_im)
 
 def calculate_nbvs(ctx):
@@ -2928,6 +2794,7 @@ def create_tracks_map(ctx):
     logger.info('#'*25 + ' Creating track map... ' + '#'*25)
     logger.info('#'*100)
     data = ctx.data
+    grid_size = ctx.grid_size
     graph = data.load_tracks_graph('tracks.csv')
     for im in data.images():
         image_coordinates = []
@@ -2939,9 +2806,91 @@ def create_tracks_map(ctx):
                 x,y = graph[im][t]['feature']
                 image_coordinates.append([x,y])
                 track_lengths.append(len(graph[t]))
-        track_map = calculate_track_map(np.array(image_coordinates), track_lengths, 224)
+        track_map = calculate_track_map(np.array(image_coordinates), track_lengths, grid_size)
         data.save_track_map(im, track_map)
         # print np.sum(np.array(track_lengths))
         # print np.sum(track_map)
         # # print '{} : {}  -  {}'.format(im, t, graph[t])
         # return
+
+def calculate_multiple_motion_maps(ctx):
+    data = ctx.data
+    cameras = data.load_camera_models()
+    images = data.images()
+    exifs = ctx.exifs
+    config = data.config
+    processes = config['processes']
+    args = []
+    cached_p = {}
+    p_results = []
+    results = {}
+
+    for im in sorted(images):
+        im1_all_matches, im1_valid_rmatches, im1_all_robust_matches = data.load_all_matches(im)
+        im1_all_non_robust_matches = {}
+        valid_candidates = []
+
+        if im1_all_robust_matches is None:
+            continue
+        if im not in cached_p:
+            p1, f1, c1 = ctx.data.load_features(im)
+            cached_p[im] = p1
+        for im2 in sorted(im1_all_robust_matches.keys()):
+            rmatches = im1_all_robust_matches[im2]
+            matches = im1_all_matches[im2]
+            if len(rmatches) == 0:
+                continue
+            non_rmatches = np.array(list(set([(a,b,c,d) for a,b,c,d in matches.tolist()]) - set([(a,b,c,d) for a,b,c,d in rmatches.tolist()])))
+            valid_candidates.append(im2)
+            im1_all_non_robust_matches[im2] = non_rmatches
+        args.append([ctx, im, valid_candidates, cached_p, im1_all_non_robust_matches])
+
+    p = Pool(processes)
+    if processes == 1:
+        for arg in args:
+            p_results.append(multiple_motion_map(arg))
+    else:
+        p_results = p.map(multiple_motion_map, args)
+        p.close()
+
+    for im1 in p_results:
+        results[im1] = True
+
+    data.save_secondary_motion_results(results)
+
+def multiple_motion_map(arg):
+    ctx, im1, valid_candidates, cached_p, im1_all_non_robust_matches = arg
+    data = ctx.data
+    config = ctx.data.config
+    grid_size = ctx.grid_size
+    im1_rmatches_secondary_motion = {}
+    camera1 = ctx.cameras[ctx.exifs[im1]['camera']]
+    p1 = cached_p[im1]
+    if data.rmatches_secondary_exists(im1):
+        im1_rmatches_secondary_motion = data.load_rmatches_secondary(im1)
+    else:
+        for im2 in valid_candidates:
+            camera2 = ctx.cameras[ctx.exifs[im2]['camera']]
+            p2 = cached_p[im2]
+            # print '{} --- {} : {}'.format(im1, im2, im1_all_non_robust_matches[im2].shape)
+            [rmatches_secondary_motion, T, F, validity], calibration_flag = matching.robust_match(p1, p2, camera1, camera2, im1_all_non_robust_matches[im2], config)
+            im1_rmatches_secondary_motion[im2] = rmatches_secondary_motion
+        ctx.data.save_rmatches_secondary(im1, im1_rmatches_secondary_motion)
+
+    for im2 in valid_candidates:
+        p2 = cached_p[im2]
+        rmatches_secondary_motion = im1_rmatches_secondary_motion[im2]
+        if len(rmatches_secondary_motion) == 0:
+            rmatches_secondary_motion_map_im1 = np.zeros((grid_size, grid_size))
+            rmatches_secondary_motion_map_im2 = np.zeros((grid_size, grid_size))
+        else:
+            p1_secondary_motion = p1[rmatches_secondary_motion[:,0].astype(int)]
+            p2_secondary_motion = p2[rmatches_secondary_motion[:,1].astype(int)]
+
+            entropy_rmatches_secondary_motion_im1, rmatches_secondary_motion_map_im1 = calculate_spatial_entropy(p1_secondary_motion, grid_size)
+            entropy_rmatches_secondary_motion_im2, rmatches_secondary_motion_map_im2 = calculate_spatial_entropy(p2_secondary_motion, grid_size)
+
+        data.save_match_map('rmatches_secondary_motion---{}-{}'.format(im1,im2), rmatches_secondary_motion_map_im1)
+        data.save_match_map('rmatches_secondary_motion---{}-{}'.format(im2,im1), rmatches_secondary_motion_map_im2)
+
+    return im1

@@ -1177,6 +1177,7 @@ def main(argv):
     parser.add_argument('--convnet_use_feature_match_map', help='')
     parser.add_argument('--convnet_use_track_map', help='')
     parser.add_argument('--convnet_use_non_rmatches_map', help='')
+    parser.add_argument('--convnet_use_rmatches_secondary_motion_map', help='')
     parser.add_argument('--convnet_use_rmatches_map', help='')
     parser.add_argument('--convnet_use_matches_map', help='')
     parser.add_argument('--convnet_use_photometric_error_maps', help='')
@@ -1363,7 +1364,7 @@ def main(argv):
         'lr': float(parser_options.convnet_lr), 
         'optimizer': 'adam',
         'wd': 0.0001,
-        'epochs': 30,
+        'epochs': 20,
         'start_epoch': 0,
         'resume': True,
         'lr_decay': 0.01,
@@ -1397,6 +1398,7 @@ def main(argv):
         'convnet_use_track_map': True if parser_options.convnet_use_track_map == 'yes' else False,
         'convnet_use_warped_images': False,
         'convnet_use_non_rmatches_map': True if parser_options.convnet_use_non_rmatches_map == 'yes' else False,
+        'convnet_use_rmatches_secondary_motion_map':  True if parser_options.convnet_use_rmatches_secondary_motion_map == 'yes' else False,
         'convnet_use_rmatches_map': True if parser_options.convnet_use_rmatches_map == 'yes' else False,
         'convnet_use_matches_map': True if parser_options.convnet_use_matches_map == 'yes' else False,
         'convnet_use_photometric_error_maps': True if parser_options.convnet_use_photometric_error_maps == 'yes' else False,

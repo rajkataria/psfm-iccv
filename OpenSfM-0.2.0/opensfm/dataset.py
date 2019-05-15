@@ -326,6 +326,10 @@ class DataSet:
         """Return path of matches directory"""
         return os.path.join(self.data_path, 'matches')
 
+    def __rmatches_secondary_path(self):
+        """Return path of matches directory"""
+        return os.path.join(self.data_path, 'rmatches_secondary')
+
     def __all_matches_path(self):
         """Return path of all matches directory"""
         return os.path.join(self.data_path, 'all_matches')
@@ -389,7 +393,7 @@ class DataSet:
 
     def __classifier_features_photometric_errors_map_path(self):
         """Return path of all matches directory"""
-        return os.path.join(self.__classifier_features_path(), 'pe_maps_gamma_adjusted')
+        return os.path.join(self.__classifier_features_path(), 'pe_maps_gamma_adjusted_unfiltered')
 
     def __classifier_features_photometric_errors_triangle_transformations_path(self):
         return os.path.join(self.__classifier_features_path(), 'pe_triangle_transformations_gamma_adjusted')
@@ -420,6 +424,9 @@ class DataSet:
     def __matches_file(self, image):
         """File for matches for an image"""
         return os.path.join(self.__matches_path(), '{}_matches.pkl.gz'.format(image))
+
+    def __rmatches_secondary_file(self, image):
+        return os.path.join(self.__rmatches_secondary_path(), '{}_rmatches_secondary.pkl.gz'.format(image))
 
     def __graph_file(self, graph_label, edge_threshold):
         return os.path.join(self.__classifier_features_graph_path(), 'graph-{}-t-{}.gpickle'.format(graph_label, edge_threshold))
@@ -497,7 +504,11 @@ class DataSet:
 
     def __feature_photometric_errors_file(self, ext='pkl.gz'):
         """File for flags indicating whether calibrated robust matching occured"""
-        return os.path.join(self.__classifier_features_path(), 'pe_gamma_adjusted.{}'.format(ext))
+        return os.path.join(self.__classifier_features_path(), 'pe_gamma_adjusted_unfiltered.{}'.format(ext))
+
+    def __feature_secondary_motion_results_file(self, ext='pkl.gz'):
+        """File for flags indicating whether calibrated robust matching occured"""
+        return os.path.join(self.__classifier_features_path(), 'secondary_motion_results.{}'.format(ext))
 
     def __feature_nbvs_file(self, ext='pkl.gz'):
         """File for flags indicating whether calibrated robust matching occured"""
@@ -599,6 +610,14 @@ class DataSet:
             matches = pickle.load(fin)
         return matches
 
+    def rmatches_secondary_exists(self, image):
+        return os.path.isfile(self.__rmatches_secondary_file(image))
+
+    def load_rmatches_secondary(self, image):
+        with gzip.open(self.__rmatches_secondary_file(image), 'rb') as fin:
+            rmatches_secondary = pickle.load(fin)
+        return rmatches_secondary
+
     def load_weighted_matches(self, image):
         with gzip.open(self.__weighted_matches_file(image), 'rb') as fin:
             matches = pickle.load(fin)
@@ -645,6 +664,11 @@ class DataSet:
         io.mkdir_p(self.__matches_path())
         with gzip.open(self.__matches_file(image), 'wb') as fout:
             pickle.dump(matches, fout)
+
+    def save_rmatches_secondary(self, image, rmatches_secondary):
+        io.mkdir_p(self.__rmatches_secondary_path())
+        with gzip.open(self.__rmatches_secondary_file(image), 'wb') as fout:
+            pickle.dump(rmatches_secondary, fout)
 
     def save_weighted_matches(self, image, matches):
         io.mkdir_p(self.__weighted_matches_path())
@@ -806,6 +830,13 @@ class DataSet:
             color_histograms = pickle.load(fin)
         return color_histograms
 
+    def save_secondary_motion_results(self, results):
+        io.mkdir_p(self.__classifier_features_path())
+        with gzip.open(self.__feature_secondary_motion_results_file('pkl.gz'), 'wb') as fout:
+            pickle.dump(results, fout)
+        with open(self.__feature_secondary_motion_results_file('json'), 'w') as fout:
+            json.dump(results, fout, sort_keys=True, indent=4, separators=(',', ': '))
+
     def save_photometric_errors(self, photometric_errors):
         io.mkdir_p(self.__classifier_features_path())
         with gzip.open(self.__feature_photometric_errors_file('pkl.gz'), 'wb') as fout:
@@ -830,6 +861,9 @@ class DataSet:
 
     def photometric_errors_exists(self):
         return os.path.isfile(self.__feature_photometric_errors_file())
+
+    def secondary_motion_results_exists(self):
+        return os.path.isfile(self.__feature_secondary_motion_results_file())
 
     def save_nbvs(self, nbvs):
         io.mkdir_p(self.__classifier_features_path())
