@@ -634,7 +634,8 @@ def calculate_full_image_histograms(arg):
             counter += 2
     if debug:
         plt.show()
-    return os.path.basename(image_name), histograms.tolist()
+    # return os.path.basename(image_name), histograms.tolist()
+    return os.path.basename(image_name)
 
 def calculate_color_histograms(ctx):
     data = ctx.data
@@ -670,8 +671,8 @@ def calculate_color_histograms(ctx):
         p_results = p.map(calculate_full_image_histograms, args)
         p.close()
 
-    for im, histogram in p_results:
-        results[im] = {'histogram': histogram}
+    for im in p_results:
+        results[im] = {'histogram': None}
     data.save_color_histograms(results)
 
 def sample_points_triangle(v, n):

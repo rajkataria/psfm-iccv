@@ -64,9 +64,74 @@ declare -A run6=(
 	[train_on_val]='no'												[convnet_use_rmatches_secondary_motion_map]='no'
 	)
 
+# Baseline: all important features + resnet34
+declare -A run7=(
+	[n_estimators]='50'                    							[max_depth]='6'    													[lr]='0.01'
+	[image_match_classifier_min_match]='15'                    		[image_match_classifier_max_match]='50'    							[classifier]='CONVNET'
+	[use_all_training_data]='yes'									[convnet_use_feature_match_map]='yes'								[convnet_use_non_rmatches_map]='yes'
+	[convnet_use_matches_map]='yes'									[convnet_use_rmatches_map]='yes'									[convnet_use_photometric_error_maps]='yes'
+	[convnet_use_track_map]='no'									[convnet_use_images]='no'											[convnet_features]='RM'
+	[convnet_resnet_model]='34'										[convnet_loss]='ce'																			
+	[train_on_val]='no'												[convnet_use_rmatches_secondary_motion_map]='yes'
+	)
+
+# Baseline: removed nrmm + resnet34
+declare -A run8=(
+	[n_estimators]='50'                    							[max_depth]='6'    													[lr]='0.01'
+	[image_match_classifier_min_match]='15'                    		[image_match_classifier_max_match]='50'    							[classifier]='CONVNET'
+	[use_all_training_data]='yes'									[convnet_use_feature_match_map]='yes'								[convnet_use_non_rmatches_map]='no'
+	[convnet_use_matches_map]='yes'									[convnet_use_rmatches_map]='yes'									[convnet_use_photometric_error_maps]='yes'
+	[convnet_use_track_map]='no'									[convnet_use_images]='no'											[convnet_features]='RM'
+	[convnet_resnet_model]='34'										[convnet_loss]='ce'																			
+	[train_on_val]='no'												[convnet_use_rmatches_secondary_motion_map]='yes'
+	)
+
+# Baseline: removed rmm + resnet34
+declare -A run9=(
+	[n_estimators]='50'                    							[max_depth]='6'    													[lr]='0.01'
+	[image_match_classifier_min_match]='15'                    		[image_match_classifier_max_match]='50'    							[classifier]='CONVNET'
+	[use_all_training_data]='yes'									[convnet_use_feature_match_map]='yes'								[convnet_use_non_rmatches_map]='yes'
+	[convnet_use_matches_map]='yes'									[convnet_use_rmatches_map]='no'										[convnet_use_photometric_error_maps]='yes'
+	[convnet_use_track_map]='no'									[convnet_use_images]='no'											[convnet_features]='RM'
+	[convnet_resnet_model]='34'										[convnet_loss]='ce'																			
+	[train_on_val]='no'												[convnet_use_rmatches_secondary_motion_map]='yes'
+	)
+
+# Baseline: removed mm + resnet34
+declare -A run10=(
+	[n_estimators]='50'                    							[max_depth]='6'    													[lr]='0.01'
+	[image_match_classifier_min_match]='15'                    		[image_match_classifier_max_match]='50'    							[classifier]='CONVNET'
+	[use_all_training_data]='yes'									[convnet_use_feature_match_map]='yes'								[convnet_use_non_rmatches_map]='yes'
+	[convnet_use_matches_map]='no'									[convnet_use_rmatches_map]='yes'									[convnet_use_photometric_error_maps]='yes'
+	[convnet_use_track_map]='no'									[convnet_use_images]='no'											[convnet_features]='RM'
+	[convnet_resnet_model]='34'										[convnet_loss]='ce'																			
+	[train_on_val]='no'												[convnet_use_rmatches_secondary_motion_map]='yes'
+	)
+
+# Baseline: removed pemms + resnet34
+declare -A run11=(
+	[n_estimators]='50'                    							[max_depth]='6'    													[lr]='0.01'
+	[image_match_classifier_min_match]='15'                    		[image_match_classifier_max_match]='50'    							[classifier]='CONVNET'
+	[use_all_training_data]='yes'									[convnet_use_feature_match_map]='yes'								[convnet_use_non_rmatches_map]='yes'
+	[convnet_use_matches_map]='yes'									[convnet_use_rmatches_map]='yes'									[convnet_use_photometric_error_maps]='no'
+	[convnet_use_track_map]='no'									[convnet_use_images]='no'											[convnet_features]='RM'
+	[convnet_resnet_model]='34'										[convnet_loss]='ce'																			
+	[train_on_val]='no'												[convnet_use_rmatches_secondary_motion_map]='yes'
+	)
+
+# Baseline: removed rmsmm + resnet34
+declare -A run12=(
+	[n_estimators]='50'                    							[max_depth]='6'    													[lr]='0.01'
+	[image_match_classifier_min_match]='15'                    		[image_match_classifier_max_match]='50'    							[classifier]='CONVNET'
+	[use_all_training_data]='yes'									[convnet_use_feature_match_map]='yes'								[convnet_use_non_rmatches_map]='yes'
+	[convnet_use_matches_map]='yes'									[convnet_use_rmatches_map]='yes'									[convnet_use_photometric_error_maps]='yes'
+	[convnet_use_track_map]='no'									[convnet_use_images]='no'											[convnet_features]='RM'
+	[convnet_resnet_model]='34'										[convnet_loss]='ce'																			
+	[train_on_val]='no'												[convnet_use_rmatches_secondary_motion_map]='no'
+	)
 
 # Baseline: all important features + train on val (used for final run)
-declare -A run7=(
+declare -A run13=(
 	[n_estimators]='50'                    							[max_depth]='6'    													[lr]='0.01'
 	[image_match_classifier_min_match]='15'                    		[image_match_classifier_max_match]='50'    							[classifier]='CONVNET'
 	[use_all_training_data]='yes'									[convnet_use_feature_match_map]='yes'								[convnet_use_non_rmatches_map]='yes'
@@ -76,9 +141,20 @@ declare -A run7=(
 	[train_on_val]='yes'											[convnet_use_rmatches_secondary_motion_map]='yes'
 	)
 
+# Baseline: all important features + train on val (used for final run) + resnet34
+declare -A run14=(
+	[n_estimators]='50'                    							[max_depth]='6'    													[lr]='0.01'
+	[image_match_classifier_min_match]='15'                    		[image_match_classifier_max_match]='50'    							[classifier]='CONVNET'
+	[use_all_training_data]='yes'									[convnet_use_feature_match_map]='yes'								[convnet_use_non_rmatches_map]='yes'
+	[convnet_use_matches_map]='yes'									[convnet_use_rmatches_map]='yes'									[convnet_use_photometric_error_maps]='yes'
+	[convnet_use_track_map]='no'									[convnet_use_images]='no'											[convnet_features]='RM'
+	[convnet_resnet_model]='34'										[convnet_loss]='ce'																			
+	[train_on_val]='yes'											[convnet_use_rmatches_secondary_motion_map]='yes'
+	)
+
 # all_runs=(run1 run2 run3 run4 run5 run6)
 # all_runs=(run1 run6)
-all_runs=(run2 run3 run4 run5 run7)
+all_runs=(run8 run9 run10 run11 run12 run14)
 
 for run_name in "${all_runs[@]}"; do
 	echo "**********************************************************************************";

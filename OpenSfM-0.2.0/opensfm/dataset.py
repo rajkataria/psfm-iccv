@@ -1220,8 +1220,12 @@ class DataSet:
                     nbvs_im1 = nbvs[im1][im2]['nbvs_im1']
                     nbvs_im2 = nbvs[im1][im2]['nbvs_im2']
                     te_histogram = ','.join(map(str, np.around(te_histogram, decimals=2)))
-                    ch_im1 = ','.join(map(str, np.around(np.array(color_histograms[im1]['histogram']), decimals=2)))
-                    ch_im2 = ','.join(map(str, np.around(np.array(color_histograms[im2]['histogram']), decimals=2)))
+                    if False:
+                        ch_im1 = ','.join(map(str, np.around(np.array(color_histograms[im1]['histogram']), decimals=2)))
+                        ch_im2 = ','.join(map(str, np.around(np.array(color_histograms[im2]['histogram']), decimals=2)))
+                    ch_im1 = ','.join(map(str, np.around(np.zeros((80,)), decimals=2)))
+                    ch_im1 = ','.join(map(str, np.around(np.zeros((80,)), decimals=2)))
+
                     vt_rank_percentage_im1_im2 = 100.0 * vt_ranks[im1][im2] / len(self.images())
                     vt_rank_percentage_im2_im1 = 100.0 * vt_ranks[im2][im1] / len(self.images())
                     mds_rank_percentage_im1_im2 = 100.0 * im_closest_images[im1].index(im2) / len(self.images())
