@@ -1010,11 +1010,8 @@ def get_resized_image(arg):
     return image, im_fn, metadata
 
 def get_processed_images(data, im1, im2, grid_size):
-    if not data.processed_image_exists(im1, im2) or not data.processed_image_exists(im2, im1):
-        im1_a_fn, im2_a_fn, img1_adjusted_denormalized, img2_adjusted_denormalized, m1, m2 = perform_gamma_adjustment([data, im1, im2, grid_size, False])
-    else:
-        im1_a_fn, img1_adjusted_denormalized, m1 = data.load_processed_image(im1, im2)
-        im2_a_fn, img2_adjusted_denormalized, m2 = data.load_processed_image(im2, im1)
+    im1_a_fn, img1_adjusted_denormalized, m1 = data.load_processed_image(im1, im2)
+    im2_a_fn, img2_adjusted_denormalized, m2 = data.load_processed_image(im2, im1)
 
     return im1_a_fn, im2_a_fn, img1_adjusted_denormalized, img2_adjusted_denormalized, m1, m2
 
@@ -1188,7 +1185,7 @@ def perform_gamma_adjustment(arg):
     im1_a_fn = data.save_processed_image(im1_fn=im1_fn, im2_fn=im2_fn, image=img1_adjusted_denormalized, grid_size=grid_size)
     im2_a_fn = data.save_processed_image(im1_fn=im2_fn, im2_fn=im1_fn, image=img2_adjusted_denormalized, grid_size=grid_size)
     
-    return im1_a_fn, im2_a_fn, img1_adjusted_denormalized, img2_adjusted_denormalized, m1, m2
+    return 
 
 def calculate_gamma_adjusted_images(ctx):
     data = ctx.data
@@ -1914,6 +1911,9 @@ def compute_matches_using_gt_reconstruction(args):
         
         im_all_matches, _, _ = data.load_all_matches(im1)
 
+	if im_all_matches is None:
+	    continue
+
         for im2 in im_all_matches.keys():
             if im2 not in recon.shots.keys():
                 continue
@@ -1946,7 +1946,7 @@ def compute_matches_using_gt_reconstruction(args):
             logger.debug('{} - {} has {} candidate unthresholded matches'.format(im1, im2, len(unthresholded_matches)))
 
             if len(unthresholded_matches) < 8:
-                im1_inliers[im2] = []
+                im1_unthresholded_inliers[im2] = []
                 continue
 
             sizes1 = p1[unthresholded_matches[:, 0].astype(int)][:, 2].copy()
