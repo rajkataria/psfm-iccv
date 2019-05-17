@@ -1224,7 +1224,7 @@ class DataSet:
                         ch_im1 = ','.join(map(str, np.around(np.array(color_histograms[im1]['histogram']), decimals=2)))
                         ch_im2 = ','.join(map(str, np.around(np.array(color_histograms[im2]['histogram']), decimals=2)))
                     ch_im1 = ','.join(map(str, np.around(np.zeros((80,)), decimals=2)))
-                    ch_im1 = ','.join(map(str, np.around(np.zeros((80,)), decimals=2)))
+                    ch_im2 = ','.join(map(str, np.around(np.zeros((80,)), decimals=2)))
 
                     vt_rank_percentage_im1_im2 = 100.0 * vt_ranks[im1][im2] / len(self.images())
                     vt_rank_percentage_im2_im1 = 100.0 * vt_ranks[im2][im1] / len(self.images())
