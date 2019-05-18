@@ -1188,10 +1188,26 @@ def perform_gamma_adjustment(arg):
     
     return 
 
-def calculate_gamma_adjusted_images(ctx):
+
+def perform_gaussian_blur(arg):
+    data, im, grid_size, debug = arg
+    kernel3x3 = np.ones((3,3),np.float32)/9
+    kernel5x5 = np.ones((5,5),np.float32)/25
+    
+    im_blurred_3x3 = cv2.filter2D(im, -1, kernel3x3)
+    im_blurred_5x5 = cv2.filter2D(im, -1, kernel5x5)
+
+    # im1_a_fn = data.save_processed_image(im1_fn=im1_fn, im2_fn=im2_fn, image=img1_adjusted_denormalized, grid_size=grid_size)
+    data.save_blurred_image(im_fn=im, image=im_blurred_3x3, grid_size=grid_size, kernel_size=3)
+    data.save_blurred_image(im_fn=im, image=im_blurred_5x5, grid_size=grid_size, kernel_size=5)
+
+    return
+
+def preprocess_images(ctx):
     data = ctx.data
     processes = ctx.data.config['processes']
     args = []
+    g_args = []
     logger.info('Calculating gamma adjusted image pairs...')
     grid_size = ctx.grid_size
     for i,im1 in enumerate(sorted(data.images())):
@@ -1202,6 +1218,7 @@ def calculate_gamma_adjusted_images(ctx):
             #     im1 == 'DSC_0286.JPG' and im2 == 'DSC_0288.JPG' or im2 == 'DSC_0286.JPG' and im1 == 'DSC_0288.JPG' or \
             #     im1 == 'DSC_0286.JPG' and im2 == 'DSC_0287.JPG' or im2 == 'DSC_0286.JPG' and im1 == 'DSC_0287.JPG':
             args.append([data, im1, im2, grid_size, False])
+        g_args.append([data, im1, grid_size, False])
 
     p = Pool(processes)
     p_results = []
@@ -1210,6 +1227,14 @@ def calculate_gamma_adjusted_images(ctx):
             p_results.append(perform_gamma_adjustment(arg))
     else:
         p_results = p.map(perform_gamma_adjustment, args)
+
+
+    if processes == 1:    
+        for arg in g_args:
+            results.append(perform_gaussian_blur(arg))
+    else:
+        results = p.map(perform_gaussian_blur, g_args)
+
 
 def calculate_resized_images(ctx):
     data = ctx.data

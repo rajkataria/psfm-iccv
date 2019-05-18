@@ -1,7 +1,165 @@
+# # Baseline: all important features
+# declare -A run1=(
+# 	[n_estimators]='50'                    							[max_depth]='6'    													[lr]='0.01'
+# 	[image_match_classifier_min_match]='15'                    		[image_match_classifier_max_match]='50'    							[classifier]='CONVNET'
+# 	[use_all_training_data]='yes'									[convnet_use_feature_match_map]='yes'								[convnet_use_non_rmatches_map]='yes'
+# 	[convnet_use_matches_map]='yes'									[convnet_use_rmatches_map]='yes'									[convnet_use_photometric_error_maps]='yes'
+# 	[convnet_use_track_map]='no'									[convnet_use_images]='no'											[convnet_features]='RM'
+# 	[convnet_resnet_model]='18'										[convnet_loss]='ce'																			
+# 	[train_on_val]='no'												[convnet_use_rmatches_secondary_motion_map]='yes'
+# 	)
+
+# # Baseline: removed nrmm
+# declare -A run2=(
+# 	[n_estimators]='50'                    							[max_depth]='6'    													[lr]='0.01'
+# 	[image_match_classifier_min_match]='15'                    		[image_match_classifier_max_match]='50'    							[classifier]='CONVNET'
+# 	[use_all_training_data]='yes'									[convnet_use_feature_match_map]='yes'								[convnet_use_non_rmatches_map]='no'
+# 	[convnet_use_matches_map]='yes'									[convnet_use_rmatches_map]='yes'									[convnet_use_photometric_error_maps]='yes'
+# 	[convnet_use_track_map]='no'									[convnet_use_images]='no'											[convnet_features]='RM'
+# 	[convnet_resnet_model]='18'										[convnet_loss]='ce'																			
+# 	[train_on_val]='no'												[convnet_use_rmatches_secondary_motion_map]='yes'
+# 	)
+
+# # Baseline: removed rmm
+# declare -A run3=(
+# 	[n_estimators]='50'                    							[max_depth]='6'    													[lr]='0.01'
+# 	[image_match_classifier_min_match]='15'                    		[image_match_classifier_max_match]='50'    							[classifier]='CONVNET'
+# 	[use_all_training_data]='yes'									[convnet_use_feature_match_map]='yes'								[convnet_use_non_rmatches_map]='yes'
+# 	[convnet_use_matches_map]='yes'									[convnet_use_rmatches_map]='no'										[convnet_use_photometric_error_maps]='yes'
+# 	[convnet_use_track_map]='no'									[convnet_use_images]='no'											[convnet_features]='RM'
+# 	[convnet_resnet_model]='18'										[convnet_loss]='ce'																			
+# 	[train_on_val]='no'												[convnet_use_rmatches_secondary_motion_map]='yes'
+# 	)
+
+# # Baseline: removed mm
+# declare -A run4=(
+# 	[n_estimators]='50'                    							[max_depth]='6'    													[lr]='0.01'
+# 	[image_match_classifier_min_match]='15'                    		[image_match_classifier_max_match]='50'    							[classifier]='CONVNET'
+# 	[use_all_training_data]='yes'									[convnet_use_feature_match_map]='yes'								[convnet_use_non_rmatches_map]='yes'
+# 	[convnet_use_matches_map]='no'									[convnet_use_rmatches_map]='yes'									[convnet_use_photometric_error_maps]='yes'
+# 	[convnet_use_track_map]='no'									[convnet_use_images]='no'											[convnet_features]='RM'
+# 	[convnet_resnet_model]='18'										[convnet_loss]='ce'																			
+# 	[train_on_val]='no'												[convnet_use_rmatches_secondary_motion_map]='yes'
+# 	)
+
+# # Baseline: removed pemms
+# declare -A run5=(
+# 	[n_estimators]='50'                    							[max_depth]='6'    													[lr]='0.01'
+# 	[image_match_classifier_min_match]='15'                    		[image_match_classifier_max_match]='50'    							[classifier]='CONVNET'
+# 	[use_all_training_data]='yes'									[convnet_use_feature_match_map]='yes'								[convnet_use_non_rmatches_map]='yes'
+# 	[convnet_use_matches_map]='yes'									[convnet_use_rmatches_map]='yes'									[convnet_use_photometric_error_maps]='no'
+# 	[convnet_use_track_map]='no'									[convnet_use_images]='no'											[convnet_features]='RM'
+# 	[convnet_resnet_model]='18'										[convnet_loss]='ce'																			
+# 	[train_on_val]='no'												[convnet_use_rmatches_secondary_motion_map]='yes'
+# 	)
+
+# # Baseline: removed rmsmm
+# declare -A run6=(
+# 	[n_estimators]='50'                    							[max_depth]='6'    													[lr]='0.01'
+# 	[image_match_classifier_min_match]='15'                    		[image_match_classifier_max_match]='50'    							[classifier]='CONVNET'
+# 	[use_all_training_data]='yes'									[convnet_use_feature_match_map]='yes'								[convnet_use_non_rmatches_map]='yes'
+# 	[convnet_use_matches_map]='yes'									[convnet_use_rmatches_map]='yes'									[convnet_use_photometric_error_maps]='yes'
+# 	[convnet_use_track_map]='no'									[convnet_use_images]='no'											[convnet_features]='RM'
+# 	[convnet_resnet_model]='18'										[convnet_loss]='ce'																			
+# 	[train_on_val]='no'												[convnet_use_rmatches_secondary_motion_map]='no'
+# 	)
+
+# # Baseline: all important features + resnet34
+# declare -A run7=(
+# 	[n_estimators]='50'                    							[max_depth]='6'    													[lr]='0.01'
+# 	[image_match_classifier_min_match]='15'                    		[image_match_classifier_max_match]='50'    							[classifier]='CONVNET'
+# 	[use_all_training_data]='yes'									[convnet_use_feature_match_map]='yes'								[convnet_use_non_rmatches_map]='yes'
+# 	[convnet_use_matches_map]='yes'									[convnet_use_rmatches_map]='yes'									[convnet_use_photometric_error_maps]='yes'
+# 	[convnet_use_track_map]='no'									[convnet_use_images]='no'											[convnet_features]='RM'
+# 	[convnet_resnet_model]='34'										[convnet_loss]='ce'																			
+# 	[train_on_val]='no'												[convnet_use_rmatches_secondary_motion_map]='yes'
+# 	)
+
+# # Baseline: removed nrmm + resnet34
+# declare -A run8=(
+# 	[n_estimators]='50'                    							[max_depth]='6'    													[lr]='0.01'
+# 	[image_match_classifier_min_match]='15'                    		[image_match_classifier_max_match]='50'    							[classifier]='CONVNET'
+# 	[use_all_training_data]='yes'									[convnet_use_feature_match_map]='yes'								[convnet_use_non_rmatches_map]='no'
+# 	[convnet_use_matches_map]='yes'									[convnet_use_rmatches_map]='yes'									[convnet_use_photometric_error_maps]='yes'
+# 	[convnet_use_track_map]='no'									[convnet_use_images]='no'											[convnet_features]='RM'
+# 	[convnet_resnet_model]='34'										[convnet_loss]='ce'																			
+# 	[train_on_val]='no'												[convnet_use_rmatches_secondary_motion_map]='yes'
+# 	)
+
+# # Baseline: removed rmm + resnet34
+# declare -A run9=(
+# 	[n_estimators]='50'                    							[max_depth]='6'    													[lr]='0.01'
+# 	[image_match_classifier_min_match]='15'                    		[image_match_classifier_max_match]='50'    							[classifier]='CONVNET'
+# 	[use_all_training_data]='yes'									[convnet_use_feature_match_map]='yes'								[convnet_use_non_rmatches_map]='yes'
+# 	[convnet_use_matches_map]='yes'									[convnet_use_rmatches_map]='no'										[convnet_use_photometric_error_maps]='yes'
+# 	[convnet_use_track_map]='no'									[convnet_use_images]='no'											[convnet_features]='RM'
+# 	[convnet_resnet_model]='34'										[convnet_loss]='ce'																			
+# 	[train_on_val]='no'												[convnet_use_rmatches_secondary_motion_map]='yes'
+# 	)
+
+# # Baseline: removed mm + resnet34
+# declare -A run10=(
+# 	[n_estimators]='50'                    							[max_depth]='6'    													[lr]='0.01'
+# 	[image_match_classifier_min_match]='15'                    		[image_match_classifier_max_match]='50'    							[classifier]='CONVNET'
+# 	[use_all_training_data]='yes'									[convnet_use_feature_match_map]='yes'								[convnet_use_non_rmatches_map]='yes'
+# 	[convnet_use_matches_map]='no'									[convnet_use_rmatches_map]='yes'									[convnet_use_photometric_error_maps]='yes'
+# 	[convnet_use_track_map]='no'									[convnet_use_images]='no'											[convnet_features]='RM'
+# 	[convnet_resnet_model]='34'										[convnet_loss]='ce'																			
+# 	[train_on_val]='no'												[convnet_use_rmatches_secondary_motion_map]='yes'
+# 	)
+
+# # Baseline: removed pemms + resnet34
+# declare -A run11=(
+# 	[n_estimators]='50'                    							[max_depth]='6'    													[lr]='0.01'
+# 	[image_match_classifier_min_match]='15'                    		[image_match_classifier_max_match]='50'    							[classifier]='CONVNET'
+# 	[use_all_training_data]='yes'									[convnet_use_feature_match_map]='yes'								[convnet_use_non_rmatches_map]='yes'
+# 	[convnet_use_matches_map]='yes'									[convnet_use_rmatches_map]='yes'									[convnet_use_photometric_error_maps]='no'
+# 	[convnet_use_track_map]='no'									[convnet_use_images]='no'											[convnet_features]='RM'
+# 	[convnet_resnet_model]='34'										[convnet_loss]='ce'																			
+# 	[train_on_val]='no'												[convnet_use_rmatches_secondary_motion_map]='yes'
+# 	)
+
+# # Baseline: removed rmsmm + resnet34
+# declare -A run12=(
+# 	[n_estimators]='50'                    							[max_depth]='6'    													[lr]='0.01'
+# 	[image_match_classifier_min_match]='15'                    		[image_match_classifier_max_match]='50'    							[classifier]='CONVNET'
+# 	[use_all_training_data]='yes'									[convnet_use_feature_match_map]='yes'								[convnet_use_non_rmatches_map]='yes'
+# 	[convnet_use_matches_map]='yes'									[convnet_use_rmatches_map]='yes'									[convnet_use_photometric_error_maps]='yes'
+# 	[convnet_use_track_map]='no'									[convnet_use_images]='no'											[convnet_features]='RM'
+# 	[convnet_resnet_model]='34'										[convnet_loss]='ce'																			
+# 	[train_on_val]='no'												[convnet_use_rmatches_secondary_motion_map]='no'
+# 	)
+
+# # Baseline: all important features + train on val (used for final run)
+# declare -A run13=(
+# 	[n_estimators]='50'                    							[max_depth]='6'    													[lr]='0.01'
+# 	[image_match_classifier_min_match]='15'                    		[image_match_classifier_max_match]='50'    							[classifier]='CONVNET'
+# 	[use_all_training_data]='yes'									[convnet_use_feature_match_map]='yes'								[convnet_use_non_rmatches_map]='yes'
+# 	[convnet_use_matches_map]='yes'									[convnet_use_rmatches_map]='yes'									[convnet_use_photometric_error_maps]='yes'
+# 	[convnet_use_track_map]='no'									[convnet_use_images]='no'											[convnet_features]='RM'
+# 	[convnet_resnet_model]='18'										[convnet_loss]='ce'																			
+# 	[train_on_val]='yes'											[convnet_use_rmatches_secondary_motion_map]='yes'
+# 	)
+
+# # Baseline: all important features + train on val (used for final run) + resnet34
+# declare -A run14=(
+# 	[n_estimators]='50'                    							[max_depth]='6'    													[lr]='0.01'
+# 	[image_match_classifier_min_match]='15'                    		[image_match_classifier_max_match]='50'    							[classifier]='CONVNET'
+# 	[use_all_training_data]='yes'									[convnet_use_feature_match_map]='yes'								[convnet_use_non_rmatches_map]='yes'
+# 	[convnet_use_matches_map]='yes'									[convnet_use_rmatches_map]='yes'									[convnet_use_photometric_error_maps]='yes'
+# 	[convnet_use_track_map]='no'									[convnet_use_images]='no'											[convnet_features]='RM'
+# 	[convnet_resnet_model]='34'										[convnet_loss]='ce'																			
+# 	[train_on_val]='yes'											[convnet_use_rmatches_secondary_motion_map]='yes'
+# 	)
+
+# all_runs=(run1 run2 run3 run4 run5 run6 run13)
+# all_runs=(run1)
+# all_runs=(run1 run6)
+
 # Baseline: all important features
 declare -A run1=(
 	[n_estimators]='50'                    							[max_depth]='6'    													[lr]='0.01'
-	[image_match_classifier_min_match]='15'                    		[image_match_classifier_max_match]='50'    							[classifier]='CONVNET'
+	[image_match_classifier_min_match]='15'                    		[image_match_classifier_max_match]='5000'  							[classifier]='CONVNET'
 	[use_all_training_data]='yes'									[convnet_use_feature_match_map]='yes'								[convnet_use_non_rmatches_map]='yes'
 	[convnet_use_matches_map]='yes'									[convnet_use_rmatches_map]='yes'									[convnet_use_photometric_error_maps]='yes'
 	[convnet_use_track_map]='no'									[convnet_use_images]='no'											[convnet_features]='RM'
@@ -9,152 +167,63 @@ declare -A run1=(
 	[train_on_val]='no'												[convnet_use_rmatches_secondary_motion_map]='yes'
 	)
 
-# Baseline: removed nrmm
+# Run: RMM
 declare -A run2=(
 	[n_estimators]='50'                    							[max_depth]='6'    													[lr]='0.01'
-	[image_match_classifier_min_match]='15'                    		[image_match_classifier_max_match]='50'    							[classifier]='CONVNET'
-	[use_all_training_data]='yes'									[convnet_use_feature_match_map]='yes'								[convnet_use_non_rmatches_map]='no'
-	[convnet_use_matches_map]='yes'									[convnet_use_rmatches_map]='yes'									[convnet_use_photometric_error_maps]='yes'
+	[image_match_classifier_min_match]='15'                    		[image_match_classifier_max_match]='5000'    						[classifier]='CONVNET'
+	[use_all_training_data]='yes'									[convnet_use_feature_match_map]='no'								[convnet_use_non_rmatches_map]='no'
+	[convnet_use_matches_map]='no'									[convnet_use_rmatches_map]='yes'									[convnet_use_photometric_error_maps]='no'
 	[convnet_use_track_map]='no'									[convnet_use_images]='no'											[convnet_features]='RM'
 	[convnet_resnet_model]='18'										[convnet_loss]='ce'																			
-	[train_on_val]='no'												[convnet_use_rmatches_secondary_motion_map]='yes'
+	[train_on_val]='no'												[convnet_use_rmatches_secondary_motion_map]='no'
 	)
 
-# Baseline: removed rmm
+# Run: RMM + NRMM
 declare -A run3=(
 	[n_estimators]='50'                    							[max_depth]='6'    													[lr]='0.01'
-	[image_match_classifier_min_match]='15'                    		[image_match_classifier_max_match]='50'    							[classifier]='CONVNET'
-	[use_all_training_data]='yes'									[convnet_use_feature_match_map]='yes'								[convnet_use_non_rmatches_map]='yes'
-	[convnet_use_matches_map]='yes'									[convnet_use_rmatches_map]='no'										[convnet_use_photometric_error_maps]='yes'
+	[image_match_classifier_min_match]='15'                    		[image_match_classifier_max_match]='5000'  							[classifier]='CONVNET'
+	[use_all_training_data]='yes'									[convnet_use_feature_match_map]='no'								[convnet_use_non_rmatches_map]='yes'
+	[convnet_use_matches_map]='no'									[convnet_use_rmatches_map]='yes'									[convnet_use_photometric_error_maps]='no'
 	[convnet_use_track_map]='no'									[convnet_use_images]='no'											[convnet_features]='RM'
 	[convnet_resnet_model]='18'										[convnet_loss]='ce'																			
-	[train_on_val]='no'												[convnet_use_rmatches_secondary_motion_map]='yes'
+	[train_on_val]='no'												[convnet_use_rmatches_secondary_motion_map]='no'
 	)
 
-# Baseline: removed mm
+# Run: RMM + PEMs
 declare -A run4=(
 	[n_estimators]='50'                    							[max_depth]='6'    													[lr]='0.01'
-	[image_match_classifier_min_match]='15'                    		[image_match_classifier_max_match]='50'    							[classifier]='CONVNET'
-	[use_all_training_data]='yes'									[convnet_use_feature_match_map]='yes'								[convnet_use_non_rmatches_map]='yes'
+	[image_match_classifier_min_match]='15'                    		[image_match_classifier_max_match]='5000'  							[classifier]='CONVNET'
+	[use_all_training_data]='yes'									[convnet_use_feature_match_map]='no'								[convnet_use_non_rmatches_map]='no'
 	[convnet_use_matches_map]='no'									[convnet_use_rmatches_map]='yes'									[convnet_use_photometric_error_maps]='yes'
 	[convnet_use_track_map]='no'									[convnet_use_images]='no'											[convnet_features]='RM'
 	[convnet_resnet_model]='18'										[convnet_loss]='ce'																			
-	[train_on_val]='no'												[convnet_use_rmatches_secondary_motion_map]='yes'
+	[train_on_val]='no'												[convnet_use_rmatches_secondary_motion_map]='no'
 	)
 
-# Baseline: removed pemms
+# Run: PEMs
 declare -A run5=(
 	[n_estimators]='50'                    							[max_depth]='6'    													[lr]='0.01'
-	[image_match_classifier_min_match]='15'                    		[image_match_classifier_max_match]='50'    							[classifier]='CONVNET'
-	[use_all_training_data]='yes'									[convnet_use_feature_match_map]='yes'								[convnet_use_non_rmatches_map]='yes'
-	[convnet_use_matches_map]='yes'									[convnet_use_rmatches_map]='yes'									[convnet_use_photometric_error_maps]='no'
+	[image_match_classifier_min_match]='15'                    		[image_match_classifier_max_match]='5000'  							[classifier]='CONVNET'
+	[use_all_training_data]='yes'									[convnet_use_feature_match_map]='no'								[convnet_use_non_rmatches_map]='no'
+	[convnet_use_matches_map]='no'									[convnet_use_rmatches_map]='no'										[convnet_use_photometric_error_maps]='yes'
 	[convnet_use_track_map]='no'									[convnet_use_images]='no'											[convnet_features]='RM'
 	[convnet_resnet_model]='18'										[convnet_loss]='ce'																			
-	[train_on_val]='no'												[convnet_use_rmatches_secondary_motion_map]='yes'
+	[train_on_val]='no'												[convnet_use_rmatches_secondary_motion_map]='no'
 	)
 
-# Baseline: removed rmsmm
+# Run: RMM + NRMM + PEMs
 declare -A run6=(
 	[n_estimators]='50'                    							[max_depth]='6'    													[lr]='0.01'
-	[image_match_classifier_min_match]='15'                    		[image_match_classifier_max_match]='50'    							[classifier]='CONVNET'
-	[use_all_training_data]='yes'									[convnet_use_feature_match_map]='yes'								[convnet_use_non_rmatches_map]='yes'
-	[convnet_use_matches_map]='yes'									[convnet_use_rmatches_map]='yes'									[convnet_use_photometric_error_maps]='yes'
-	[convnet_use_track_map]='no'									[convnet_use_images]='no'											[convnet_features]='RM'
-	[convnet_resnet_model]='18'										[convnet_loss]='ce'																			
-	[train_on_val]='no'												[convnet_use_rmatches_secondary_motion_map]='no'
-	)
-
-# Baseline: all important features + resnet34
-declare -A run7=(
-	[n_estimators]='50'                    							[max_depth]='6'    													[lr]='0.01'
-	[image_match_classifier_min_match]='15'                    		[image_match_classifier_max_match]='50'    							[classifier]='CONVNET'
-	[use_all_training_data]='yes'									[convnet_use_feature_match_map]='yes'								[convnet_use_non_rmatches_map]='yes'
-	[convnet_use_matches_map]='yes'									[convnet_use_rmatches_map]='yes'									[convnet_use_photometric_error_maps]='yes'
-	[convnet_use_track_map]='no'									[convnet_use_images]='no'											[convnet_features]='RM'
-	[convnet_resnet_model]='34'										[convnet_loss]='ce'																			
-	[train_on_val]='no'												[convnet_use_rmatches_secondary_motion_map]='yes'
-	)
-
-# Baseline: removed nrmm + resnet34
-declare -A run8=(
-	[n_estimators]='50'                    							[max_depth]='6'    													[lr]='0.01'
-	[image_match_classifier_min_match]='15'                    		[image_match_classifier_max_match]='50'    							[classifier]='CONVNET'
-	[use_all_training_data]='yes'									[convnet_use_feature_match_map]='yes'								[convnet_use_non_rmatches_map]='no'
-	[convnet_use_matches_map]='yes'									[convnet_use_rmatches_map]='yes'									[convnet_use_photometric_error_maps]='yes'
-	[convnet_use_track_map]='no'									[convnet_use_images]='no'											[convnet_features]='RM'
-	[convnet_resnet_model]='34'										[convnet_loss]='ce'																			
-	[train_on_val]='no'												[convnet_use_rmatches_secondary_motion_map]='yes'
-	)
-
-# Baseline: removed rmm + resnet34
-declare -A run9=(
-	[n_estimators]='50'                    							[max_depth]='6'    													[lr]='0.01'
-	[image_match_classifier_min_match]='15'                    		[image_match_classifier_max_match]='50'    							[classifier]='CONVNET'
-	[use_all_training_data]='yes'									[convnet_use_feature_match_map]='yes'								[convnet_use_non_rmatches_map]='yes'
-	[convnet_use_matches_map]='yes'									[convnet_use_rmatches_map]='no'										[convnet_use_photometric_error_maps]='yes'
-	[convnet_use_track_map]='no'									[convnet_use_images]='no'											[convnet_features]='RM'
-	[convnet_resnet_model]='34'										[convnet_loss]='ce'																			
-	[train_on_val]='no'												[convnet_use_rmatches_secondary_motion_map]='yes'
-	)
-
-# Baseline: removed mm + resnet34
-declare -A run10=(
-	[n_estimators]='50'                    							[max_depth]='6'    													[lr]='0.01'
-	[image_match_classifier_min_match]='15'                    		[image_match_classifier_max_match]='50'    							[classifier]='CONVNET'
-	[use_all_training_data]='yes'									[convnet_use_feature_match_map]='yes'								[convnet_use_non_rmatches_map]='yes'
+	[image_match_classifier_min_match]='15'                    		[image_match_classifier_max_match]='5000'  							[classifier]='CONVNET'
+	[use_all_training_data]='yes'									[convnet_use_feature_match_map]='no'								[convnet_use_non_rmatches_map]='yes'
 	[convnet_use_matches_map]='no'									[convnet_use_rmatches_map]='yes'									[convnet_use_photometric_error_maps]='yes'
 	[convnet_use_track_map]='no'									[convnet_use_images]='no'											[convnet_features]='RM'
-	[convnet_resnet_model]='34'										[convnet_loss]='ce'																			
-	[train_on_val]='no'												[convnet_use_rmatches_secondary_motion_map]='yes'
-	)
-
-# Baseline: removed pemms + resnet34
-declare -A run11=(
-	[n_estimators]='50'                    							[max_depth]='6'    													[lr]='0.01'
-	[image_match_classifier_min_match]='15'                    		[image_match_classifier_max_match]='50'    							[classifier]='CONVNET'
-	[use_all_training_data]='yes'									[convnet_use_feature_match_map]='yes'								[convnet_use_non_rmatches_map]='yes'
-	[convnet_use_matches_map]='yes'									[convnet_use_rmatches_map]='yes'									[convnet_use_photometric_error_maps]='no'
-	[convnet_use_track_map]='no'									[convnet_use_images]='no'											[convnet_features]='RM'
-	[convnet_resnet_model]='34'										[convnet_loss]='ce'																			
-	[train_on_val]='no'												[convnet_use_rmatches_secondary_motion_map]='yes'
-	)
-
-# Baseline: removed rmsmm + resnet34
-declare -A run12=(
-	[n_estimators]='50'                    							[max_depth]='6'    													[lr]='0.01'
-	[image_match_classifier_min_match]='15'                    		[image_match_classifier_max_match]='50'    							[classifier]='CONVNET'
-	[use_all_training_data]='yes'									[convnet_use_feature_match_map]='yes'								[convnet_use_non_rmatches_map]='yes'
-	[convnet_use_matches_map]='yes'									[convnet_use_rmatches_map]='yes'									[convnet_use_photometric_error_maps]='yes'
-	[convnet_use_track_map]='no'									[convnet_use_images]='no'											[convnet_features]='RM'
-	[convnet_resnet_model]='34'										[convnet_loss]='ce'																			
+	[convnet_resnet_model]='18'										[convnet_loss]='ce'																			
 	[train_on_val]='no'												[convnet_use_rmatches_secondary_motion_map]='no'
 	)
 
-# Baseline: all important features + train on val (used for final run)
-declare -A run13=(
-	[n_estimators]='50'                    							[max_depth]='6'    													[lr]='0.01'
-	[image_match_classifier_min_match]='15'                    		[image_match_classifier_max_match]='50'    							[classifier]='CONVNET'
-	[use_all_training_data]='yes'									[convnet_use_feature_match_map]='yes'								[convnet_use_non_rmatches_map]='yes'
-	[convnet_use_matches_map]='yes'									[convnet_use_rmatches_map]='yes'									[convnet_use_photometric_error_maps]='yes'
-	[convnet_use_track_map]='no'									[convnet_use_images]='no'											[convnet_features]='RM'
-	[convnet_resnet_model]='18'										[convnet_loss]='ce'																			
-	[train_on_val]='yes'											[convnet_use_rmatches_secondary_motion_map]='yes'
-	)
-
-# Baseline: all important features + train on val (used for final run) + resnet34
-declare -A run14=(
-	[n_estimators]='50'                    							[max_depth]='6'    													[lr]='0.01'
-	[image_match_classifier_min_match]='15'                    		[image_match_classifier_max_match]='50'    							[classifier]='CONVNET'
-	[use_all_training_data]='yes'									[convnet_use_feature_match_map]='yes'								[convnet_use_non_rmatches_map]='yes'
-	[convnet_use_matches_map]='yes'									[convnet_use_rmatches_map]='yes'									[convnet_use_photometric_error_maps]='yes'
-	[convnet_use_track_map]='no'									[convnet_use_images]='no'											[convnet_features]='RM'
-	[convnet_resnet_model]='34'										[convnet_loss]='ce'																			
-	[train_on_val]='yes'											[convnet_use_rmatches_secondary_motion_map]='yes'
-	)
-
-# all_runs=(run1 run2 run3 run4 run5 run6)
-# all_runs=(run1 run6)
-all_runs=(run8 run9 run10 run11 run12 run14)
+# all_runs=(run2 run3 run4 run5 run6 run1)
+all_runs=(run6)
 
 for run_name in "${all_runs[@]}"; do
 	echo "**********************************************************************************";

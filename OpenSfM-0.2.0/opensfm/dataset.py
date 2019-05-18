@@ -102,6 +102,9 @@ class DataSet:
     def __resized_image_file(self, image):
         return os.path.join(self.__resized_image_path(), image) # extension is part of the file name
 
+    def __blurred_image_file(self, image, kernel_size):
+        return os.path.join(self.__blurred_image_path(), '{}-{}'.format(kernel_size, image) ) # extension is part of the file name
+
     def masks(self):
         """Return list of file names of all masks in this dataset"""
         return self.mask_list
@@ -369,6 +372,9 @@ class DataSet:
     def __resized_image_path(self):
         return os.path.join(self.data_path, 'images-resized')
 
+    def __blurred_image_path(self):
+        return os.path.join(self.data_path, 'images-blurred')
+
     def __classifier_dataset_unthresholded_matches_path(self):
         return os.path.join(self.__classifier_dataset_path(), 'unthresholded_matches')
     
@@ -523,6 +529,7 @@ class DataSet:
     def __feature_image_matching_results_file(self, ext='pkl.gz', suffix=15):
         """File for flags indicating whether calibrated robust matching occured"""
         return os.path.join(self.__classifier_features_path(), 'image_matching_results_{}.{}'.format(suffix, ext))
+        # return os.path.join(self.__classifier_features_path(), 'image_matching_results.{}'.format(ext))
 
     def __feature_matching_results_file(self, image, ext='pkl.gz'):
         """File for flags indicating whether calibrated robust matching occured"""
@@ -1223,8 +1230,8 @@ class DataSet:
                     if False:
                         ch_im1 = ','.join(map(str, np.around(np.array(color_histograms[im1]['histogram']), decimals=2)))
                         ch_im2 = ','.join(map(str, np.around(np.array(color_histograms[im2]['histogram']), decimals=2)))
-                    ch_im1 = ','.join(map(str, np.around(np.zeros((80,)), decimals=2)))
-                    ch_im2 = ','.join(map(str, np.around(np.zeros((80,)), decimals=2)))
+                    ch_im1 = ','.join(map(str, np.around(np.zeros((384,)), decimals=2)))
+                    ch_im2 = ','.join(map(str, np.around(np.zeros((384,)), decimals=2)))
 
                     vt_rank_percentage_im1_im2 = 100.0 * vt_ranks[im1][im2] / len(self.images())
                     vt_rank_percentage_im2_im1 = 100.0 * vt_ranks[im2][im1] / len(self.images())
@@ -1775,6 +1782,13 @@ class DataSet:
             json.dump(metadata, fout, sort_keys=True, indent=4, separators=(',', ': '))
 
         return metadata
+
+    def save_blurred_image(self, im_fn, image, grid_size=None, kernel_size=None):
+        io.mkdir_p(self.__blurred_image_path())
+        if grid_size is None:
+            cv2.imwrite(self.__blurred_image_file(im_fn, kernel_size=kernel_size), image)
+        else:
+            cv2.imwrite(self.__blurred_image_file(im_fn, kernel_size=kernel_size), cv2.resize(image, (grid_size, grid_size)))
 
     def load_resized_image(self, im_fn):
         image = cv2.imread(self.__resized_image_file(im_fn), cv2.IMREAD_COLOR)

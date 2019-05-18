@@ -75,9 +75,9 @@ class Command:
         classifier.calculate_spatial_entropies(ctx)
         e_spatial_entropies = timer()
 
-        s_gamma_adjusting_images = timer()
-        classifier.calculate_gamma_adjusted_images(ctx)
-        e_gamma_adjusting_images = timer()
+        s_preprocess_images = timer()
+        classifier.preprocess_images(ctx)
+        e_preprocess_images = timer()
 
         s_photometric_errors = timer()
         classifier.calculate_photometric_errors(ctx)
@@ -135,7 +135,7 @@ class Command:
             "feature_matching_dataset_wall_time": e_feature_matching_dataset - s_feature_matching_dataset,
             "resizing_images_wall_time": e_resizing_images - s_resizing_images,
             "spatial_entropies_wall_time": e_spatial_entropies - s_spatial_entropies,
-            "gamma_adjusting_images_wall_time": e_gamma_adjusting_images - s_gamma_adjusting_images,
+            "preprocess_images_wall_time": e_preprocess_images - s_preprocess_images,
             "photometric_errors_wall_time": e_photometric_errors - s_photometric_errors,
             "multiple_motions_wall_time": e_multiple_motions - s_multiple_motions,
             "keypoint_maps_wall_time": e_keypoint_maps - s_keypoint_maps,

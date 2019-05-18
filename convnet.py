@@ -376,6 +376,71 @@ class ImageMatchingDataset(data.Dataset):
             self.distance_rank_percentage_im1_im2_gt, self.distance_rank_percentage_im2_im1_gt, \
             self.labels, self.weights, self.train, self.model, self.options = arg
 
+        ri = np.where((self.num_rmatches >= self.options['range_min']) & (self.num_rmatches <= self.options['range_max']))[0]
+        self.dsets = self.dsets[ri]
+        self.fns = self.fns[ri]
+        self.R11s = self.R11s[ri]
+        self.R12s = self.R12s[ri]
+        self.R13s = self.R13s[ri]
+        self.R21s = self.R21s[ri]
+        self.R22s = self.R22s[ri]
+        self.R23s = self.R23s[ri]
+        self.R31s = self.R31s[ri]
+        self.R32s = self.R32s[ri]
+        self.R33s = self.R33s[ri]
+        self.num_rmatches = self.num_rmatches[ri]
+        self.num_matches = self.num_matches[ri]
+        self.spatial_entropy_1_8x8 = self.spatial_entropy_1_8x8[ri]
+        self.spatial_entropy_2_8x8 = self.spatial_entropy_2_8x8[ri]
+        self.spatial_entropy_1_16x16 = self.spatial_entropy_1_16x16[ri]
+        self.spatial_entropy_2_16x16 = self.spatial_entropy_2_16x16[ri]
+        self.pe_histogram = self.pe_histogram[ri]
+        self.pe_polygon_area_percentage = self.pe_polygon_area_percentage[ri]
+        self.nbvs_im1 = self.nbvs_im1[ri]
+        self.nbvs_im2 = self.nbvs_im2[ri]
+        self.te_histogram = self.te_histogram[ri]
+        self.ch_im1 = self.ch_im1[ri]
+        self.ch_im2 = self.ch_im2[ri]
+        self.vt_rank_percentage_im1_im2 = self.vt_rank_percentage_im1_im2[ri]
+        self.vt_rank_percentage_im2_im1 = self.vt_rank_percentage_im2_im1[ri]
+        self.sq_rank_scores_mean = self.sq_rank_scores_mean[ri]
+        self.sq_rank_scores_min = self.sq_rank_scores_min[ri]
+        self.sq_rank_scores_max = self.sq_rank_scores_max[ri]
+        self.sq_distance_scores = self.sq_distance_scores[ri]
+        self.lcc_im1_15 = self.lcc_im1_15[ri]
+        self.lcc_im2_15 = self.lcc_im2_15[ri]
+        self.min_lcc_15 = self.min_lcc_15[ri]
+        self.max_lcc_15 = self.max_lcc_15[ri]
+        self.lcc_im1_20 = self.lcc_im1_20[ri]
+        self.lcc_im2_20 = self.lcc_im2_20[ri]
+        self.min_lcc_20 = self.min_lcc_20[ri]
+        self.max_lcc_20 = self.max_lcc_20[ri]
+        self.lcc_im1_25 = self.lcc_im1_25[ri]
+        self.lcc_im2_25 = self.lcc_im2_25[ri]
+        self.min_lcc_25 = self.min_lcc_25[ri]
+        self.max_lcc_25 = self.max_lcc_25[ri]
+        self.lcc_im1_30 = self.lcc_im1_30[ri]
+        self.lcc_im2_30 = self.lcc_im2_30[ri]
+        self.min_lcc_30 = self.min_lcc_30[ri]
+        self.max_lcc_30 = self.max_lcc_30[ri]
+        self.lcc_im1_35 = self.lcc_im1_35[ri]
+        self.lcc_im2_35 = self.lcc_im2_35[ri]
+        self.min_lcc_35 = self.min_lcc_35[ri]
+        self.max_lcc_35 = self.max_lcc_35[ri]
+        self.lcc_im1_40 = self.lcc_im1_40[ri]
+        self.lcc_im2_40 = self.lcc_im2_40[ri]
+        self.min_lcc_40 = self.min_lcc_40[ri]
+        self.max_lcc_40 = self.max_lcc_40[ri]
+        self.shortest_path_length = self.shortest_path_length[ri]
+        self.mds_rank_percentage_im1_im2 = self.mds_rank_percentage_im1_im2[ri]
+        self.mds_rank_percentage_im2_im1 = self.mds_rank_percentage_im2_im1[ri]
+        self.distance_rank_percentage_im1_im2_gt = self.distance_rank_percentage_im1_im2_gt[ri]
+        self.distance_rank_percentage_im2_im1_gt = self.distance_rank_percentage_im2_im1_gt[ri]
+        self.labels = self.labels[ri]
+        self.weights = self.weights[ri]
+
+
+
         self.transform = transform
         self.loader = loader
         self.unique_fns_dsets = np.array([])
@@ -858,7 +923,7 @@ def convnet_accuracy(y, y_gt, all_im1s, all_im2s, color, ls, epoch, thresholds):
     auc = sklearn.metrics.auc(recall, precision)
     return auc
 
-def inference(data_loader, model, epoch, run_dir, logger, opts, mode=None, optimizer=None):
+def inference(data_loader, model, epoch, run_dir, logger, opts, range_min, range_max, mode=None, optimizer=None):
     # switch to train/eval mode
     print ('#'*100)
     if mode == 'train':
@@ -965,16 +1030,15 @@ def inference(data_loader, model, epoch, run_dir, logger, opts, mode=None, optim
             if opts['triplet-sampling-strategy'] == 'normal' or mode == 'test':
                 break
 
-        if mode == 'train':
-            reformatted_targets = targets.type(torch.cuda.FloatTensor)
-            reformatted_targets[reformatted_targets <= 0] = -1
-            if opts['loss'] == 'cross-entropy':
-                loss = cross_entropy_loss(y_predictions_logits, targets)
-            elif opts['loss'] == 'triplet':
-                # loss = margin_ranking_loss(y_predictions_logits[:,1], y_predictions_logits[:,0], reformatted_targets)
-                ones_label = Variable(torch.ones(positive_predictions.size()[0]).cuda().type(torch.cuda.FloatTensor))
-                loss = margin_ranking_loss(positive_predictions[:,1], negative_predictions[:,1], ones_label)
 
+        if opts['loss'] == 'cross-entropy':
+            loss = cross_entropy_loss(y_predictions_logits, targets)
+        elif opts['loss'] == 'triplet':
+            # loss = margin_ranking_loss(y_predictions_logits[:,1], y_predictions_logits[:,0], reformatted_targets)
+            ones_label = Variable(torch.ones(positive_predictions.size()[0]).cuda().type(torch.cuda.FloatTensor))
+            loss = margin_ranking_loss(positive_predictions[:,1], negative_predictions[:,1], ones_label)
+
+        if mode == 'train':
             loss.backward()
             optimizer.step()
 
@@ -1011,12 +1075,13 @@ def inference(data_loader, model, epoch, run_dir, logger, opts, mode=None, optim
             else:
                 if logger is not None:
                     print(
-                        '{} Epoch: {} Accuracy: {} [{}/{} ({:.0f}%)]'.format(
+                        '{} Epoch: {} Accuracy: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                             mode.upper(), epoch, accuracy, (batch_idx + 1) * opts['batch_size'], len(data_loader.dataset),
-                            100.0 * (batch_idx + 1) * opts['batch_size'] / data_loader.dataset.__len__()))
+                            100.0 * (batch_idx + 1) * opts['batch_size'] / data_loader.dataset.__len__(),
+                            loss.data[0]))
 
-        if mode == 'train':
-            cum_loss = cum_loss + loss.data[0]
+        # if mode == 'train':
+        cum_loss = cum_loss + loss.data[0]
 
   # num_tests = data_loader.dataset.__len__()
   # accuracy = correct_counts*100.0/num_tests
@@ -1038,10 +1103,12 @@ def inference(data_loader, model, epoch, run_dir, logger, opts, mode=None, optim
             torch.save({'epoch': epoch + 1, 'state_dict': model.state_dict(), 'optimizer': optimizer.state_dict()},
                '{}/checkpoint_{}.pth'.format(run_dir, epoch))
     else:
+        cum_loss = cum_loss/(num_tests/(1.0*opts['batch_size']))
         if logger is not None:
-            logger.log_value('TEST-ACCURACY', accuracy)
-            print ('{} Epoch: {}  Correct: {}  Accuracy: {}\n'.format(mode.upper(), epoch, correct_counts, \
-                round(accuracy, 2)))
+            logger.log_value('TEST-ACCURACY-RANGE-{}-{}'.format(range_min, range_max), accuracy)
+            logger.log_value('TEST-LOSS-RANGE-{}-{}'.format(range_min, range_max), cum_loss)
+            print ('{} Epoch: {}  Correct: {}  Accuracy: {}  Loss: {}\n'.format(mode.upper(), epoch, correct_counts, \
+                round(accuracy, 2), round(cum_loss,2)))
 
     # print ('-'*100)
     # score_thresholds = np.linspace(0, 1.0, 21)
@@ -1100,12 +1167,12 @@ def inference(data_loader, model, epoch, run_dir, logger, opts, mode=None, optim
             logger.log_value('TRAIN-PPI-EXP', mean_precision_per_image)
     else:
         if logger is not None:
-            logger.log_value('TEST-AUC-BASELINE', auc_baseline)
-            logger.log_value('TEST-AUCPI-BASELINE', auc_per_image_mean_baseline)
-            logger.log_value('TEST-PPI-BASELINE', mean_precision_per_image_baseline)
-            logger.log_value('TEST-AUC-EXP', auc)
-            logger.log_value('TEST-AUCPI-EXP', auc_per_image_mean)
-            logger.log_value('TEST-PPI-EXP', mean_precision_per_image)
+            logger.log_value('TEST-AUC-BASELINE-RANGE-{}-{}'.format(range_min, range_max), auc_baseline)
+            logger.log_value('TEST-AUCPI-BASELINE-RANGE-{}-{}'.format(range_min, range_max), auc_per_image_mean_baseline)
+            logger.log_value('TEST-PPI-BASELINE-RANGE-{}-{}'.format(range_min, range_max), mean_precision_per_image_baseline)
+            logger.log_value('TEST-AUC-EXP-RANGE-{}-{}'.format(range_min, range_max), auc)
+            logger.log_value('TEST-AUCPI-EXP-RANGE-{}-{}'.format(range_min, range_max), auc_per_image_mean)
+            logger.log_value('TEST-PPI-EXP-RANGE-{}-{}'.format(range_min, range_max), mean_precision_per_image)
     return all_fns, all_num_rmatches, all_predictions[:,1], all_shortest_path_lengths
     # plt.legend(['{} : {} : {} / {}'.format(mode, opts['experiment'], auc, auc_per_image_mean)],  loc='lower left',  shadow=True, fontsize=20)
     # fig = plt.gcf()
@@ -1186,11 +1253,11 @@ def classify_convnet_image_match_inference(arg):
     # logger = Logger(run_dir)
     epoch = 0
 
-    fns, rmatches, scores, spl = inference(test_loader, model, epoch, run_dir=None, logger=None, opts=opts, mode='test', optimizer=None)
+    fns, rmatches, scores, spl = inference(test_loader, model, epoch, run_dir=None, logger=None, opts=opts, range_min=opts['range_min'], range_max=opts['range_max'], mode='test', optimizer=None)
 
     return fns, rmatches, None, scores, spl, None
 
-def classify_convnet_image_match_initialization(train_loader, test_loader, run_dir, opts):
+def classify_convnet_image_match_initialization(train_loader, test_loaders, run_dir, opts):
     # instantiate model and initialize weights
     kwargs = {}
     model = ConvNet(opts, **kwargs)
@@ -1250,9 +1317,11 @@ def classify_convnet_image_match_initialization(train_loader, test_loader, run_d
     logger = Logger(run_dir)
     
     for epoch in range(start, end):
-        _, _, training_scores, _ = inference(train_loader, model, epoch, run_dir, logger, opts, mode='train', optimizer=optimizer)
+        _, _, training_scores, _ = inference(train_loader, model, epoch, run_dir, logger, opts, range_min=None, range_max=None,  mode='train', optimizer=optimizer)
         if (epoch + 1) % 1 == 0:
-            _, _, testing_scores, _ = inference(test_loader, model, epoch, run_dir, logger, opts, mode='test', optimizer=None)
+            for t, test_loader in enumerate(test_loaders):
+                _, _, testing_scores, _ = inference(test_loader, model, epoch, run_dir, logger, opts, range_min=opts['ranges'][t][0], range_max=opts['ranges'][t][1], mode='test', optimizer=None)
+
         logger.step()
 
     # scores = inference(train_loader, model, epoch, run_dir, logger, opts, mode='train', optimizer=optimizer)
@@ -1305,6 +1374,8 @@ def classify_convnet_image_match_training(arg, arg_te):
         tv.transforms.ToTensor(),
     ])
 
+    opts['range_min'] = 15
+    opts['range_max'] = 5000
     train_loader = torch.utils.data.DataLoader(
         ImageMatchingDataset(arg, opts, transform=train_transform),
         batch_size=opts['batch_size'], shuffle=opts['shuffle'], **kwargs
@@ -1317,17 +1388,27 @@ def classify_convnet_image_match_training(arg, arg_te):
     print ('#'*100)
 
     opts = arg[-1]
-    test_loader = torch.utils.data.DataLoader(
-        ImageMatchingDataset(arg_te, opts, transform=test_transform),
-        batch_size=opts['batch_size'], shuffle=opts['shuffle'], **kwargs
-        )
 
-    print ('#'*50 + ' Testing Data ' + '#'*50)
-    print ('\tInliers: {}'.format(len(np.where(test_loader.dataset.labels == 1)[0])))
-    print ('\tOutliers: {}'.format(len(np.where(test_loader.dataset.labels == 0)[0])))
-    print ('\tTotal: {}'.format(test_loader.dataset.__len__()))
-    print ('#'*110)
+    test_loaders = []
+
+    opts['ranges'] = []
+    for range_min, range_max in [[15,50], [50, 5000], [15, 5000]]:
+        opts['ranges'].append([range_min, range_max])
+        opts['range_min'] = range_min
+        opts['range_max'] = range_max
+
+        test_loader = torch.utils.data.DataLoader(
+            ImageMatchingDataset(arg_te, opts, transform=test_transform),
+            batch_size=opts['batch_size'], shuffle=opts['shuffle'], **kwargs
+            )
+        test_loaders.append(test_loader)
+
+        print ('#'*50 + ' Testing Data ' + '#'*50)
+        print ('\tInliers: {}'.format(len(np.where(test_loader.dataset.labels == 1)[0])))
+        print ('\tOutliers: {}'.format(len(np.where(test_loader.dataset.labels == 0)[0])))
+        print ('\tTotal: {}'.format(test_loader.dataset.__len__()))
+        print ('#'*110)
 
 
-    model, training_scores = classify_convnet_image_match_initialization(train_loader, test_loader, run_dir, opts)
+    model, training_scores = classify_convnet_image_match_initialization(train_loader, test_loaders, run_dir, opts)
     return None, None, model, training_scores, None
