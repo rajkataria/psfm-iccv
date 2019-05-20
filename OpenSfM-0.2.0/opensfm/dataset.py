@@ -399,10 +399,10 @@ class DataSet:
 
     def __classifier_features_photometric_errors_map_path(self):
         """Return path of all matches directory"""
-        return os.path.join(self.__classifier_features_path(), 'pe_maps_gamma_adjusted_unfiltered')
+        return os.path.join(self.__classifier_features_path(), 'pe_maps_preprocessed_unfiltered')
 
     def __classifier_features_photometric_errors_triangle_transformations_path(self):
-        return os.path.join(self.__classifier_features_path(), 'pe_triangle_transformations_gamma_adjusted')
+        return os.path.join(self.__classifier_features_path(), 'pe_triangle_transformations_preprocessed')
 
     def __classifier_features_graph_path(self):
         """Return path of all matches directory"""
@@ -510,7 +510,7 @@ class DataSet:
 
     def __feature_photometric_errors_file(self, ext='pkl.gz'):
         """File for flags indicating whether calibrated robust matching occured"""
-        return os.path.join(self.__classifier_features_path(), 'pe_gamma_adjusted_unfiltered.{}'.format(ext))
+        return os.path.join(self.__classifier_features_path(), 'pe_preprocessed_unfiltered.{}'.format(ext))
 
     def __feature_secondary_motion_results_file(self, ext='pkl.gz'):
         """File for flags indicating whether calibrated robust matching occured"""
@@ -1796,8 +1796,18 @@ class DataSet:
             metadata = json.load(fin)
         return image, self.__resized_image_file(im_fn), metadata
 
+    def load_blurred_image(self, im_fn, kernel_size=3):
+        image = cv2.imread(self.__blurred_image_file(im_fn, kernel_size=kernel_size), cv2.IMREAD_COLOR)
+        # still load metadata from the resized image
+        with open(os.path.join(self.__resized_image_file(im_fn) + '.json'), 'r') as fin:
+            metadata = json.load(fin)
+        return image, self.__blurred_image_file(im_fn, kernel_size=kernel_size), metadata
+
     def resized_image_exists(self, im_fn):
         return os.path.isfile(self.__resized_image_file(im_fn))
+
+    def blurred_image_exists(self, im_fn, kernel_size=3):
+        return os.path.isfile(self.__blurred_image_file(im_fn, kernel_size=kernel_size))
 
     def photometric_error_triangle_transformations_exists(self, im1, im2):
         return os.path.isfile(self.__photometric_error_triangle_transformations_file(im1, im2) + '.json')

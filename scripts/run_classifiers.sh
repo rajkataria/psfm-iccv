@@ -222,8 +222,9 @@ declare -A run6=(
 	[train_on_val]='no'												[convnet_use_rmatches_secondary_motion_map]='no'
 	)
 
-# all_runs=(run2 run3 run4 run5 run6 run1)
-all_runs=(run6)
+all_runs=(run2 run3 run4 run5 run6 run1)
+# all_runs=(run5)
+# all_runs=(run6)
 
 for run_name in "${all_runs[@]}"; do
 	echo "**********************************************************************************";

@@ -24,6 +24,7 @@ import random
 import sys
 from skimage import io, transform
 from scipy.misc import imresize
+import shutil
 import socket
 import sklearn
 # from gflags import flagvalues
@@ -31,52 +32,46 @@ from torchvision import datasets, transforms
 from torch.autograd import Variable
 from tqdm import tqdm
 from eval_metrics import ErrorRateAt95Recall
-from tensorboard_logger import configure, log_value
+from tensorboard_logger import configure, log_value, log_images
 import matching_classifiers
 import resnet
 
 class Logger(object):
-  def __init__(self, run_dir):
-    # # clean previous logged data under the same directory name
-    # self._remove(run_dir)
+    def __init__(self, run_dir):
+        # configure the project
+        configure(run_dir, flush_secs=2)
+        self.global_step = 0
 
-    # configure the project
-    configure(run_dir, flush_secs=2)
+    def log_value(self, name, value):
+        log_value(name, value, self.global_step)
+        return self
 
-    self.global_step = 0
+    def log_images(self, name, images):
+        log_images(name, images, self.global_step)
+        return self
 
-  def log_value(self, name, value):
-    log_value(name, value, self.global_step)
-    return self
+    def step(self):
+        self.global_step += 1
 
-  def step(self):
-    self.global_step += 1
-
-  @staticmethod
-  def _remove(path):
-    """ param <path> could either be relative or absolute. """
-    if os.path.isfile(path):
-      os.remove(path)  # remove the file
-    elif os.path.isdir(path):
-      import shutil
-      shutil.rmtree(path)  # remove dir and all contains
-
+    @staticmethod
+    def _remove(path):
+        """ param <path> could either be relative or absolute. """
+        if os.path.isfile(path):
+          os.remove(path)  # remove the file
+        elif os.path.isdir(path):
+          shutil.rmtree(path)  # remove dir and all contains
 
 class ConvNet(nn.Module):
 
     def __init__(self, opts):#, num_classes=1000, init_weights=True):
         super(ConvNet, self).__init__()
         self.name = 'CONVNET'
-        # self.features = features
         self.opts = opts
 
-        # if opts['use_image_features']:
         if opts['model'] == 'resnet18':
-            # mlp_input_size = 1024
             mlp_input_size = 512
             __model = resnet.resnet18(pretrained=False, opts=opts)
         elif opts['model'] == 'resnet34':
-            # mlp_input_size = 1024
             mlp_input_size = 512
             __model = resnet.resnet34(pretrained=False, opts=opts)
         elif opts['model'] == 'resnet50':
@@ -91,55 +86,9 @@ class ConvNet(nn.Module):
         else:
             __model = resnet.resnet50(pretrained=False, opts=opts)
 
-        
-        # if 'TE' in opts['features']:
-        #     mlp_input_size += 80
-        # if 'NBVS' in opts['features']:
-        #     mlp_input_size += 2
-
-        # self.mlp = nn.Sequential(
-        #     nn.Linear(mlp_input_size, opts['mlp-layer-size']),
-        #     nn.ReLU(),
-        #     nn.Dropout(),
-        #     nn.Linear(opts['mlp-layer-size'], opts['mlp-layer-size']),
-        #     nn.ReLU(),
-        #     nn.Dropout(),
-        #     nn.Linear(opts['mlp-layer-size'], 2)
-        # )
         self.mlp = nn.Sequential(
             nn.Linear(mlp_input_size, 2)
         )
-        # else:
-        #     self.mlp = nn.Sequential(
-        #         # nn.Linear(919, 2),
-        #         nn.Linear(923, 1024),
-        #         nn.ReLU(),
-        #         nn.Dropout(),
-        #         nn.Linear(1024, 1024),
-        #         nn.ReLU(),
-        #         nn.Dropout(),
-        #         nn.Linear(1024, 1024),
-        #         nn.ReLU(),
-        #         nn.Dropout(),
-        #         nn.Linear(1024, 2),
-        #         nn.Softmax()
-        #     )
-
-        # if opts['use_image_features']:
-        #     # kwargs_ = {'num_classes': opts['num_classes']}
-        #     # __model = models.__dict__['resnet34'](pretrained=True)
-        #     if opts['model'] == 'resnet18':
-        #         __model = resnet.resnet18(pretrained=False)
-        #     elif opts['model'] == 'resnet34':
-        #         __model = resnet.resnet34(pretrained=False)
-        #     elif opts['model'] == 'resnet50':
-        #         __model = resnet.resnet50(pretrained=False)
-        #     elif opts['model'] == 'resnet101':
-        #         __model = resnet.resnet101(pretrained=False)
-        #     elif opts['model'] == 'resnet152':
-        #         __model = resnet.resnet152(pretrained=False)
-        #     else:
-        #         __model = resnet.resnet50(pretrained=False)
 
         _feature_extraction_model = nn.Sequential(*list(__model.children())[:-1])
         _feature_extraction_model.cuda()
@@ -158,89 +107,6 @@ class ConvNet(nn.Module):
             labels, img1, img2, se_rmatches_img1, se_rmatches_img2, se_matches_img1, se_matches_img2, pe_img1, pe_img2, \
             pe_mask_img1, pe_mask_img2, pe_warped_img1, pe_warped_img2, se_fm1, se_fm2, tm_fm1, tm_fm2, se_non_rmatches_img1, se_non_rmatches_img2, \
             se_rmatches_secondary_motion_img1, se_rmatches_secondary_motion_img2 = arg
-
-        # x = torch.cat(( \
-        #     R11s.type(torch.cuda.FloatTensor).view(R11s.size(0), -1), \
-        #     R12s.type(torch.cuda.FloatTensor).view(R12s.size(0), -1), \
-        #     R13s.type(torch.cuda.FloatTensor).view(R13s.size(0), -1), \
-        #     R21s.type(torch.cuda.FloatTensor).view(R21s.size(0), -1), \
-        #     R22s.type(torch.cuda.FloatTensor).view(R22s.size(0), -1), \
-        #     R23s.type(torch.cuda.FloatTensor).view(R23s.size(0), -1), \
-        #     R31s.type(torch.cuda.FloatTensor).view(R31s.size(0), -1), \
-        #     R32s.type(torch.cuda.FloatTensor).view(R32s.size(0), -1), \
-        #     R33s.type(torch.cuda.FloatTensor).view(R33s.size(0), -1), \
-
-        #     num_rmatches.type(torch.cuda.FloatTensor).view(num_rmatches.size(0), -1), \
-        #     num_matches.type(torch.cuda.FloatTensor).view(num_matches.size(0), -1), \
-
-        #     spatial_entropy_1_8x8.type(torch.cuda.FloatTensor).view(spatial_entropy_1_8x8.size(0), -1), \
-        #     spatial_entropy_2_8x8.type(torch.cuda.FloatTensor).view(spatial_entropy_2_8x8.size(0), -1), \
-        #     spatial_entropy_1_16x16.type(torch.cuda.FloatTensor).view(spatial_entropy_1_16x16.size(0), -1), \
-        #     spatial_entropy_2_16x16.type(torch.cuda.FloatTensor).view(spatial_entropy_2_16x16.size(0), -1), \
-            
-        #     pe_histogram.type(torch.cuda.FloatTensor).view(pe_histogram.size(0), -1), \
-        #     pe_polygon_area_percentage.type(torch.cuda.FloatTensor).view(pe_polygon_area_percentage.size(0), -1), \
-
-        #     nbvs_im1.type(torch.cuda.FloatTensor).view(nbvs_im1.size(0), -1), \
-        #     nbvs_im2.type(torch.cuda.FloatTensor).view(nbvs_im2.size(0), -1), \
-
-        #     te_histogram.type(torch.cuda.FloatTensor).view(te_histogram.size(0), -1), \
-            
-        #     ch_im1.type(torch.cuda.FloatTensor).view(ch_im1.size(0), -1), \
-        #     ch_im2.type(torch.cuda.FloatTensor).view(ch_im2.size(0), -1), \
-
-        #     vt_rank_percentage_im1_im2.type(torch.cuda.FloatTensor).view(vt_rank_percentage_im1_im2.size(0), -1), \
-        #     vt_rank_percentage_im2_im1.type(torch.cuda.FloatTensor).view(vt_rank_percentage_im2_im1.size(0), -1), \
-
-        #     sq_rank_scores_mean.type(torch.cuda.FloatTensor).view(sq_rank_scores_mean.size(0), -1), \
-        #     sq_rank_scores_min.type(torch.cuda.FloatTensor).view(sq_rank_scores_min.size(0), -1), \
-        #     sq_rank_scores_max.type(torch.cuda.FloatTensor).view(sq_rank_scores_max.size(0), -1), \
-        #     sq_distance_scores.type(torch.cuda.FloatTensor).view(sq_distance_scores.size(0), -1), \
-        #     ), 1)
-
-        # if self.opts['use_image_features']:
-        # input1 = torch.cat((img1, se_rmatches_img1, se_matches_img1, pe_img1, pe_mask_img1, pe_warped_img1), 1)
-        # input2 = torch.cat((img2, se_rmatches_img2, se_matches_img2, pe_img2, pe_mask_img2, pe_warped_img2), 1)
-        # input1 = torch.cat((img1, se_rmatches_img1, se_matches_img1, pe_img1, pe_mask_img1), 1)
-        # input2 = torch.cat((img2, se_rmatches_img2, se_matches_img2, pe_img2, pe_mask_img2), 1)
-        
-
-
-
-
-        if False:
-            if self.opts['convnet_use_images']:
-                if self.opts['convnet_use_feature_match_map']:
-                    if self.opts['convnet_use_track_map']:
-                        input1 = torch.cat((img1, tm_fm1, se_fm1, se_rmatches_img1, se_matches_img1, pe_img1, pe_mask_img1), 1)
-                        input2 = torch.cat((img2, tm_fm2, se_fm2, se_rmatches_img2, se_matches_img2, pe_img2, pe_mask_img2), 1)
-                    else:
-                        input1 = torch.cat((img1, se_fm1, se_rmatches_img1, se_matches_img1, pe_img1, pe_mask_img1), 1)
-                        input2 = torch.cat((img2, se_fm2, se_rmatches_img2, se_matches_img2, pe_img2, pe_mask_img2), 1)
-                else:
-                    if self.opts['convnet_use_track_map']:
-                        input1 = torch.cat((img1, tm_fm1, se_rmatches_img1, se_matches_img1, pe_img1, pe_mask_img1), 1)
-                        input2 = torch.cat((img2, tm_fm2, se_rmatches_img2, se_matches_img2, pe_img2, pe_mask_img2), 1)
-                    else:
-                        input1 = torch.cat((img1, se_rmatches_img1, se_matches_img1, pe_img1, pe_mask_img1), 1)
-                        input2 = torch.cat((img2, se_rmatches_img2, se_matches_img2, pe_img2, pe_mask_img2), 1)
-            else:
-                if self.opts['convnet_use_feature_match_map']:
-                    if self.opts['convnet_use_track_map']:
-                        input1 = torch.cat((tm_fm1, se_fm1, se_rmatches_img1, se_matches_img1, pe_img1, pe_mask_img1), 1)
-                        input2 = torch.cat((tm_fm2, se_fm2, se_rmatches_img2, se_matches_img2, pe_img2, pe_mask_img2), 1)
-                    else:
-                        input1 = torch.cat((se_fm1, se_rmatches_img1, se_matches_img1, pe_img1, pe_mask_img1), 1)
-                        input2 = torch.cat((se_fm2, se_rmatches_img2, se_matches_img2, pe_img2, pe_mask_img2), 1)
-                else:
-                    if self.opts['convnet_use_track_map']:
-                        input1 = torch.cat((tm_fm1, se_rmatches_img1, se_matches_img1, pe_img1, pe_mask_img1), 1)
-                        input2 = torch.cat((tm_fm2, se_rmatches_img2, se_matches_img2, pe_img2, pe_mask_img2), 1)
-                    else:
-                        input1 = torch.cat((se_rmatches_img1, se_matches_img1, pe_img1, pe_mask_img1), 1)
-                        input2 = torch.cat((se_rmatches_img2, se_matches_img2, pe_img2, pe_mask_img2), 1)
-
-
 
         input1 = None
         input2 = None
@@ -276,14 +142,6 @@ class ConvNet(nn.Module):
         if self.opts['convnet_use_track_map']:
             input1 = torch.cat((input1, tm_fm1), 1) if input1 is not None else tm_fm1
             input2 = torch.cat((input2, tm_fm2), 1) if input2 is not None else tm_fm2
-
-
-        # input1 = torch.cat((img1, se_rmatches_img1, se_matches_img1, pe_img1), 1)
-        # input2 = torch.cat((img2, se_rmatches_img2, se_matches_img2, pe_img2), 1)
-        # input1 = se_rmatches_img1
-        # input2 = se_rmatches_img2
-
-        
 
         i1 = self.image_feature_extractor(input1)
         i2 = self.image_feature_extractor(input2)
@@ -481,12 +339,12 @@ class ImageMatchingDataset(data.Dataset):
                 # pe_mask_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps-10-iterations-size-224', '{}-{}-a-m-filtered.png'.format(self.fns[i,1], self.fns[i,0]))
                 # pe_warped_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps-10-iterations-size-224', '{}-{}-a-wi-filtered.png'.format(self.fns[i,0], self.fns[i,1]))
                 # pe_warped_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps-10-iterations-size-224', '{}-{}-a-wi-filtered.png'.format(self.fns[i,1], self.fns[i,0]))
-                pe_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_gamma_adjusted_unfiltered', '{}-{}-a-em-unfiltered-ga.png'.format(self.fns[i,0], self.fns[i,1]))
-                pe_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_gamma_adjusted_unfiltered', '{}-{}-a-em-unfiltered-ga.png'.format(self.fns[i,1], self.fns[i,0]))
-                pe_mask_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_gamma_adjusted_unfiltered', '{}-{}-a-m-unfiltered-ga.png'.format(self.fns[i,0], self.fns[i,1]))
-                pe_mask_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_gamma_adjusted_unfiltered', '{}-{}-a-m-unfiltered-ga.png'.format(self.fns[i,1], self.fns[i,0]))
-                pe_warped_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_gamma_adjusted_unfiltered', '{}-{}-a-wi-unfiltered-ga.png'.format(self.fns[i,0], self.fns[i,1]))
-                pe_warped_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_gamma_adjusted_unfiltered', '{}-{}-a-wi-unfiltered-ga.png'.format(self.fns[i,1], self.fns[i,0]))
+                pe_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_{}_unfiltered'.format(self.options['pe_experiment']), '{}-{}-a-em-unfiltered-ga.png'.format(self.fns[i,0], self.fns[i,1]))
+                pe_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_{}_unfiltered'.format(self.options['pe_experiment']), '{}-{}-a-em-unfiltered-ga.png'.format(self.fns[i,1], self.fns[i,0]))
+                pe_mask_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_{}_unfiltered'.format(self.options['pe_experiment']), '{}-{}-a-m-unfiltered-ga.png'.format(self.fns[i,0], self.fns[i,1]))
+                pe_mask_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_{}_unfiltered'.format(self.options['pe_experiment']), '{}-{}-a-m-unfiltered-ga.png'.format(self.fns[i,1], self.fns[i,0]))
+                pe_warped_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_{}_unfiltered'.format(self.options['pe_experiment']), '{}-{}-a-wi-unfiltered-ga.png'.format(self.fns[i,0], self.fns[i,1]))
+                pe_warped_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_{}_unfiltered'.format(self.options['pe_experiment']), '{}-{}-a-wi-unfiltered-ga.png'.format(self.fns[i,1], self.fns[i,0]))
 
                 se_fm1_fn = os.path.join(self.dsets[i], 'classifier_features', 'feature_maps', 'feature---{}.png'.format(self.fns[i,0]))
                 se_fm2_fn = os.path.join(self.dsets[i], 'classifier_features', 'feature_maps', 'feature---{}.png'.format(self.fns[i,1]))
@@ -674,18 +532,6 @@ class ImageMatchingDataset(data.Dataset):
 
         data = []
         for i in indices:
-
-
-            # if self.dsets[i] not in self.unique_imgs:
-            #     self.unique_imgs[self.dsets[i]] = {}
-            # if self.fns[i,0] not in self.unique_imgs[self.dsets[i]]:
-            #     self.unique_imgs[self.dsets[i]][self.fns[i,0]] = self.transform(self.loader(img1_fn))
-            # if self.fns[i,1] not in self.unique_imgs[self.dsets[i]]:
-            #     self.unique_imgs[self.dsets[i]][self.fns[i,1]] = self.transform(self.loader(img2_fn))
-
-            # img1 = self.unique_imgs[self.dsets[i]][self.fns[i,0]]
-            # img2 = self.unique_imgs[self.dsets[i]][self.fns[i,1]]
-
             if self.options['convnet_load_dataset_in_memory']:
                 img1 = self.transform(self.f_img1[i])
                 img2 = self.transform(self.f_img2[i])
@@ -709,27 +555,21 @@ class ImageMatchingDataset(data.Dataset):
                 se_rmatches_secondary_motion_img1 = self.transform(self.f_se_rmatches_secondary_motion_img1[i])
                 se_rmatches_secondary_motion_img2 = self.transform(self.f_se_rmatches_secondary_motion_img2[i])
             else:
-
-                # if self.options['use_image_features']:
                 img1_fn = os.path.join(self.dsets[i], 'images-resized', self.fns[i,0])
                 img2_fn = os.path.join(self.dsets[i], 'images-resized', self.fns[i,1])
+                
                 # Example: rmatches---DSC_0322.JPG-DSC_0308.JPG.png
                 se_rmatches_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'match_maps', 'rmatches---{}-{}.png'.format(self.fns[i,0], self.fns[i,1]))
                 se_rmatches_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'match_maps', 'rmatches---{}-{}.png'.format(self.fns[i,1], self.fns[i,0]))
                 se_matches_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'match_maps', 'matches---{}-{}.png'.format(self.fns[i,0], self.fns[i,1]))
                 se_matches_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'match_maps', 'matches---{}-{}.png'.format(self.fns[i,1], self.fns[i,0]))
-                # pe_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps-10-iterations-size-224', '{}-{}-a-em-filtered.png'.format(self.fns[i,0], self.fns[i,1]))
-                # pe_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps-10-iterations-size-224', '{}-{}-a-em-filtered.png'.format(self.fns[i,1], self.fns[i,0]))
-                # pe_mask_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps-10-iterations-size-224', '{}-{}-a-m-filtered.png'.format(self.fns[i,0], self.fns[i,1]))
-                # pe_mask_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps-10-iterations-size-224', '{}-{}-a-m-filtered.png'.format(self.fns[i,1], self.fns[i,0]))
-                # pe_warped_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps-10-iterations-size-224', '{}-{}-a-wi-filtered.png'.format(self.fns[i,0], self.fns[i,1]))
-                # pe_warped_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps-10-iterations-size-224', '{}-{}-a-wi-filtered.png'.format(self.fns[i,1], self.fns[i,0]))
-                pe_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_gamma_adjusted_unfiltered', '{}-{}-a-em-unfiltered-ga.png'.format(self.fns[i,0], self.fns[i,1]))
-                pe_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_gamma_adjusted_unfiltered', '{}-{}-a-em-unfiltered-ga.png'.format(self.fns[i,1], self.fns[i,0]))
-                pe_mask_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_gamma_adjusted_unfiltered', '{}-{}-a-m-unfiltered-ga.png'.format(self.fns[i,0], self.fns[i,1]))
-                pe_mask_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_gamma_adjusted_unfiltered', '{}-{}-a-m-unfiltered-ga.png'.format(self.fns[i,1], self.fns[i,0]))
-                pe_warped_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_gamma_adjusted_unfiltered', '{}-{}-a-wi-unfiltered-ga.png'.format(self.fns[i,0], self.fns[i,1]))
-                pe_warped_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_gamma_adjusted_unfiltered', '{}-{}-a-wi-unfiltered-ga.png'.format(self.fns[i,1], self.fns[i,0]))
+
+                pe_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_{}_unfiltered'.format(self.options['pe_experiment']), '{}-{}-a-em-unfiltered-ga.png'.format(self.fns[i,0], self.fns[i,1]))
+                pe_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_{}_unfiltered'.format(self.options['pe_experiment']), '{}-{}-a-em-unfiltered-ga.png'.format(self.fns[i,1], self.fns[i,0]))
+                pe_mask_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_{}_unfiltered'.format(self.options['pe_experiment']), '{}-{}-a-m-unfiltered-ga.png'.format(self.fns[i,0], self.fns[i,1]))
+                pe_mask_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_{}_unfiltered'.format(self.options['pe_experiment']), '{}-{}-a-m-unfiltered-ga.png'.format(self.fns[i,1], self.fns[i,0]))
+                pe_warped_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_{}_unfiltered'.format(self.options['pe_experiment']), '{}-{}-a-wi-unfiltered-ga.png'.format(self.fns[i,0], self.fns[i,1]))
+                pe_warped_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_{}_unfiltered'.format(self.options['pe_experiment']), '{}-{}-a-wi-unfiltered-ga.png'.format(self.fns[i,1], self.fns[i,0]))
 
                 se_fm1_fn = os.path.join(self.dsets[i], 'classifier_features', 'feature_maps', 'feature---{}.png'.format(self.fns[i,0]))
                 se_fm2_fn = os.path.join(self.dsets[i], 'classifier_features', 'feature_maps', 'feature---{}.png'.format(self.fns[i,1]))
@@ -739,8 +579,6 @@ class ImageMatchingDataset(data.Dataset):
                 se_non_rmatches_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'match_maps', 'non_rmatches---{}-{}.png'.format(self.fns[i,1], self.fns[i,0]))
                 se_rmatches_secondary_motion_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'match_maps', 'rmatches_secondary_motion---{}-{}.png'.format(self.fns[i,0], self.fns[i,1]))
                 se_rmatches_secondary_motion_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'match_maps', 'rmatches_secondary_motion---{}-{}.png'.format(self.fns[i,1], self.fns[i,0]))
-
-
 
                 if self.options['convnet_use_rmatches_map']:
                     se_rmatches_img1 = self.transform(self.loader(se_rmatches_img1_fn).convert('L'))
@@ -780,16 +618,6 @@ class ImageMatchingDataset(data.Dataset):
                 else:
                     pe_warped_img1 = np.zeros((1,1,1))
                     pe_warped_img2 = np.zeros((1,1,1))
-
-                # No need to cache these images since they're only used once per epoch (they're unique for each pair of images)
-                # se_rmatches_img1 = self.transform(self.loader(se_rmatches_img1_fn).convert('L'))
-                # se_matches_img1 = self.transform(self.loader(se_matches_img1_fn).convert('L'))
-                # pe_img1 = self.transform(self.loader(pe_img1_fn).convert('L'))
-                # pe_mask_img1 = self.transform(self.loader(pe_mask_img1_fn).convert('L'))
-                # se_rmatches_img2 = self.transform(self.loader(se_rmatches_img2_fn).convert('L'))
-                # se_matches_img2 = self.transform(self.loader(se_matches_img2_fn).convert('L'))
-                # pe_img2 = self.transform(self.loader(pe_img2_fn).convert('L'))
-                # pe_mask_img2 = self.transform(self.loader(pe_mask_img2_fn).convert('L'))
 
                 if self.options['convnet_use_feature_match_map']:
                     se_fm1 = self.transform(self.loader(se_fm1_fn).convert('L'))
@@ -834,60 +662,8 @@ class ImageMatchingDataset(data.Dataset):
                 self.labels[i], img1, img2, se_rmatches_img1, se_rmatches_img2, se_matches_img1, se_matches_img2, pe_img1, pe_img2, pe_mask_img1, pe_mask_img2, \
                 pe_warped_img1, pe_warped_img2, se_fm1, se_fm2, tm_fm1, tm_fm2, se_non_rmatches_img1, se_non_rmatches_img2, se_rmatches_secondary_motion_img1, se_rmatches_secondary_motion_img2
                 ])
-            # else:
-            #     data.append([self.dsets[i].tolist(), self.fns[i,0].tolist(), self.fns[i,1].tolist(), self.R11s[i], self.R12s[i], self.R13s[i], \
-            #         self.R21s[i], self.R22s[i], self.R23s[i], self.R31s[i], self.R32s[i], self.R33s[i], \
-            #         self.num_rmatches[i], self.num_matches[i], self.spatial_entropy_1_8x8[i], \
-            #         self.spatial_entropy_2_8x8[i], self.spatial_entropy_1_16x16[i], self.spatial_entropy_2_16x16[i], \
-            #         self.pe_histogram[i].reshape((-1,1)), self.pe_polygon_area_percentage[i], self.nbvs_im1[i], self.nbvs_im2[i], \
-            #         self.te_histogram[i].reshape((-1,1)), self.ch_im1[i].reshape((-1,1)), self.ch_im2[i].reshape((-1,1)), \
-            #         self.vt_rank_percentage_im1_im2[i], self.vt_rank_percentage_im2_im1[i], self.labels[i], np.zeros((3,256,256)), np.zeros((3,256,256))]) # last two entries are a placeholder
 
         return data
-
-
-    # dataset_name = self.datasets[index][0].split('/')[-1]
-    # im1_fn = os.path.join(self.opts['sfm_root'], dataset_name, 'images', self.file_names[index,0])
-    # im2_fn = os.path.join(self.opts['sfm_root'], dataset_name, 'images', self.file_names[index,1])
-    # if False:
-    #   print '\t\tLoading images: \"{}\", \"{}\" - {}'.format(self.file_names[index,0], self.file_names[index,1], int(self.labels[index]))
-    # 
-    # img1 = self.loader(im1_fn)
-    # img2 = self.loader(im2_fn)
-
-    # print self.imgs.keys()
-    # print key1
-    # print key2
-
-    # dataset_name = self.datasets[index].split('/')[-1]
-    # key1 = dataset_name + '-' + self.file_names[index,0]
-    # key2 = dataset_name + '-' + self.file_names[index,1]
-    # img1 = self.imgs[key1]
-    # img2 = self.imgs[key2]
-
-
-
-    # if self.transform is not None:
-    #   img1 = self.transform(img1)
-    #   img2 = self.transform(img2)
-
-    # return self.file_names[index,0], self.file_names[index,1], img1, img2, \
-    #   float(self.rmatches[index]), \
-    #   float(self.matches[index]), \
-    #   float(self.spatial_entropy_1_8x8[index]), \
-    #   float(self.spatial_entropy_2_8x8[index]), \
-    #   float(self.spatial_entropy_1_16x16[index]), \
-    #   float(self.spatial_entropy_2_16x16[index]), \
-    #   float(self.median_reproj_error[index]), \
-    #   float(self.median_angle_error[index]), \
-    #   float(self.R33s[index]), \
-    #   float(self.error_l2[index]), \
-    #   float(self.error_l1[index]), \
-    #   float(self.error_l2_hsv[index]), \
-    #   float(self.error_l1_hsv[index]), \
-    #   float(self.error_l2_lab[index]), \
-    #   float(self.error_l1_lab[index]), \
-    #   int(self.labels[index])
 
     def __len__(self):
         if self.train and self.options['triplet-sampling-strategy'] == 'random':
@@ -1110,79 +886,54 @@ def inference(data_loader, model, epoch, run_dir, logger, opts, range_min, range
             print ('{} Epoch: {}  Correct: {}  Accuracy: {}  Loss: {}\n'.format(mode.upper(), epoch, correct_counts, \
                 round(accuracy, 2), round(cum_loss,2)))
 
-    # print ('-'*100)
-    # score_thresholds = np.linspace(0, 1.0, 21)
-    # rmatches_thresholds = np.linspace(18, 38, 21)
-    # for i,t in enumerate(score_thresholds):
-    #     thresholded_scores_predictions = np.copy(all_predictions)
-    #     thresholded_scores_predictions[all_predictions[:,1] >= t, 1] = 1
-    #     thresholded_scores_predictions[all_predictions[:,1] >= t, 0] = 0
-    #     thresholded_scores_correct_counts = get_correct_counts(all_targets, thresholded_scores_predictions, False)
-
-    #     # print (all_num_rmatches)
-    #     thresholded_rmatches_predictions = np.copy(all_num_rmatches)
-    #     thresholded_rmatches_predictions[all_num_rmatches < rmatches_thresholds[i]] = 0
-    #     thresholded_rmatches_predictions[all_num_rmatches >= rmatches_thresholds[i]] = 1
-    #     thresholded_rmatches_correct_counts = get_correct_counts(all_targets, thresholded_rmatches_predictions, False)
-
-    #     num_tests = 2 * len(data_loader.dataset) # positive and negative samples
-    #     thresholded_scores_accuracy = thresholded_scores_correct_counts*100.0/num_tests
-    #     thresholded_rmatches_accuracy = thresholded_rmatches_correct_counts*100.0/num_tests
-
-    #     print ('\t{} Epoch: {}     Classifier - Correct: {}  Accuracy: {}  Threshold: {}     Baseline - Correct: {}  Accuracy: {}  Threshold: {}'.format(\
-    #         mode.upper(), epoch, \
-    #         thresholded_scores_correct_counts, round(thresholded_scores_accuracy, 2), t, \
-    #         thresholded_rmatches_correct_counts, round(thresholded_rmatches_accuracy, 2), rmatches_thresholds[i])
-    #     )
-
-
-    plt.ylim([0.0, 1.0])
-    plt.xlim([0.0, 1.0])
-
     if logger is not None:
-        auc, _ = matching_classifiers.calculate_dataset_auc(all_predictions[:,1], all_targets, color='green', ls='solid')
+        markers_exp = [0.3, 0.4, 0.5]
+        auc_pr, auc_roc, pr, roc = matching_classifiers.calculate_dataset_auc(all_predictions[:,1], all_targets)#, color='red', ls='solid', markers=markers_exp)
         _, _, _, _, _, auc_per_image_mean, _ = matching_classifiers.calculate_per_image_mean_auc(all_dsets, all_fns, all_predictions[:,1], all_targets)
         _, _, _, _, mean_precision_per_image = matching_classifiers.calculate_per_image_precision_top_k(all_dsets, all_fns, all_predictions[:,1], all_targets)
-        # plt.clf()
-        auc_baseline, _ = matching_classifiers.calculate_dataset_auc(all_num_rmatches, all_targets, color='green', ls='solid')
+
+        markers_baseline = [15, 16, 20]
+        auc_pr_baseline, auc_roc_baseline, pr_baseline, roc_baseline = matching_classifiers.calculate_dataset_auc(all_num_rmatches, all_targets)#, color='green', ls='dashed', markers=markers_baseline)
         _, _, _, _, _, auc_per_image_mean_baseline, _ = matching_classifiers.calculate_per_image_mean_auc(all_dsets, all_fns, all_num_rmatches, all_targets)
         _, _, _, _, mean_precision_per_image_baseline = matching_classifiers.calculate_per_image_precision_top_k(all_dsets, all_fns, all_num_rmatches, all_targets)
 
 
+        fig_rocs = matching_classifiers.plot_rocs(roc, roc_baseline, auc_roc, auc_roc_baseline, markers=markers_exp, markers_baseline=markers_baseline)
+        fig_prs = matching_classifiers.plot_prs(pr, pr_baseline, auc_pr, auc_pr_baseline, markers=markers_exp, markers_baseline=markers_baseline)
+        fig_rates_baseline = matching_classifiers.plot_rates(roc_baseline, metric='rmatches', markers=markers_baseline)
+        fig_rates = matching_classifiers.plot_rates(roc, metric='classifier scores', markers=markers_exp)
+
         print ('\t{} Epoch: {}     Experiment: {} AUC: {} / {} / {}'.format(mode.upper(), epoch, opts['experiment'], \
-            round(auc,3), round(auc_per_image_mean, 3), round(mean_precision_per_image, 3) \
+            round(auc_pr,3), round(auc_per_image_mean, 3), round(mean_precision_per_image, 3) \
             ))
         print ('\t{} Epoch: {}     Baseline: {} AUC: {} / {} / {}'.format(mode.upper(), epoch, 'Baseline', \
-            round(auc_baseline, 3), round(auc_per_image_mean_baseline, 3), round(mean_precision_per_image_baseline, 3) \
+            round(auc_pr_baseline, 3), round(auc_per_image_mean_baseline, 3), round(mean_precision_per_image_baseline, 3) \
             ))
         print ('='*100)
 
     if mode == 'train':
         if logger is not None:
-            logger.log_value('TRAIN-AUC-BASELINE', auc_baseline)
+            logger.log_images('TRAIN-PR-PLOT-RANGE-{}-{}'.format(range_min, range_max), [fig_prs])
+            logger.log_images('TRAIN-ROC-PLOT-RANGE-{}-{}'.format(range_min, range_max), [fig_rocs, fig_rates, fig_rates_baseline])
+            logger.log_value('TRAIN-AUC-BASELINE', auc_pr_baseline)
             logger.log_value('TRAIN-AUCPI-BASELINE', auc_per_image_mean_baseline)
             logger.log_value('TRAIN-PPI-BASELINE', mean_precision_per_image_baseline)
-            logger.log_value('TRAIN-AUC-EXP', auc)
+            logger.log_value('TRAIN-AUC-EXP', auc_pr)
             logger.log_value('TRAIN-AUCPI-EXP', auc_per_image_mean)
             logger.log_value('TRAIN-PPI-EXP', mean_precision_per_image)
     else:
         if logger is not None:
-            logger.log_value('TEST-AUC-BASELINE-RANGE-{}-{}'.format(range_min, range_max), auc_baseline)
+            logger.log_images('TEST-PR-PLOT-RANGE-{}-{}'.format(range_min, range_max), [fig_prs])
+            logger.log_images('TEST-ROC-PLOT-RANGE-{}-{}'.format(range_min, range_max), [fig_rocs, fig_rates, fig_rates_baseline])
+            logger.log_value('TEST-AUC-BASELINE-RANGE-{}-{}'.format(range_min, range_max), auc_pr_baseline)
             logger.log_value('TEST-AUCPI-BASELINE-RANGE-{}-{}'.format(range_min, range_max), auc_per_image_mean_baseline)
             logger.log_value('TEST-PPI-BASELINE-RANGE-{}-{}'.format(range_min, range_max), mean_precision_per_image_baseline)
-            logger.log_value('TEST-AUC-EXP-RANGE-{}-{}'.format(range_min, range_max), auc)
+            logger.log_value('TEST-AUC-EXP-RANGE-{}-{}'.format(range_min, range_max), auc_pr)
             logger.log_value('TEST-AUCPI-EXP-RANGE-{}-{}'.format(range_min, range_max), auc_per_image_mean)
             logger.log_value('TEST-PPI-EXP-RANGE-{}-{}'.format(range_min, range_max), mean_precision_per_image)
     return all_fns, all_num_rmatches, all_predictions[:,1], all_shortest_path_lengths
-    # plt.legend(['{} : {} : {} / {}'.format(mode, opts['experiment'], auc, auc_per_image_mean)],  loc='lower left',  shadow=True, fontsize=20)
-    # fig = plt.gcf()
-    # fig.set_size_inches(18.5, 10.5)
-    # # plt.savefig('nn-result-pr-{}-{}.png'.format(mode, epoch))
-    # plt.clf()
-    # plt.close()
 
 
-# triplet_loss = nn.TripletMarginLoss(reduction='sum')
 triplet_loss = nn.TripletMarginLoss()
 margin_ranking_loss = nn.MarginRankingLoss(margin=1.0)
 cross_entropy_loss = nn.CrossEntropyLoss()
@@ -1283,7 +1034,7 @@ def classify_convnet_image_match_initialization(train_loader, test_loaders, run_
     # create logger
     run_dir = os.path.join(opts['convnet_log_dir'], \
         # 'run-opt-{}-bs-{}-lr-{}-exp-{}-loss-{}-triplet-sampling-{}-sample-inclass-{}-min-images-{}-max-images-{}-use-all-data-{}-model-{}-is-{}-mlp-layer-size-{}-use-images-{}-use_fmm-{}-use_tm-{}-tov-{}-use_rmm-{}-use_mm-{}-use_pems-{}'.format(\
-        'run-model-{}-lr-{}-is-{}-mlp-layer-size-{}-use-images-{}-use_fmm-{}-use_tm-{}-tov-{}-use_rmm-{}-use_mm-{}-use_nrmm-{}-use-rmsmm-{}-use_pems-{}'.format(\
+        'run-model-{}-lr-{}-is-{}-mlp-layer-size-{}-use-images-{}-use_fmm-{}-use_tm-{}-tov-{}-use_rmm-{}-use_mm-{}-use_nrmm-{}-use-rmsmm-{}-use_pems-{}-pe_exp-{}'.format(\
             # opts['optimizer'], \
             # opts['batch_size'], \
             
@@ -1307,7 +1058,8 @@ def classify_convnet_image_match_initialization(train_loader, test_loaders, run_
             opts['convnet_use_matches_map'], \
             opts['convnet_use_non_rmatches_map'], \
             opts['convnet_use_rmatches_secondary_motion_map'], \
-            opts['convnet_use_photometric_error_maps']
+            opts['convnet_use_photometric_error_maps'], \
+            opts['pe_experiment']
         )
     )
     
@@ -1333,7 +1085,7 @@ def classify_convnet_image_match_training(arg, arg_te):
 
     run_dir = os.path.join(opts['convnet_log_dir'], \
         # 'run-opt-{}-bs-{}-lr-{}-exp-{}-loss-{}-triplet-sampling-{}-sample-inclass-{}-min-images-{}-max-images-{}-use-all-data-{}-model-{}-is-{}-mlp-layer-size-{}-use-images-{}-use_fmm-{}-use_tm-{}-tov-{}-use_rmm-{}-use_mm-{}-use_pems-{}'.format(\
-        'run-model-{}-lr-{}-is-{}-mlp-layer-size-{}-use-images-{}-use_fmm-{}-use_tm-{}-tov-{}-use_rmm-{}-use_mm-{}-use_nrmm-{}-use-rmsmm-{}-use_pems-{}'.format(\
+        'run-model-{}-lr-{}-is-{}-mlp-layer-size-{}-use-images-{}-use_fmm-{}-use_tm-{}-tov-{}-use_rmm-{}-use_mm-{}-use_nrmm-{}-use-rmsmm-{}-use_pems-{}-pe_exp-{}'.format(\
             # opts['optimizer'], \
             # opts['batch_size'], \
             
@@ -1357,7 +1109,8 @@ def classify_convnet_image_match_training(arg, arg_te):
             opts['convnet_use_matches_map'], \
             opts['convnet_use_non_rmatches_map'], \
             opts['convnet_use_rmatches_secondary_motion_map'], \
-            opts['convnet_use_photometric_error_maps']
+            opts['convnet_use_photometric_error_maps'], \
+            opts['pe_experiment']
         )
     )
     matching_classifiers.mkdir_p(run_dir)

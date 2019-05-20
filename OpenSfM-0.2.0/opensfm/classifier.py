@@ -1001,13 +1001,18 @@ def mkdir_p(path):
         pass
 
 def get_resized_image(arg):
-    data, im, grid_size, debug = arg
+    data, im, grid_size, blurred, debug = arg
     if not data.resized_image_exists(im):
         image_original = cv2.imread(os.path.join(data.data_path,'images',im),cv2.IMREAD_COLOR)
         data.save_resized_image(im_fn=im, image=image_original, grid_size=grid_size)
 
+
     image, im_fn, metadata = data.load_resized_image(im)
-    
+    if blurred:
+        if not data.blurred_image_exists(im):
+            perform_gaussian_blur([data, im_fn, grid_size, debug])
+        image, im_fn, metadata = data.load_blurred_image(im)
+        
     return image, im_fn, metadata
 
 def get_processed_images(data, im1, im2, grid_size):
@@ -1019,6 +1024,7 @@ def get_processed_images(data, im1, im2, grid_size):
 def calculate_photometric_error_convex_hull(arg):
     grid_size, ii, jj, patchdataset, data, im1, im2, matches, flags = arg
     best_error = sys.float_info.max
+    blurred, debug = True, False
     logger.info('\tStarting to process {} / {}'.format(im1, im2))
     if flags['masked_tags']:
         p1, f1, c1 = data.load_features_masked(im1)
@@ -1031,9 +1037,8 @@ def calculate_photometric_error_convex_hull(arg):
     if flags['use_gamma_adjusted_images']:
         im1_fn, im2_fn, img1, img2, m1, m2 = get_processed_images(data, im1, im2, grid_size)
     else:
-        logger.info('RAJ: Load gamma adjusted images instead')
-        img1, im1_fn, m1 = get_resized_image([data, im1, grid_size, False])
-        img2, im2_fn, m2 = get_resized_image([data, im2, grid_size, False])
+        img1, im1_fn, m1 = get_resized_image([data, im1, grid_size, blurred, debug])
+        img2, im2_fn, m2 = get_resized_image([data, im2, grid_size, blurred, debug])
 
     denormalized_p1_points = features.denormalized_image_coordinates(p1[:,0:2], m1['width'], m1['height'])
     denormalized_p2_points = features.denormalized_image_coordinates(p2[:,0:2], m2['width'], m2['height'])
@@ -1162,11 +1167,12 @@ def calculate_photometric_errors(ctx):
 
 def perform_gamma_adjustment(arg):
     data, im1, im2, grid_size, debug = arg
+    blurred = True
     im1_fn = os.path.basename(im1)
     im2_fn = os.path.basename(im2)
 
-    img1, _, m1 = get_resized_image([data, im1, grid_size, False])
-    img2, _, m2 = get_resized_image([data, im2, grid_size, False])
+    img1, _, m1 = get_resized_image([data, im1, grid_size, blurred, debug])
+    img2, _, m2 = get_resized_image([data, im2, grid_size, blurred, debug])
 
     img1_normalized = cv2.normalize(img1, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
     img2_normalized = cv2.normalize(img2, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
@@ -1188,18 +1194,21 @@ def perform_gamma_adjustment(arg):
     
     return 
 
-
 def perform_gaussian_blur(arg):
     data, im, grid_size, debug = arg
+    blurred = False
+
+    img, _, m = get_resized_image([data, im, grid_size, blurred, debug])
+    
     kernel3x3 = np.ones((3,3),np.float32)/9
     kernel5x5 = np.ones((5,5),np.float32)/25
     
-    im_blurred_3x3 = cv2.filter2D(im, -1, kernel3x3)
-    im_blurred_5x5 = cv2.filter2D(im, -1, kernel5x5)
+    img_blurred_3x3 = cv2.filter2D(img, -1, kernel3x3)
+    img_blurred_5x5 = cv2.filter2D(img, -1, kernel5x5)
 
     # im1_a_fn = data.save_processed_image(im1_fn=im1_fn, im2_fn=im2_fn, image=img1_adjusted_denormalized, grid_size=grid_size)
-    data.save_blurred_image(im_fn=im, image=im_blurred_3x3, grid_size=grid_size, kernel_size=3)
-    data.save_blurred_image(im_fn=im, image=im_blurred_5x5, grid_size=grid_size, kernel_size=5)
+    data.save_blurred_image(im_fn=im, image=img_blurred_3x3, grid_size=grid_size, kernel_size=3)
+    data.save_blurred_image(im_fn=im, image=img_blurred_5x5, grid_size=grid_size, kernel_size=5)
 
     return
 
@@ -1221,6 +1230,14 @@ def preprocess_images(ctx):
         g_args.append([data, im1, grid_size, False])
 
     p = Pool(processes)
+
+    results = []
+    if processes == 1:    
+        for arg in g_args:
+            results.append(perform_gaussian_blur(arg))
+    else:
+        results = p.map(perform_gaussian_blur, g_args)
+
     p_results = []
     if processes == 1:    
         for arg in args:
@@ -1229,21 +1246,16 @@ def preprocess_images(ctx):
         p_results = p.map(perform_gamma_adjustment, args)
 
 
-    if processes == 1:    
-        for arg in g_args:
-            results.append(perform_gaussian_blur(arg))
-    else:
-        results = p.map(perform_gaussian_blur, g_args)
-
 
 def calculate_resized_images(ctx):
     data = ctx.data
     processes = ctx.data.config['processes']
     grid_size = ctx.grid_size
+    blurred, debug = False, False
     args = []
 
     for i,im in enumerate(sorted(data.images())):
-        args.append([data, im, grid_size, False])
+        args.append([data, im, grid_size, blurred, debug])
 
     p = Pool(processes)
     p_results = []
