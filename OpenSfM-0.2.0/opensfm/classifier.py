@@ -354,17 +354,28 @@ def classify_boosted_dts_image_match(arg):
     return fns, num_rmatches, regr, y_, shortest_path_length, labels
 
 def relative_pose(arg):
-    im1, im2, p1, p2, cameras, exifs, rmatches, threshold = arg
+    # im1, im2, p1, p2, cameras, exifs, rmatches, threshold = arg
+    data, im1, valid_candidates, cached_p, im1_all_robust_matches, cameras, exifs, threshold = arg
+    transformations = {}
+    for im2 in valid_candidates:
+        p1 = cached_p[im1]
+        p2 = cached_p[im2]
+        rmatches = im1_all_robust_matches[im2]
+        p1_ = p1[rmatches[:, 0].astype(int)][:, :2].copy()
+        p2_ = p2[rmatches[:, 1].astype(int)][:, :2].copy()
+        camera1 = cameras[exifs[im1]['camera']]
+        camera2 = cameras[exifs[im2]['camera']]
+        b1 = camera1.pixel_bearings(p1_)
+        b2 = camera2.pixel_bearings(p2_)
 
-    p1_ = p1[rmatches[:, 0].astype(int)][:, :2].copy()
-    p2_ = p2[rmatches[:, 1].astype(int)][:, :2].copy()
-    camera1 = cameras[exifs[im1]['camera']]
-    camera2 = cameras[exifs[im2]['camera']]
-    b1 = camera1.pixel_bearings(p1_)
-    b2 = camera2.pixel_bearings(p2_)
+        T = pyopengv.relative_pose_ransac(b1, b2, "STEWENIUS", 1 - np.cos(threshold), 1000)
+        R = T[0:3,0:3]
 
-    T = pyopengv.relative_pose_ransac(b1, b2, "STEWENIUS", 1 - np.cos(threshold), 1000)
-    return im1, im2, T
+        transformations[im2] = {'im1': im1, 'im2': im2, 'transformation': T.tolist(), 'rotation': R.tolist()}
+        # {'im1': im1, 'im2': im2, 'rotation': R.tolist(), 'transformation': T.tolist()}
+    # return im1, im2, T
+    data.save_transformations(im1, transformations)
+    return
 
 def calculate_transformations(ctx):
     data = ctx.data
@@ -376,59 +387,66 @@ def calculate_transformations(ctx):
     threshold = config['robust_matching_threshold']
     cached_p = {}
     args = []
-    Rs = []
-    transformations = {}
-    num_pairs = 0
+    # Rs = []
+    # transformations = {}
+    # num_pairs = 0
+
     
-    if data.transformations_exists():
-        logger.info('Pairwise transformations exist!')
-        return data.load_transformations(), None
+    # if data.transformations_exists():
+    #     logger.info('Pairwise transformations exist!')
+    #     return data.load_transformations(), None
 
     logger.info('Calculating pairwise transformations...')
-    for im1 in images:
+    for im in sorted(images):
+        p, f, c = ctx.data.load_features(im)
+        cached_p[im] = p
+
+    for im1 in sorted(images):
+        if data.transformations_exists(im1):
+            continue
+
+        valid_candidates = []
         im1_all_matches, im1_valid_rmatches, im1_all_robust_matches = data.load_all_matches(im1)
         if im1_all_robust_matches is None:
             continue
         
-        if im1 not in cached_p:
-            p1, f1, c1 = ctx.data.load_features(im1)
-            cached_p[im1] = p1
-        else:
-            p1 = cached_p[im1]
-
         for im2 in im1_all_robust_matches:
             rmatches = im1_all_robust_matches[im2]
-            p2, f2, c2 = ctx.data.load_features(im2)
-            if im2 not in cached_p:
-                p2, f2, c2 = ctx.data.load_features(im2)
-                cached_p[im2] = p2
-            else:
-                p2 = cached_p[im2]
+        #     # p2, f2, c2 = ctx.data.load_features(im2)
+        #     if im2 not in cached_p:
+        #         p2, f2, c2 = ctx.data.load_features(im2)
+        #         cached_p[im2] = p2
+        #     else:
+        #         p2 = cached_p[im2]
             if len(rmatches) == 0:
                 continue
-            args.append([im1, im2, p1, p2, cameras, exifs, rmatches, threshold])
+
+            valid_candidates.append(im2)
+
+        args.append([data, im1, valid_candidates, cached_p, im1_all_robust_matches, cameras, exifs, threshold])
 
     p_results = []
     results = {}
     p = Pool(processes)
     if processes == 1:
         for arg in args:
-            p_results.append(relative_pose(arg))
+            relative_pose(arg)
     else:
-        p_results = p.map(relative_pose, args)
+        p.map(relative_pose, args)
         p.close()
 
-    for r in p_results:
-        im1, im2, T = r
-        R = T[0:3,0:3]
-        Rs.append(R.reshape((1,-1)))
-        if im1 not in transformations:
-            transformations[im1] = {}
-        transformations[im1][im2] = {'im1': im1, 'im2': im2, 'rotation': R.tolist(), 'transformation': T.tolist()}
-        num_pairs = num_pairs + 1
+    # for r in p_results:
+    #     im1, im2, T = r
+    #     R = T[0:3,0:3]
+    #     Rs.append(R.reshape((1,-1)))
+    #     if im1 not in transformations:
+    #         transformations[im1] = {}
+    #     transformations[im1][im2] = {'im1': im1, 'im2': im2, 'rotation': R.tolist(), 'transformation': T.tolist()}
+    #     num_pairs = num_pairs + 1
 
-    data.save_transformations(transformations)
-    return transformations, num_pairs
+    # data.save_transformations(transformations)
+    # return transformations, num_pairs
+    return
 
 def calculate_image_spatial_entropies(arg):
     data, grid_size, cached_p, im1, im1_all_robust_matches, im1_all_matches = arg
@@ -487,7 +505,9 @@ def calculate_image_spatial_entropies(arg):
             'entropy_im1_16': entropy_im1_16, 'entropy_im2_16': entropy_im2_16 \
             }
         entropies[im2] = result
-    return im1, entropies
+
+    data.save_spatial_entropies(im1, entropies)
+    # return im1, entropies
 
 def calculate_spatial_entropies(ctx):
     data = ctx.data
@@ -501,9 +521,9 @@ def calculate_spatial_entropies(ctx):
     # entropies = {}
     args = []
 
-    if data.spatial_entropies_exists():
-        logger.info('Spatial entropies exist!')
-        return
+    # if data.spatial_entropies_exists():
+    #     logger.info('Spatial entropies exist!')
+    #     return
 
     for im in images:
         p, f, c = ctx.data.load_features(im)
@@ -511,21 +531,23 @@ def calculate_spatial_entropies(ctx):
 
     logger.info('Calculating spatial entropies...')
     for im1 in images:
+        if data.spatial_entropies_exists(im1):
+            continue
         im1_all_matches, im1_valid_rmatches, im1_all_robust_matches = data.load_all_matches(im1)
         args.append([data, grid_size, cached_p, im1, im1_all_robust_matches, im1_all_matches])
     
-    p_results = []
-    results = {}
+    # p_results = []
+    # results = {}
     p = Pool(processes)
     if processes == 1:
         for arg in args:
-            p_results.append(calculate_image_spatial_entropies(arg))
+            calculate_image_spatial_entropies(arg)
     else:
-        p_results = p.map(calculate_image_spatial_entropies, args)
+        p.map(calculate_image_spatial_entropies, args)
         p.close()
 
-    for im, entropies in p_results:
-        results[im] = entropies
+    # for im, entropies in p_results:
+    #     results[im] = entropies
         # if im1 not in cached_p:
         #     p1, f1, c1 = ctx.data.load_features(im1)
         #     cached_p[im1] = p1
@@ -584,7 +606,7 @@ def calculate_spatial_entropies(ctx):
         #         }
         #     entropies[im1][im2] = result.copy()
         #     entropies[im2][im1] = result.copy()
-    data.save_spatial_entropies(results)
+    # data.save_spatial_entropies(results)
 
 def calculate_histogram(full_image, mask, x, y, w, h, histSize, color_image, debug):
     if color_image:
@@ -605,7 +627,7 @@ def calculate_histogram(full_image, mask, x, y, w, h, histSize, color_image, deb
     return features
 
 def calculate_full_image_histograms(arg):
-    image_name, histSize, histogram_images, color_image, debug = arg
+    data, image_name, histSize, histogram_images, color_image, debug = arg
     if color_image:
         image = cv2.imread(image_name)
         image = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
@@ -634,8 +656,10 @@ def calculate_full_image_histograms(arg):
             counter += 2
     if debug:
         plt.show()
+
+    data.save_color_histogram(os.path.basename(image_name), {'histogram': histograms.tolist()})
     # return os.path.basename(image_name), histograms.tolist()
-    return os.path.basename(image_name)
+    # return os.path.basename(image_name)
 
 def calculate_color_histograms(ctx):
     data = ctx.data
@@ -650,30 +674,31 @@ def calculate_color_histograms(ctx):
     histogram_size = 32 * num_histogram_images
     if color_image:
         histogram_size = histogram_size * 3
-    if data.color_histograms_exists():
-        logger.info('Color histograms exist!')
-        return
+
     logger.info('Calculating color histograms...')
     if color_image:
         hs = histogram_size/(num_histogram_images * 3)
     else:
         hs = histogram_size/num_histogram_images
+
     for im in images:
-        args.append([os.path.join(ctx.data.data_path + '/images', im), hs, num_histogram_images, color_image, False])
+        if data.color_histogram_exists(im):
+            continue
+        args.append([data, os.path.join(data.data_path + '/images', im), hs, num_histogram_images, color_image, False])
     
-    p_results = []
-    results = {}
+    # p_results = []
+    # results = {}
     p = Pool(processes)
     if processes == 1:
         for arg in args:
-            p_results.append(calculate_full_image_histograms(arg))
+            calculate_full_image_histograms(arg)
     else:
-        p_results = p.map(calculate_full_image_histograms, args)
+        p.map(calculate_full_image_histograms, args)
         p.close()
 
-    for im in p_results:
-        results[im] = {'histogram': None}
-    data.save_color_histograms(results)
+    # for im in p_results:
+    #     results[im] = {'histogram': None}
+    
 
 def sample_points_triangle(v, n):
   x = np.sort(np.random.rand(2, n), axis=0)
@@ -1057,12 +1082,12 @@ def calculate_photometric_error_convex_hull(arg):
     renormalized_p1_points = features.normalized_image_coordinates(scaled_denormalized_p1_points, grid_size, grid_size)
     renormalized_p2_points = features.normalized_image_coordinates(scaled_denormalized_p2_points, grid_size, grid_size)
 
-    em_fn = '{}-{}-a-em-unfiltered-ga'.format(os.path.basename(im1), os.path.basename(im2))
-    m_fn = '{}-{}-a-m-unfiltered-ga'.format(os.path.basename(im1), os.path.basename(im2))
+    # em_fn = '{}-{}-a-em-unfiltered-ga'.format(os.path.basename(im1), os.path.basename(im2))
+    # m_fn = '{}-{}-a-m-unfiltered-ga'.format(os.path.basename(im1), os.path.basename(im2))
 
-    if data.photometric_errors_map_exists(em_fn) or not data.photometric_errors_map_exists(m_fn):
-        tesselate_matches(grid_size, data, im1, im2, img1, img2, matches, renormalized_p1_points, renormalized_p2_points, patchdataset, flags, ii, jj)
-    return im1, im2
+    # if not data.photometric_errors_map_exists(em_fn) or not data.photometric_errors_map_exists(m_fn):
+    tesselate_matches(grid_size, data, im1, im2, img1, img2, matches, renormalized_p1_points, renormalized_p2_points, patchdataset, flags, ii, jj)
+    # return im1, im2
 
 def calculate_photometric_errors(ctx):
     data = ctx.data
@@ -1077,13 +1102,19 @@ def calculate_photometric_errors(ctx):
         'use_kmeans': False, 'sampling_method': 'sample_polygon_uniformly', 'draw_hull': False, 'draw_matches': False, 'draw_triangles': False, 'draw_points': False, \
         'processes': processes, 'draw_outliers': False, 'kmeans_num_clusters': None }
 
-    if data.photometric_errors_exists():
-        logger.info('Photometric errors exist!')
-        return
+    # if data.photometric_errors_exists():
+    #     logger.info('Photometric errors exist!')
+    #     return
     logger.info('Calculating photometric errors...')
     for im1 in images:
         im1_all_matches, im1_valid_rmatches, im1_all_robust_matches = data.load_all_matches(im1)
         for im2 in im1_all_robust_matches:
+            em_fn = '{}-{}-a-em-unfiltered-ga'.format(os.path.basename(im1), os.path.basename(im2))
+            m_fn = '{}-{}-a-m-unfiltered-ga'.format(os.path.basename(im1), os.path.basename(im2))
+
+            if not data.photometric_errors_map_exists(em_fn) or not data.photometric_errors_map_exists(m_fn):
+                continue
+
             rmatches = im1_all_robust_matches[im2]
             if len(rmatches) == 0:
                 continue
@@ -1128,35 +1159,35 @@ def calculate_photometric_errors(ctx):
     p_results = []
     results = {}
     p = Pool(processes)
-    logger.info('Using {} thread(s)'.format(processes))
+    # logger.info('Using {} thread(s)'.format(processes))
     # print args
     if processes == 1:
         for a, arg in enumerate(args):
             # logger.info('Finished processing photometric errors: {} / {} : {} / {}'.format(a, len(args), arg[4], arg[5]))
-            p_results.append(calculate_photometric_error_convex_hull(arg))
+            calculate_photometric_error_convex_hull(arg)
     else:
-        p_results = p.map(calculate_photometric_error_convex_hull, args)
+        p.map(calculate_photometric_error_convex_hull, args)
         p.close()
 
-    for r in p_results:
+    # for r in p_results:
 
-        # im1, im2, polygon_area, polygon_area_percentage, total_triangles, histogram_counts, histogram_cumsum, histogram, bins = r
-        # if polygon_area is None or polygon_area_percentage is None:
-        #     continue
+    #     # im1, im2, polygon_area, polygon_area_percentage, total_triangles, histogram_counts, histogram_cumsum, histogram, bins = r
+    #     # if polygon_area is None or polygon_area_percentage is None:
+    #     #     continue
 
-        # element = {'polygon_area': polygon_area, 'polygon_area_percentage': polygon_area_percentage, \
-        #   'total_triangles': total_triangles, 'histogram': histogram, 'histogram-cumsum': histogram_cumsum, \
-        #   'histogram-counts': histogram_counts, 'bins': bins}
-        # if im1 not in results:
-        #     results[im1] = {}
-        # results[im1][im2] = element
+    #     # element = {'polygon_area': polygon_area, 'polygon_area_percentage': polygon_area_percentage, \
+    #     #   'total_triangles': total_triangles, 'histogram': histogram, 'histogram-cumsum': histogram_cumsum, \
+    #     #   'histogram-counts': histogram_counts, 'bins': bins}
+    #     # if im1 not in results:
+    #     #     results[im1] = {}
+    #     # results[im1][im2] = element
 
-        im1, im2 = r
-        if im1 not in results:
-            results[im1] = {}
-        results[im1][im2] = True
+    #     im1, im2 = r
+    #     if im1 not in results:
+    #         results[im1] = {}
+    #     results[im1][im2] = True
 
-    data.save_photometric_errors(results)
+    # data.save_photometric_errors(results)
 
 # def save_processed_image(data, im_fn, img, grid_size):
 #     mkdir_p(os.path.join(data.data_path,'images-resized-processed'))
@@ -1230,22 +1261,17 @@ def preprocess_images(ctx):
         g_args.append([data, im1, grid_size, False])
 
     p = Pool(processes)
-
-    results = []
     if processes == 1:    
         for arg in g_args:
-            results.append(perform_gaussian_blur(arg))
+            perform_gaussian_blur(arg)
     else:
-        results = p.map(perform_gaussian_blur, g_args)
+        p.map(perform_gaussian_blur, g_args)
 
-    p_results = []
     if processes == 1:    
         for arg in args:
-            p_results.append(perform_gamma_adjustment(arg))
+            perform_gamma_adjustment(arg)
     else:
-        p_results = p.map(perform_gamma_adjustment, args)
-
-
+        p.map(perform_gamma_adjustment, args)
 
 def calculate_resized_images(ctx):
     data = ctx.data
@@ -1258,29 +1284,56 @@ def calculate_resized_images(ctx):
         args.append([data, im, grid_size, blurred, debug])
 
     p = Pool(processes)
-    p_results = []
     if processes == 1:    
         for arg in args:
-            p_results.append(get_resized_image(arg))
+            get_resized_image(arg)
     else:
-        p_results = p.map(get_resized_image, args)
+        p.map(get_resized_image, args)
 
 
-def output_image_keypoints(ctx):
+def output_image_keypoints(arg):
+    data, im, grid_size = arg
+    
+    # for im in images:
+    p, f, c = data.load_features(im)
+    _, feature_map_im = calculate_spatial_entropy(p, grid_size)
+    data.save_feature_map('feature---{}'.format(im), feature_map_im)
+
+def calculate_image_keypoints(ctx):
     data = ctx.data
-    cameras = data.load_camera_models()
     images = data.images()
-    exifs = ctx.exifs
     config = data.config
     grid_size = ctx.grid_size
     processes = config['processes']
     args = []
 
-    logger.info('Outputting image keypoint maps...')
-    for im in images:
-        p, f, c = ctx.data.load_features(im)
-        _, feature_map_im = calculate_spatial_entropy(p, grid_size)
-        data.save_feature_map('feature---{}'.format(im), feature_map_im)
+    logger.info('Calculating image keypoint maps...')
+    for i,im in enumerate(sorted(data.images())):
+        args.append([data, im, grid_size])
+
+    p = Pool(processes)
+    if processes == 1:    
+        for arg in args:
+            output_image_keypoints(arg)
+    else:
+        p.map(output_image_keypoints, args) 
+
+def calculate_image_nbvs(arg):
+    data, im1, cached_p, valid_candidates, im1_all_robust_matches = arg
+    nbvs = {}
+    p1 = cached_p[im1]
+
+    for im2 in valid_candidates:
+        p2 = cached_p[im2]
+        rmatches = im1_all_robust_matches[im2]
+        p1_ = p1[rmatches[:, 0].astype(int)]
+        p2_ = p2[rmatches[:, 1].astype(int)]
+
+        nbvs_im1 = next_best_view_score(p1_)
+        nbvs_im2 = next_best_view_score(p2_)
+
+        nbvs[im2] = {'nbvs_im1': nbvs_im1, 'nbvs_im2': nbvs_im2}
+    data.save_nbvs(im1, nbvs)
 
 def calculate_nbvs(ctx):
     data = ctx.data
@@ -1288,47 +1341,34 @@ def calculate_nbvs(ctx):
     images = data.images()
     exifs = ctx.exifs
     config = data.config
+    processes = config['processes']
     cached_p = {}
-    nbvs = {}
+    args = []
     
-    if data.nbvs_exists():
-        logger.info('NBVS exist!')
-        return
-
     logger.info('Calculating NBVS...')
-    for im1 in images:
+    for im in sorted(images):
+        p, f, c = ctx.data.load_features(im)
+        cached_p[im] = p
+
+    for im1 in sorted(images):
+        valid_candidates = []
+        if data.nbvs_exists(im1):
+            continue
+
         im1_all_matches, im1_valid_rmatches, im1_all_robust_matches = data.load_all_matches(im1)
-        
-        if im1 not in cached_p:
-            p1, f1, c1 = ctx.data.load_features(im1)
-            cached_p[im1] = p1
-        else:
-            p1 = cached_p[im1]
-
         for im2 in im1_all_robust_matches:
-            rmatches = im1_all_robust_matches[im2]
-            
-            p2, f2, c2 = ctx.data.load_features(im2)
-            if im2 not in cached_p:
-                p2, f2, c2 = ctx.data.load_features(im2)
-                cached_p[im2] = p2
-            else:
-                p2 = cached_p[im2]
-            if len(rmatches) == 0:
+            if len(im1_all_robust_matches[im2]) == 0:
                 continue
+            valid_candidates.append(im2)
 
-            p1_ = p1[rmatches[:, 0].astype(int)]
-            p2_ = p2[rmatches[:, 1].astype(int)]
+        args.append([data, im1, cached_p, valid_candidates, im1_all_robust_matches])
 
-            nbvs_im1 = next_best_view_score(p1_)
-            nbvs_im2 = next_best_view_score(p2_)
-
-            if im1 not in nbvs:
-                nbvs[im1] = {}
-            nbvs[im1][im2] = {
-                'nbvs_im1': nbvs_im1, 'nbvs_im2': nbvs_im2
-                }
-    data.save_nbvs(nbvs)
+    p = Pool(processes)
+    if processes == 1:    
+        for arg in args:
+            calculate_image_nbvs(arg)
+    else:
+        p.map(calculate_image_nbvs, args) 
 
 # def triplet_arguments(fns, Rs):
 #     unique_filenames = sorted(list(set(fns[:,0]).union(set(fns[:,1]))))
@@ -1508,7 +1548,7 @@ def calculate_triplet_error_histogram(errors, im1, im2, output_dir, debug):
 #             triplet_pairwise_results[k].update(histograms[k])
 #     data.save_triplet_pairwise_errors(triplet_pairwise_results)
 
-def get_rotation_matrix(transformations, im1, im2):
+def get_precomputed_rotation_matrix(transformations, im1, im2):
     R = None
     if im1 in transformations and im2 in transformations[im1]:
         R = np.matrix(np.array(transformations[im1][im2]['rotation']).reshape((1,-1)).reshape(3,3))
@@ -1517,10 +1557,12 @@ def get_rotation_matrix(transformations, im1, im2):
     return R
 
 def calculate_consistency_errors_per_node(arg):
-    ctx, i, transformations, n1, G, cutoff, debug = arg
+    data, i, n1, G, cutoff, edge_threshold, debug = arg
     n1_histograms = {}
     # print sorted(G.nodes())
-    G = ctx.data.load_graph('rm', 15)
+
+    transformations = {}
+    G = data.load_graph('rm', 15)
     for j, n2 in enumerate(sorted(G.nodes())):
         errors = []
         if j <= i:
@@ -1544,7 +1586,12 @@ def calculate_consistency_errors_per_node(arg):
                 im1 = p[step-1]
                 im2 = p[step]
                 edge_data = G.get_edge_data(im1, im2)
-                R = get_rotation_matrix(transformations, im1, im2)
+
+                if im1 not in transformations and data.transformations_exists(im1):
+                    transformations[im1] = data.load_transformations(im1)
+                if im2 not in transformations and data.transformations_exists(im2):
+                    transformations[im2] = data.load_transformations(im2)
+                R = get_precomputed_rotation_matrix(transformations, im1, im2)
                 if edge_data is not None and R is not None:
                     if debug:
                         print ('\t\t\t{} - {} : rm={}'.format(im1, im2, edge_data['weight']))
@@ -1558,7 +1605,7 @@ def calculate_consistency_errors_per_node(arg):
             im1 = p[-1]
             im2 = p[0]
             edge_data = G.get_edge_data(im1, im2)
-            R = get_rotation_matrix(transformations, im1, im2)
+            R = get_precomputed_rotation_matrix(transformations, im1, im2)
             if complete_chain and edge_data is not None and R is not None:
                 if debug:
                     print ('\t\t\t{} - {} : rm={}'.format(im1, im2, edge_data['weight']))
@@ -1575,41 +1622,38 @@ def calculate_consistency_errors_per_node(arg):
         n1_histograms[n2] = { 'im1': n1, 'im2': n2, 'histogram': histogram, 'histogram-cumsum': histogram_cumsum, 'histogram-counts': histogram_counts, 'bins': bins }
         # histograms_list.append({ 'im1': n1, 'im2': n2, 'histogram': histogram, 'histogram-cumsum': histogram_cumsum, 'histogram-counts': histogram_counts, 'bins': bins })
 
-    # if debug:
-    logger.info('\tProcessed file #{}/{}'.format(i, len(G.nodes())))
-    return n1, n1_histograms
+    if debug:
+        logger.info('\tProcessed file #{}/{}'.format(i, len(G.nodes())))
 
-def formulate_paths(ctx, transformations, cutoff, edge_threshold):
-    data = ctx.data
-    processes = ctx.data.config['processes']
+    data.save_consistency_errors(n1, n1_histograms, cutoff=cutoff, edge_threshold=edge_threshold)
+
+def formulate_paths(data, cutoff, edge_threshold, debug):
+    processes = data.config['processes']
     graph_label = 'rm'
-    debug = False
     histograms = {}
 
     if data.graph_exists('rm', edge_threshold):
         G = data.load_graph('rm', edge_threshold)
     else:
-        num_rmatches, _, _ = rmatches_adapter(data)
+        num_rmatches, _, _ = rmatches_adapter(data, debug=debug)
         G = opensfm.commands.formulate_graphs.formulate_graph([data, data.images(), num_rmatches, graph_label, edge_threshold])
         data.save_graph(G, 'rm', edge_threshold)
 
     args = []
     for i, n1 in enumerate(sorted(G.nodes())):
+        if data.consistency_errors_exists(n1, cutoff, edge_threshold):
+            continue
         # if n1 == 'DSC_1744.JPG':
-        args.append([ctx, i, transformations, n1, G, cutoff, debug])
+        # im_transformations = data.load_transformations(n1)
+        args.append([data, i, n1, G, cutoff, edge_threshold, debug])
 
     p = Pool(processes)
     p_results = []
     if processes == 1:    
         for arg in args:
-            p_results.append(calculate_consistency_errors_per_node(arg))
+            calculate_consistency_errors_per_node(arg)
     else:
-        p_results = p.map(calculate_consistency_errors_per_node, args)
-
-    for n1, histogram in p_results:
-        histograms[n1] = histogram
-
-    return histograms
+        p.map(calculate_consistency_errors_per_node, args)
 
 def calculate_consistency_errors(ctx):
     data = ctx.data
@@ -1617,39 +1661,42 @@ def calculate_consistency_errors(ctx):
     images = data.images()
     exifs = ctx.exifs
     config = data.config
-    processes = ctx.data.config['processes']
+    processes = config['processes']
     threshold = config['robust_matching_threshold']
     fns = []
     Rs = []
-    transformations = {}
+    debug = False
+    # transformations = {}
     cutoffs = [2, 3]
     # graph_rm_thresholds = [15, 24, 30, 50, 100]
     graph_rm_thresholds = [15]
-    all_cutoffs_exist = True
-    for edge_threshold in graph_rm_thresholds:
-        for cutoff in cutoffs:
-            if not data.consistency_errors_exists(cutoff, edge_threshold):
-                all_cutoffs_exist = False
+    # all_cutoffs_exist = True
+    # for edge_threshold in graph_rm_thresholds:
+    #     for cutoff in cutoffs:
+    #         if not data.consistency_errors_exists(cutoff, edge_threshold):
+    #             all_cutoffs_exist = False
 
-    if all_cutoffs_exist:
-        logger.info('Consistency errors for all cutoffs exist!')
-        return
+    # if all_cutoffs_exist:
+    #     logger.info('Consistency errors for all cutoffs exist!')
+    #     return
 
-    if data.transformations_exists():
-        transformations = data.load_transformations()
-    else:
-        transformations, t_num_pairs = calculate_transformations(ctx)
+    # if data.transformations_exists():
+    #     transformations = data.load_transformations()
+    # else:
+    #     transformations, t_num_pairs = calculate_transformations(ctx)
     
     logger.info('Calculating consistency errors...')
     for edge_threshold in graph_rm_thresholds:
         for cutoff in cutoffs:#
-            if data.consistency_errors_exists(cutoff, edge_threshold):
-                continue
             s_time = timer()
-            logger.info('Starting to formulate consistency errors - Cutoff: {} Edge threshold: {}'.format(cutoff, edge_threshold))
-            histograms = formulate_paths(ctx, transformations, cutoff=cutoff, edge_threshold=edge_threshold)
-            logger.info('Finished formulating consistency errors - Cutoff: {} Edge threshold: {}   Time: {}'.format(cutoff, edge_threshold, timer() - s_time))
-            data.save_consistency_errors(histograms, cutoff=cutoff, edge_threshold=edge_threshold)
+            if debug:
+                logger.info('Starting to formulate consistency errors - Cutoff: {} Edge threshold: {}'.format(cutoff, edge_threshold))
+
+            formulate_paths(data, cutoff=cutoff, edge_threshold=edge_threshold, debug=debug)
+
+            if debug:
+                logger.info('Finished formulating consistency errors - Cutoff: {} Edge threshold: {}   Time: {}'.format(cutoff, edge_threshold, timer() - s_time))
+            # data.save_consistency_errors(histograms, cutoff=cutoff, edge_threshold=edge_threshold)
 
 def get_rmatches_and_edge_costs(G, im1, im2, num_rmatches):
     edge_data = G.get_edge_data(im1, im2)
@@ -1669,7 +1716,7 @@ def get_rmatches_and_edge_costs(G, im1, im2, num_rmatches):
 
 def shortest_path_per_image(arg):
     shortest_paths = {}
-    data, i, im1, images, G, num_rmatches = arg
+    data, i, im1, images, G, num_rmatches, label = arg
     
     for j,im2 in enumerate(images):
         if j <= i:
@@ -1684,7 +1731,9 @@ def shortest_path_per_image(arg):
             path['{}---{}'.format(shortest_path[k-1], shortest_path[k])] = {'rmatches': node_rmatches, 'cost': node_edge_cost}
 
         shortest_paths[im2] = {'rmatches': rmatches, 'path': path, 'shortest_path': shortest_path, 'cost': edge_cost}
-    return im1, shortest_paths
+
+    data.save_shortest_paths(im1, shortest_paths, label=label)
+    # return im1, shortest_paths
 
 def calculate_shortest_paths(ctx):
     data = ctx.data
@@ -1694,9 +1743,10 @@ def calculate_shortest_paths(ctx):
     edge_threshold = 0
     graph_label = 'rm-cost'
     seq_cost_factor = ctx.sequence_cost_factor
+    debug = False
     graph_label_with_sequences = 'rm-seq-cost-{}'.format(seq_cost_factor)
     
-    num_rmatches, num_rmatches_cost, im_num_rmatches_cost_with_sequences = rmatches_adapter(data, {'apply_sequence_ranks': True, 'sequence_cost_factor': seq_cost_factor})
+    num_rmatches, num_rmatches_cost, im_num_rmatches_cost_with_sequences = rmatches_adapter(data, {'apply_sequence_ranks': True, 'sequence_cost_factor': seq_cost_factor}, debug=debug)
 
     # if data.graph_exists(graph_label, edge_threshold) and data.graph_exists(graph_label_with_sequences, edge_threshold):
     #     G = data.load_graph(graph_label, edge_threshold)
@@ -1707,37 +1757,34 @@ def calculate_shortest_paths(ctx):
     data.save_graph(G, graph_label, edge_threshold)
     data.save_graph(G_, graph_label_with_sequences, edge_threshold)
 
-
     for datum in [[G, graph_label], [G_, graph_label_with_sequences]]:
         args = []
         graph, label = datum
         for i,im1 in enumerate(images):
-            args.append([data, i, im1, images, graph, num_rmatches])
+            args.append([data, i, im1, images, graph, num_rmatches, label])
         
         p = Pool(processes)
         p_results = []
         if processes == 1:    
             for arg in args:
-                p_results.append(shortest_path_per_image(arg))
+                shortest_path_per_image(arg)
         else:
-            p_results = p.map(shortest_path_per_image, args)
+            p.map(shortest_path_per_image, args)
 
-        for im, im_shortest_paths in p_results:
-            shortest_paths[im] = im_shortest_paths    
-
-        data.save_shortest_paths(shortest_paths, label=label)
+        # for im, im_shortest_paths in p_results:
+        #     shortest_paths[im] = im_shortest_paths    
 
 def calculate_sequence_ranks(ctx):
     data = ctx.data
     images = sorted(data.images())
     sequence_distances = {}
-    sequence_ranks = {}
     seq_fn_list = {}
     seq_dist_list = {}
     for i,im1 in enumerate(images):
+        im_sequence_ranks = {}
         if im1 not in sequence_distances:
             sequence_distances[im1] = {}
-            sequence_ranks[im1] = {}
+            
             seq_fn_list[im1] = []
             seq_dist_list[im1] = []
         im1_t = int(''.join(re.findall(r'\d+', im1)))
@@ -1758,11 +1805,11 @@ def calculate_sequence_ranks(ctx):
 
         # add ranks
         for j,im2 in enumerate(seq_fn_list[im1]):
-            sequence_ranks[im1][im2] = {'rank': j, 'distance': seq_dist_list[im1][j]}
+            im_sequence_ranks[im2] = {'rank': j, 'distance': seq_dist_list[im1][j]}
     
-    data.save_sequence_ranks(sequence_ranks)
+        data.save_sequence_ranks(im1, im_sequence_ranks)
 
-    return sequence_ranks
+    # return sequence_ranks
     
 ##############################################################################################
 ##############################################################################################
@@ -1873,7 +1920,7 @@ def _compute_inliers_bearings(b1, b2, T, min_thresh=0.01, max_thresh=0.01):
 ##############################################################################################
 ##############################################################################################
 
-def compute_gt_inliers(data, gt_poses, im1, im2, p1, p2, camera1, camera2, matches, ratio):
+def compute_gt_inliers(data, gt_poses, im1, im2, p1, p2, camera1, camera2, matches, ratio, debug):
     if len(matches) < 8:
         return np.array([])
 
@@ -1898,16 +1945,16 @@ def compute_gt_inliers(data, gt_poses, im1, im2, p1, p2, camera1, camera2, match
     inliers, outliers, n1, n2 = _compute_inliers_bearings(b1, b2, T_, \
         data.config.get('error_inlier_threshold'), data.config.get('error_outlier_threshold'))
 
-    if False:
-        T_o = pyopengv.relative_pose_ransac(b1, b2, "STEWENIUS", \
-            1 - np.cos(data.config['robust_matching_threshold']), 1000)
-        inliers_o, outliers_o, n1_o, n2_o = _compute_inliers_bearings(b1, b2, T_o, \
-            data.config.get('error_inlier_threshold'), data.config.get('error_outlier_threshold'))
+    # if False:
+    #     T_o = pyopengv.relative_pose_ransac(b1, b2, "STEWENIUS", \
+    #         1 - np.cos(data.config['robust_matching_threshold']), 1000)
+    #     inliers_o, outliers_o, n1_o, n2_o = _compute_inliers_bearings(b1, b2, T_o, \
+    #         data.config.get('error_inlier_threshold'), data.config.get('error_outlier_threshold'))
 
-        logger.debug('\t\tInliers: ' + str(len(matches[inliers])) + '\tOutliers: ' + str(len(matches[outliers])) + '\t\t\tInliers-Original: ' + str(len(matches[inliers_o])) + '\tOutliers-Original: ' + str(len(matches[outliers_o])) +'\t\t\tTotal: ' + str(len(matches)))
-
-    logger.debug('{} - {} has {} candidate unthresholded matches.  Inliers: {}  Outliers: {}  Total: {}'.format( \
-        im1, im2, len(matches), len(matches[inliers]), len(matches[outliers]), len(matches)))
+    #     logger.debug('\t\tInliers: ' + str(len(matches[inliers])) + '\tOutliers: ' + str(len(matches[outliers])) + '\t\t\tInliers-Original: ' + str(len(matches[inliers_o])) + '\tOutliers-Original: ' + str(len(matches[outliers_o])) +'\t\t\tTotal: ' + str(len(matches)))
+    if debug:
+        logger.debug('{} - {} has {} candidate unthresholded matches.  Inliers: {}  Outliers: {}  Total: {}'.format( \
+            im1, im2, len(matches), len(matches[inliers]), len(matches[outliers]), len(matches)))
     return matches[inliers], matches[outliers], np.array(n1), np.array(n2), dist1, dist2
 
 def get_camera(d, cameras, reconstruction_gt):
@@ -1926,7 +1973,7 @@ def get_camera(d, cameras, reconstruction_gt):
 
 
 def compute_matches_using_gt_reconstruction(args):
-    data, im1, reconstruction_gt, lowes_ratio, error_inlier_threshold, error_outlier_threshold = \
+    data, im1, reconstruction_gt, lowes_ratio, error_inlier_threshold, error_outlier_threshold, debug = \
         args
 
     im1_unthresholded_matches = {}
@@ -1980,8 +2027,8 @@ def compute_matches_using_gt_reconstruction(args):
             else:
                 relevant_indices = np.where((unthresholded_matches[:,2] <= lowes_ratio) & (unthresholded_matches[:,3] <= lowes_ratio))[0]
             unthresholded_matches = unthresholded_matches[relevant_indices,:]
-
-            logger.debug('{} - {} has {} candidate unthresholded matches'.format(im1, im2, len(unthresholded_matches)))
+            if debug:
+                logger.debug('{} - {} has {} candidate unthresholded matches'.format(im1, im2, len(unthresholded_matches)))
 
             if len(unthresholded_matches) < 8:
                 im1_unthresholded_inliers[im2] = []
@@ -1994,7 +2041,7 @@ def compute_matches_using_gt_reconstruction(args):
 
             unthresholded_rmatches, unthresholded_outliers, err1, err2, dist1, dist2 = \
                 compute_gt_inliers(data, gt_poses, im1, im2, p1, p2, \
-                    camera1, camera2, unthresholded_matches, lowes_ratio)
+                    camera1, camera2, unthresholded_matches, lowes_ratio, debug)
 
             im1_unthresholded_matches[im2] = unthresholded_matches
             im1_unthresholded_inliers[im2] = unthresholded_rmatches
@@ -2018,17 +2065,22 @@ def create_feature_matching_dataset(ctx):
     exifs = ctx.exifs
     config = data.config
     processes = ctx.data.config['processes']
+    debug = False
 
     if not data.reconstruction_exists('reconstruction_gt.json'):
         logger.info('Creating feature matching dataset - No ground-truth reconstruction exists!')
         return
 
+    logger.info('Creating feature matching dataset...')
+
     args = []
     for im in images:
         # if im != 'DSC_1761.JPG':
         #     continue
+        if data.unthresholded_matches_exists(im) and data.unthresholded_inliers_exists(im) and data.unthresholded_outliers_exists(im) and data.unthresholded_features_exists(im):
+            continue
         element = [data, im, data.load_reconstruction('reconstruction_gt.json'), 1.0,\
-            config.get('error_inlier_threshold'), config.get('error_outlier_threshold')]
+            config.get('error_inlier_threshold'), config.get('error_outlier_threshold'), debug]
         args.append(element)
 
     p = Pool(processes, maxtasksperchild=2)
@@ -2056,10 +2108,12 @@ def create_image_matching_dataset(ctx):
         logger.info('Creating image matching dataset - No ground-truth reconstruction exists!')
         return
 
+    logger.info('Creating image matching dataset...')
+
     data.save_image_matching_dataset(robust_matches_threshold=15)
     data.save_image_matching_dataset(robust_matches_threshold=20)
 
-def rmatches_adapter(data, options={}):
+def rmatches_adapter(data, options={}, debug=False):
     im_all_rmatches = {}
     im_num_rmatches = {}
     im_num_rmatches_cost = {}
@@ -2070,15 +2124,16 @@ def rmatches_adapter(data, options={}):
         im_all_rmatches[img] = rmatches
 
     if 'apply_sequence_ranks' in options and options['apply_sequence_ranks'] is True:
-        sequence_ranks = data.load_sequence_ranks()
         sequence_count = 0
         total_rmatches = 0
         sequences = {}
         adjacent_pairs = {}
         for i, im1 in enumerate(sorted(data.images())):
+            im1_sequence_ranks = data.load_sequence_ranks(im1)
             for j,im2 in enumerate(sorted(data.images())):
                 if j != i + 1:
                     continue
+                im2_sequence_ranks = data.load_sequence_ranks(im2)
                 adjacent_pairs[im1] = {im2: True}
                 adjacent_pairs[im2] = {im1: True}
                 if im1 in im_all_rmatches and im2 in im_all_rmatches[im1]:
@@ -2100,8 +2155,9 @@ def rmatches_adapter(data, options={}):
                 #     total_rmatches += rmatches
                 #     sequence_count += 1
         c = 1.0 * total_rmatches / sequence_count
-        logger.info('\tTotal Sequence pairs: {}  Average rmatches between consecutive images: {}'.format(sequence_count, c))
-        logger.info(json.dumps(sequences, sort_keys=True, indent=4, separators=(',', ': ')))
+        if debug:
+            logger.info('\t\tTotal Sequence pairs: {}  Average rmatches between consecutive images: {}'.format(sequence_count, c))
+            # logger.info(json.dumps(sequences, sort_keys=True, indent=4, separators=(',', ': ')))
 
     for im1 in im_all_rmatches:
         if im1 not in im_num_rmatches:
@@ -2271,8 +2327,9 @@ def calculate_lccs(ctx):
     images = data.images()
     lccs = {}
     edge_threshold = 15
+    debug = False
 
-    num_rmatches, _, _ = rmatches_adapter(data)
+    num_rmatches, _, _ = rmatches_adapter(data, debug=debug)
     G = opensfm.commands.formulate_graphs.formulate_graph([data, images, num_rmatches, 'rm', edge_threshold])
     for threshold in [15, 20, 25, 30, 35, 40]:
         G_thresholded = opensfm.commands.formulate_graphs.threshold_graph_edges(G, threshold, key='weight')
@@ -2281,8 +2338,11 @@ def calculate_lccs(ctx):
                 lccs[im1] = {}
             lccs[im1][threshold] = round(G_thresholded.node[im1]['lcc'], 3)
 
+    for im in lccs:
+        data.save_lccs(im, lccs[im])
+
     # print lccs
-    data.save_lccs(lccs)
+    
     # return lccs
     # # cameras = data.load_camera_models()
     # exifs = ctx.exifs
@@ -2371,9 +2431,10 @@ def plot_mds(data, pos_gt, pos, iteration, opts):
 
 
 def solve_mds(data, distances_gt, distances, num_fns, opts, debug):
-    logger.info('#'*100)
-    logger.info('#'*40 + ' Solving MDS problem... ' + '#'*40)
-    logger.info('#'*100)
+    if debug:
+        logger.info('#'*100)
+        logger.info('#'*40 + ' Solving MDS problem... ' + '#'*40)
+        logger.info('#'*100)
     seed = np.random.RandomState(seed=3)
     mds = manifold.MDS(n_components=3, max_iter=3000, eps=1e-9, random_state=seed,
                    dissimilarity="precomputed", n_jobs=1)
@@ -2503,9 +2564,10 @@ def distance_based_triangulation(data, landmark_positions, delta_a):
 
 def infer_cleaner_positions(ctx):
     debug = False
-    logger.info('#'*100)
-    logger.info('#'*25 + ' Inferring cleaner camera positions using shortest paths... ' + '#'*25)
-    logger.info('#'*100)
+    if debug:
+        logger.info('#'*100)
+        logger.info('#'*25 + ' Inferring cleaner camera positions using shortest paths... ' + '#'*25)
+        logger.info('#'*100)
     data = ctx.data
     images = sorted(data.images())
     np_images = np.array(images)
@@ -2525,13 +2587,13 @@ def infer_cleaner_positions(ctx):
 
     for sp_label in ['rm-cost']:#, 'rm-seq-cost-{}'.format(seq_cost_factor)]:
         distances_baseline = -1 * np.ones((len(images), len(images)))
-        shortest_paths = data.load_shortest_paths(label=sp_label)
         cached_features = {}
         image_mapping = {}
         reverse_image_mapping = {}
         im_closest_images = {}
 
         for i,im1 in enumerate(images):
+            im_shortest_paths = data.load_shortest_paths(im1, label=sp_label)
             image_mapping[im1] = i
             reverse_image_mapping[i] = im1
 
@@ -2541,10 +2603,11 @@ def infer_cleaner_positions(ctx):
                 if i == j:
                     distances_baseline[i,j] = 0.0
                 else:
-                    if im1 in shortest_paths and im2 in shortest_paths[im1]:
-                        path = shortest_paths[im1][im2]['path']
+                    if im2 in im_shortest_paths:
+                        path = im_shortest_paths[im2]['path']
                     else:
-                        path = shortest_paths[im2][im1]['path']
+                        im_shortest_paths = data.load_shortest_paths(im2, label=sp_label)
+                        path = im_shortest_paths[im1]['path']
                     shortest_path_distance = 0.0
                     for k,p in enumerate(path):
                         im1_, im2_ = p.split('---')
@@ -2595,7 +2658,8 @@ def infer_cleaner_positions(ctx):
 
         # noisiest_images = []
         mds_images = images[:]
-        logger.info('Total images: {}'.format(len(mds_images)))
+        if debug:
+            logger.info('Total images: {}'.format(len(mds_images)))
         # for i in range(0, int(math.floor(0.5*len(images)))): # remove maximum 50% of images
         # for i in range(0, int(math.floor(0.2*len(images)))): # remove maximum 20% of images
         # for i in range(0, int(math.floor(0.1*len(images)))): # remove maximum 20% of images
@@ -2652,10 +2716,11 @@ def infer_cleaner_positions(ctx):
             if data.reconstruction_exists('reconstruction_gt.json'):
                 all_positions_inferred_gt = positions_inferred_gt[:,:]
 
-
-        logger.info('Triangulating pruned cameras using distances from landmark cameras...')
+        if debug:
+            logger.info('Triangulating pruned cameras using distances from landmark cameras...')
         for ip in images_pruned:
-            logger.info('\tImage being added: {}'.format(reverse_image_mapping[ip['index']]))
+            if debug:
+                logger.info('\tImage being added: {}'.format(reverse_image_mapping[ip['index']]))
             confident_indices = distances_baseline[ip['index'], landmark_indices].argsort()[:max(3, int(len(images)*0.2))]
             # confident_indices = distances_baseline[ip['index'], landmark_indices].argsort()[:3]
             x = distance_based_triangulation(data, mds_embedding_positions[confident_indices], distances_baseline[ip['index'], landmark_indices][confident_indices])
@@ -2708,7 +2773,8 @@ def infer_cleaner_positions(ctx):
             order = np.argsort(np.array(updated_distances[:,i]))
             im_closest_images[reverse_image_mapping[i]] = np_images[order].tolist()
 
-        data.save_closest_images(im_closest_images, label='{}-lmds-{}'.format(sp_label, options['lmds']))
+        for im in im_closest_images:
+            data.save_closest_images(im, im_closest_images[im], label='{}-lmds-{}'.format(sp_label, options['lmds']))
 
     # import sys; sys.exit(1)
     if data.reconstruction_exists('reconstruction_gt.json'):
@@ -2717,16 +2783,16 @@ def infer_cleaner_positions(ctx):
         for i in range(0,num_fns_gt):
             order_gt = np.argsort(np.array(distances_gt[:,i]))
             im_closest_images_gt[reverse_image_mapping_gt[i]] = np_images_gt[order_gt].tolist()
-        data.save_closest_images(im_closest_images_gt, label='gt-lmds-{}'.format(options['lmds']))
+        
+        for im in im_closest_images_gt:
+            data.save_closest_images(im, im_closest_images_gt[im], label='gt-lmds-{}'.format(options['lmds']))
 
         # recon_inferred = create_inferred_reconstruction(positions_inferred, reverse_image_mapping)
         # relevant_reconstructions = [[recon_gt, recon_inferred, 'path']]
         # opensfm.commands.validate_results.ransac_based_ate_evaluation(data, relevant_reconstructions)
 
 def infer_positions(ctx):
-    logger.info('#'*100)
-    logger.info('#'*25 + ' Inferring camera positions using shortest paths... ' + '#'*25)
-    logger.info('#'*100)
+    logger.info('Inferring camera positions using shortest paths...')
     data = ctx.data
     images = sorted(data.images())
     np_images = np.array(images)
@@ -2746,13 +2812,13 @@ def infer_positions(ctx):
 
     for sp_label in ['rm-cost', 'rm-seq-cost-{}'.format(seq_cost_factor)]:
         distances_baseline = -1 * np.ones((len(images), len(images)))
-        shortest_paths = data.load_shortest_paths(label=sp_label)
         cached_features = {}
         image_mapping = {}
         reverse_image_mapping = {}
         im_closest_images = {}
 
         for i,im1 in enumerate(images):
+            im_shortest_paths = data.load_shortest_paths(im1, label=sp_label)
             image_mapping[im1] = i
             reverse_image_mapping[i] = im1
 
@@ -2762,10 +2828,11 @@ def infer_positions(ctx):
                 if i == j:
                     distances_baseline[i,j] = 0.0
                 else:
-                    if im1 in shortest_paths and im2 in shortest_paths[im1]:
-                        path = shortest_paths[im1][im2]['path']
+                    if im2 in im_shortest_paths:
+                        path = im_shortest_paths[im2]['path']
                     else:
-                        path = shortest_paths[im2][im1]['path']
+                        im_shortest_paths = data.load_shortest_paths(im2, label=sp_label)
+                        path = im_shortest_paths[im1]['path']
                     shortest_path_distance = 0.0
                     for k,p in enumerate(path):
                         im1_, im2_ = p.split('---')
@@ -2799,7 +2866,8 @@ def infer_positions(ctx):
             order = np.argsort(np.array(updated_distances[:,i]))
             im_closest_images[reverse_image_mapping[i]] = np_images[order].tolist()
 
-        data.save_closest_images(im_closest_images, label='{}-lmds-{}'.format(sp_label, options['lmds']))
+        for im in im_closest_images:
+            data.save_closest_images(im, im_closest_images[im], label='{}-lmds-{}'.format(sp_label, options['lmds']))
 
     if data.reconstruction_exists('reconstruction_gt.json'):
         im_closest_images_gt = {}
@@ -2807,7 +2875,8 @@ def infer_positions(ctx):
         for i in range(0,num_fns_gt):
             order_gt = np.argsort(np.array(distances_gt[:,i]))
             im_closest_images_gt[reverse_image_mapping_gt[i]] = np_images_gt[order_gt].tolist()
-        data.save_closest_images(im_closest_images_gt, label='gt-lmds-{}'.format(options['lmds']))
+        for im in im_closest_images_gt:
+            data.save_closest_images(im, im_closest_images_gt[im], label='gt-lmds-{}'.format(options['lmds']))
 
         # recon_inferred = create_inferred_reconstruction(positions_inferred, reverse_image_mapping)
         # relevant_reconstructions = [[recon_gt, recon_inferred, 'path']]
@@ -2886,15 +2955,15 @@ def calculate_multiple_motion_maps(ctx):
     p = Pool(processes)
     if processes == 1:
         for arg in args:
-            p_results.append(multiple_motion_map(arg))
+            multiple_motion_map(arg)
     else:
-        p_results = p.map(multiple_motion_map, args)
+        p.map(multiple_motion_map, args)
         p.close()
 
-    for im1 in p_results:
-        results[im1] = True
+    # for im1 in p_results:
+    #     results[im1] = True
 
-    data.save_secondary_motion_results(results)
+    # data.save_secondary_motion_results(results)
 
 def multiple_motion_map(arg):
     ctx, im1, valid_candidates, cached_p, im1_all_non_robust_matches = arg
@@ -2931,4 +3000,4 @@ def multiple_motion_map(arg):
         data.save_match_map('rmatches_secondary_motion---{}-{}'.format(im1,im2), rmatches_secondary_motion_map_im1)
         data.save_match_map('rmatches_secondary_motion---{}-{}'.format(im2,im1), rmatches_secondary_motion_map_im2)
 
-    return im1
+    return

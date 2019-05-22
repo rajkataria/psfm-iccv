@@ -339,12 +339,12 @@ class ImageMatchingDataset(data.Dataset):
                 # pe_mask_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps-10-iterations-size-224', '{}-{}-a-m-filtered.png'.format(self.fns[i,1], self.fns[i,0]))
                 # pe_warped_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps-10-iterations-size-224', '{}-{}-a-wi-filtered.png'.format(self.fns[i,0], self.fns[i,1]))
                 # pe_warped_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps-10-iterations-size-224', '{}-{}-a-wi-filtered.png'.format(self.fns[i,1], self.fns[i,0]))
-                pe_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_{}_unfiltered'.format(self.options['pe_experiment']), '{}-{}-a-em-unfiltered-ga.png'.format(self.fns[i,0], self.fns[i,1]))
-                pe_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_{}_unfiltered'.format(self.options['pe_experiment']), '{}-{}-a-em-unfiltered-ga.png'.format(self.fns[i,1], self.fns[i,0]))
-                pe_mask_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_{}_unfiltered'.format(self.options['pe_experiment']), '{}-{}-a-m-unfiltered-ga.png'.format(self.fns[i,0], self.fns[i,1]))
-                pe_mask_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_{}_unfiltered'.format(self.options['pe_experiment']), '{}-{}-a-m-unfiltered-ga.png'.format(self.fns[i,1], self.fns[i,0]))
-                pe_warped_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_{}_unfiltered'.format(self.options['pe_experiment']), '{}-{}-a-wi-unfiltered-ga.png'.format(self.fns[i,0], self.fns[i,1]))
-                pe_warped_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_{}_unfiltered'.format(self.options['pe_experiment']), '{}-{}-a-wi-unfiltered-ga.png'.format(self.fns[i,1], self.fns[i,0]))
+                pe_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_{}'.format(self.options['pe_experiment']), '{}-{}-a-em-unfiltered-ga.png'.format(self.fns[i,0], self.fns[i,1]))
+                pe_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_{}'.format(self.options['pe_experiment']), '{}-{}-a-em-unfiltered-ga.png'.format(self.fns[i,1], self.fns[i,0]))
+                pe_mask_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_{}'.format(self.options['pe_experiment']), '{}-{}-a-m-unfiltered-ga.png'.format(self.fns[i,0], self.fns[i,1]))
+                pe_mask_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_{}'.format(self.options['pe_experiment']), '{}-{}-a-m-unfiltered-ga.png'.format(self.fns[i,1], self.fns[i,0]))
+                pe_warped_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_{}'.format(self.options['pe_experiment']), '{}-{}-a-wi-unfiltered-ga.png'.format(self.fns[i,0], self.fns[i,1]))
+                pe_warped_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_{}'.format(self.options['pe_experiment']), '{}-{}-a-wi-unfiltered-ga.png'.format(self.fns[i,1], self.fns[i,0]))
 
                 se_fm1_fn = os.path.join(self.dsets[i], 'classifier_features', 'feature_maps', 'feature---{}.png'.format(self.fns[i,0]))
                 se_fm2_fn = os.path.join(self.dsets[i], 'classifier_features', 'feature_maps', 'feature---{}.png'.format(self.fns[i,1]))
@@ -564,12 +564,12 @@ class ImageMatchingDataset(data.Dataset):
                 se_matches_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'match_maps', 'matches---{}-{}.png'.format(self.fns[i,0], self.fns[i,1]))
                 se_matches_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'match_maps', 'matches---{}-{}.png'.format(self.fns[i,1], self.fns[i,0]))
 
-                pe_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_{}_unfiltered'.format(self.options['pe_experiment']), '{}-{}-a-em-unfiltered-ga.png'.format(self.fns[i,0], self.fns[i,1]))
-                pe_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_{}_unfiltered'.format(self.options['pe_experiment']), '{}-{}-a-em-unfiltered-ga.png'.format(self.fns[i,1], self.fns[i,0]))
-                pe_mask_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_{}_unfiltered'.format(self.options['pe_experiment']), '{}-{}-a-m-unfiltered-ga.png'.format(self.fns[i,0], self.fns[i,1]))
-                pe_mask_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_{}_unfiltered'.format(self.options['pe_experiment']), '{}-{}-a-m-unfiltered-ga.png'.format(self.fns[i,1], self.fns[i,0]))
-                pe_warped_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_{}_unfiltered'.format(self.options['pe_experiment']), '{}-{}-a-wi-unfiltered-ga.png'.format(self.fns[i,0], self.fns[i,1]))
-                pe_warped_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_{}_unfiltered'.format(self.options['pe_experiment']), '{}-{}-a-wi-unfiltered-ga.png'.format(self.fns[i,1], self.fns[i,0]))
+                pe_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_{}'.format(self.options['pe_experiment']), '{}-{}-a-em-unfiltered-ga.png'.format(self.fns[i,0], self.fns[i,1]))
+                pe_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_{}'.format(self.options['pe_experiment']), '{}-{}-a-em-unfiltered-ga.png'.format(self.fns[i,1], self.fns[i,0]))
+                pe_mask_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_{}'.format(self.options['pe_experiment']), '{}-{}-a-m-unfiltered-ga.png'.format(self.fns[i,0], self.fns[i,1]))
+                pe_mask_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_{}'.format(self.options['pe_experiment']), '{}-{}-a-m-unfiltered-ga.png'.format(self.fns[i,1], self.fns[i,0]))
+                pe_warped_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_{}'.format(self.options['pe_experiment']), '{}-{}-a-wi-unfiltered-ga.png'.format(self.fns[i,0], self.fns[i,1]))
+                pe_warped_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_{}'.format(self.options['pe_experiment']), '{}-{}-a-wi-unfiltered-ga.png'.format(self.fns[i,1], self.fns[i,0]))
 
                 se_fm1_fn = os.path.join(self.dsets[i], 'classifier_features', 'feature_maps', 'feature---{}.png'.format(self.fns[i,0]))
                 se_fm2_fn = os.path.join(self.dsets[i], 'classifier_features', 'feature_maps', 'feature---{}.png'.format(self.fns[i,1]))
@@ -784,7 +784,7 @@ def inference(data_loader, model, epoch, run_dir, logger, opts, range_min, range
             if j == 0:
                 y_predictions = nn.functional.softmax(y_prediction)
                 y_predictions_logits = y_prediction
-                positive_predictions = y_prediction
+                positive_predictions = nn.functional.softmax(y_prediction)#y_prediction
                 positive_targets = target
                 targets = target
                 num_rmatches_b = Variable(_num_rmatches)
@@ -794,7 +794,7 @@ def inference(data_loader, model, epoch, run_dir, logger, opts, range_min, range
             else:
                 y_predictions = torch.cat((y_predictions, nn.functional.softmax(y_prediction)))
                 y_predictions_logits = torch.cat((y_predictions_logits, y_prediction))
-                negative_predictions = y_prediction
+                negative_predictions = nn.functional.softmax(y_prediction)#y_prediction
                 negative_targets = target
                 targets = torch.cat((targets, target))
                 num_rmatches_b = torch.cat((num_rmatches_b, Variable(_num_rmatches)))
@@ -807,7 +807,7 @@ def inference(data_loader, model, epoch, run_dir, logger, opts, range_min, range
                 break
 
 
-        if opts['loss'] == 'cross-entropy':
+        if opts['loss'] == 'cross-entropy' or mode == 'test':
             loss = cross_entropy_loss(y_predictions_logits, targets)
         elif opts['loss'] == 'triplet':
             # loss = margin_ranking_loss(y_predictions_logits[:,1], y_predictions_logits[:,0], reformatted_targets)
@@ -935,7 +935,7 @@ def inference(data_loader, model, epoch, run_dir, logger, opts, range_min, range
 
 
 triplet_loss = nn.TripletMarginLoss()
-margin_ranking_loss = nn.MarginRankingLoss(margin=1.0)
+margin_ranking_loss = nn.MarginRankingLoss(margin=0.5)
 cross_entropy_loss = nn.CrossEntropyLoss()
 
 def adjust_learning_rate(optimizer, opts):
@@ -1034,15 +1034,15 @@ def classify_convnet_image_match_initialization(train_loader, test_loaders, run_
     # create logger
     run_dir = os.path.join(opts['convnet_log_dir'], \
         # 'run-opt-{}-bs-{}-lr-{}-exp-{}-loss-{}-triplet-sampling-{}-sample-inclass-{}-min-images-{}-max-images-{}-use-all-data-{}-model-{}-is-{}-mlp-layer-size-{}-use-images-{}-use_fmm-{}-use_tm-{}-tov-{}-use_rmm-{}-use_mm-{}-use_pems-{}'.format(\
-        'run-model-{}-lr-{}-is-{}-mlp-layer-size-{}-use-images-{}-use_fmm-{}-use_tm-{}-tov-{}-use_rmm-{}-use_mm-{}-use_nrmm-{}-use-rmsmm-{}-use_pems-{}-pe_exp-{}'.format(\
+        'run-ss-{}-sample-inclass-{}-model-{}-lr-{}-is-{}-mlp-layer-size-{}-use-images-{}-use_fmm-{}-use_tm-{}-tov-{}-use_rmm-{}-use_mm-{}-use_nrmm-{}-use-rmsmm-{}-use_pems-{}-pe_exp-{}'.format(\
             # opts['optimizer'], \
             # opts['batch_size'], \
             
             # opts['experiment'], \
             # opts['loss'], \
             # # opts['use_image_features'], \
-            # opts['triplet-sampling-strategy'], \
-            # opts['sample-inclass'], \
+            opts['triplet-sampling-strategy'], \
+            opts['sample-inclass'], \
             # opts['image_match_classifier_min_match'], \
             # opts['image_match_classifier_max_match'], \
             # opts['use_all_training_data'], \
@@ -1085,15 +1085,15 @@ def classify_convnet_image_match_training(arg, arg_te):
 
     run_dir = os.path.join(opts['convnet_log_dir'], \
         # 'run-opt-{}-bs-{}-lr-{}-exp-{}-loss-{}-triplet-sampling-{}-sample-inclass-{}-min-images-{}-max-images-{}-use-all-data-{}-model-{}-is-{}-mlp-layer-size-{}-use-images-{}-use_fmm-{}-use_tm-{}-tov-{}-use_rmm-{}-use_mm-{}-use_pems-{}'.format(\
-        'run-model-{}-lr-{}-is-{}-mlp-layer-size-{}-use-images-{}-use_fmm-{}-use_tm-{}-tov-{}-use_rmm-{}-use_mm-{}-use_nrmm-{}-use-rmsmm-{}-use_pems-{}-pe_exp-{}'.format(\
+        'run-ss-{}-sample-inclass-{}-model-{}-lr-{}-is-{}-mlp-layer-size-{}-use-images-{}-use_fmm-{}-use_tm-{}-tov-{}-use_rmm-{}-use_mm-{}-use_nrmm-{}-use-rmsmm-{}-use_pems-{}-pe_exp-{}'.format(\
             # opts['optimizer'], \
             # opts['batch_size'], \
             
             # opts['experiment'], \
             # opts['loss'], \
             # # opts['use_image_features'], \
-            # opts['triplet-sampling-strategy'], \
-            # opts['sample-inclass'], \
+            opts['triplet-sampling-strategy'], \
+            opts['sample-inclass'], \
             # opts['image_match_classifier_min_match'], \
             # opts['image_match_classifier_max_match'], \
             # opts['use_all_training_data'], \

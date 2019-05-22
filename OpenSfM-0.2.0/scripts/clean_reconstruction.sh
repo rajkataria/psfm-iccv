@@ -11,6 +11,7 @@ rm -R $dataset/exif
 rm -R $dataset/features
 rm -R $dataset/feature_matching_results
 rm -R $dataset/images-resized
+rm -R $dataset/images-blurred
 rm -R $dataset/images-resized-processed
 rm -R $dataset/matches
 rm -R $dataset/*.log

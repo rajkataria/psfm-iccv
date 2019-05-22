@@ -222,9 +222,21 @@ declare -A run6=(
 	[train_on_val]='no'												[convnet_use_rmatches_secondary_motion_map]='no'
 	)
 
-all_runs=(run2 run3 run4 run5 run6 run1)
-# all_runs=(run5)
-# all_runs=(run6)
+# Run: RMM + NRMM + PEMs  + Triplet Loss
+declare -A run7=(
+	[n_estimators]='50'                    							[max_depth]='6'    													[lr]='0.01'
+	[image_match_classifier_min_match]='15'                    		[image_match_classifier_max_match]='5000'  							[classifier]='CONVNET'
+	[use_all_training_data]='yes'									[convnet_use_feature_match_map]='no'								[convnet_use_non_rmatches_map]='yes'
+	[convnet_use_matches_map]='no'									[convnet_use_rmatches_map]='yes'									[convnet_use_photometric_error_maps]='yes'
+	[convnet_use_track_map]='no'									[convnet_use_images]='no'											[convnet_features]='RM'
+	[convnet_resnet_model]='18'										[convnet_loss]='t'																			
+	[train_on_val]='no'												[convnet_use_rmatches_secondary_motion_map]='no'
+	)
+
+# all_runs=(run2 run3 run4 run5 run6 run1)
+
+all_runs=(run5 run1)
+# all_runs=(run7)
 
 for run_name in "${all_runs[@]}"; do
 	echo "**********************************************************************************";
@@ -255,7 +267,11 @@ for run_name in "${all_runs[@]}"; do
     c_train_on_val="${run_ref[train_on_val]}"
 
 	if [ "$c_convnet_resnet_model" == "18" ];then
-		batchsize=96
+		if [ "$c_convnet_loss" == "ce" ];then
+	   		batchsize=96
+		else
+			batchsize=48
+		fi
 	elif [ "$c_convnet_resnet_model" == "34" ]; then
 		if [ "$c_convnet_use_images" == "yes" ]; then
 			batchsize=64
