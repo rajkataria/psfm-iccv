@@ -417,7 +417,7 @@ class DataSet:
 
     def __classifier_features_photometric_errors_map_path(self):
         """Return path of all matches directory"""
-        return os.path.join(self.__classifier_features_path(), 'pe_maps_preprocessed_unfiltered')
+        return os.path.join(self.__classifier_features_path(), 'pe_maps')
 
     def __classifier_features_consistency_errors_path(self):
         return os.path.join(self.__classifier_features_path(), 'consistency_errors')

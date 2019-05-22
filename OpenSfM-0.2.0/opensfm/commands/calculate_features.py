@@ -37,6 +37,9 @@ class Command:
         ctx.exifs = exifs
         ctx.grid_size = 224
         ctx.sequence_cost_factor = 1.0
+        ctx.blurred = True
+        ctx.debug = False
+
         # classifier.calculate_consistency_errors(ctx)
         # classifier.create_image_matching_dataset(ctx)
         # import sys; sys.exit(1)
@@ -57,6 +60,7 @@ class Command:
         #             continue
         #         classifier.perform_gamma_adjustment(data, im1, im2, grid_size)
 
+        # classifier.calculate_photometric_errors(ctx); print ' Raj: UNDO THESE LINES AS WELL'; import sys; sys.exit(1)
 
         start = timer()
 

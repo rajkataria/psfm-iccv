@@ -782,24 +782,24 @@ def warp_image(data, Ms, triangle_pts_img1, triangle_pts_img2, img1, img2, im1, 
         calculate_individual_errors_and_aggregate_triangles(data, img1, img2, np.array(imgs_per_triangle).copy(), grid_size, outlier_indices=[])
     # logger.info('\t\t\t\tcalculate_individual_errors_and_aggregate_triangles 1: {} - {}: Time: {}'.format(os.path.basename(im1), os.path.basename(im2), timer() - s_time_calculate_individual_errors_and_aggregate_triangles))
 
-    if False:
-        normalized_error_per_triangle = np.array(normalized_error_per_triangle)
-        order = np.argsort(-normalized_error_per_triangle)
-        outliers, outlier_indices = detect_outliers(normalized_error_per_triangle)
+    # if False:
+    normalized_error_per_triangle = np.array(normalized_error_per_triangle)
+    order = np.argsort(-normalized_error_per_triangle)
+    outliers, outlier_indices = detect_outliers(normalized_error_per_triangle)
 
-        s_time_calculate_individual_errors_and_aggregate_triangles = timer()
-        _, _, aggregated_wi_filtered, aggregated_m_filtered, aggregated_em_filtered = \
-            calculate_individual_errors_and_aggregate_triangles(data, img1, img2, np.array(imgs_per_triangle).copy(), grid_size, outlier_indices=outlier_indices)
-        logger.info('\t\t\t\tcalculate_individual_errors_and_aggregate_triangles 2: {} - {}: Time: {}'.format(os.path.basename(im1), os.path.basename(im2), timer() - s_time_calculate_individual_errors_and_aggregate_triangles))
+        # s_time_calculate_individual_errors_and_aggregate_triangles = timer()
+    _, _, aggregated_wi_filtered, aggregated_m_filtered, aggregated_em_filtered = \
+        calculate_individual_errors_and_aggregate_triangles(data, img1, img2, np.array(imgs_per_triangle).copy(), grid_size, outlier_indices=outlier_indices)
+        # logger.info('\t\t\t\tcalculate_individual_errors_and_aggregate_triangles 2: {} - {}: Time: {}'.format(os.path.basename(im1), os.path.basename(im2), timer() - s_time_calculate_individual_errors_and_aggregate_triangles))
 
     if use_gamma_adjusted_images:
         data.save_photometric_errors_map('{}-{}-a-wi-unfiltered-ga'.format(os.path.basename(im1), os.path.basename(im2)), aggregated_wi, size=grid_size)
         data.save_photometric_errors_map('{}-{}-a-m-unfiltered-ga'.format(os.path.basename(im1), os.path.basename(im2)), aggregated_m, size=grid_size)
         data.save_photometric_errors_map('{}-{}-a-em-unfiltered-ga'.format(os.path.basename(im1), os.path.basename(im2)), aggregated_em, size=grid_size)
 
-        # data.save_photometric_errors_map('{}-{}-a-wi-filtered-ga'.format(os.path.basename(im1), os.path.basename(im2)), aggregated_wi_filtered, size=grid_size)
-        # data.save_photometric_errors_map('{}-{}-a-m-filtered-ga'.format(os.path.basename(im1), os.path.basename(im2)), aggregated_m_filtered, size=grid_size)
-        # data.save_photometric_errors_map('{}-{}-a-em-filtered-ga'.format(os.path.basename(im1), os.path.basename(im2)), aggregated_em_filtered, size=grid_size)
+        data.save_photometric_errors_map('{}-{}-a-wi-filtered-ga'.format(os.path.basename(im1), os.path.basename(im2)), aggregated_wi_filtered, size=grid_size)
+        data.save_photometric_errors_map('{}-{}-a-m-filtered-ga'.format(os.path.basename(im1), os.path.basename(im2)), aggregated_m_filtered, size=grid_size)
+        data.save_photometric_errors_map('{}-{}-a-em-filtered-ga'.format(os.path.basename(im1), os.path.basename(im2)), aggregated_em_filtered, size=grid_size)
     else:
         data.save_photometric_errors_map('{}-{}-a-wi-unfiltered'.format(os.path.basename(im1), os.path.basename(im2)), aggregated_wi, size=grid_size)
         data.save_photometric_errors_map('{}-{}-a-m-unfiltered'.format(os.path.basename(im1), os.path.basename(im2)), aggregated_m, size=grid_size)
@@ -829,7 +829,7 @@ def calculate_individual_errors_and_aggregate_triangles(data, img1, img2, imgs_p
         m[rr_,rc_] = 0
         
         # s_time_error_map = timer()
-        em = calculate_error_map(img2, wi, range=(rr,rc,rd))
+        em = calculate_error_map(img2, wi, valid_range=(rr,rc,rd))
         # s_time_error_maps += timer() - s_time_error_map
 
         aggregated_wi[wi > 0] = wi[wi > 0].astype(np.uint8)
@@ -1004,9 +1004,11 @@ def get_l2_errors(error_map):
         cum_errors.append(error_map[ii[i],jj[i]])
     return cum_errors
 
-def calculate_error_map(img_o, warped_image, range):
+def calculate_error_map(img_o, warped_image, valid_range):
     error_map = np.zeros((img_o.shape[0], img_o.shape[1])).astype(np.int)
     # ii,jj,kk = np.where(warped_image > -255)
+    
+    # ii,jj,kk = valid_range
     # for i,_ in enumerate(ii):
     #     error = np.power( \
     #         max(np.power(img_o[ii[i],jj[i],0] - warped_image[ii[i],jj[i],0], 2) + \
@@ -1014,9 +1016,10 @@ def calculate_error_map(img_o, warped_image, range):
     #         np.power(img_o[ii[i],jj[i],2] - warped_image[ii[i],jj[i],2], 2), 0), \
     #         0.5 )
     #     error_map[ii[i],jj[i]] = min(error, 255)
-    error_map[range[0], range[1]] = np.power(np.power(img_o[range[0], range[1], 0] - warped_image[range[0], range[1], 0], 2) + \
-        np.power(img_o[range[0], range[1], 1] - warped_image[range[0], range[1], 1], 2) + \
-        np.power(img_o[range[0], range[1], 2] - warped_image[range[0], range[1], 2], 2), 0.5)
+    error_map[valid_range[0], valid_range[1]] = np.minimum(255, np.power(np.maximum(0, 
+        np.power(img_o[valid_range[0], valid_range[1], 0] - warped_image[valid_range[0], valid_range[1], 0], 2) + \
+        np.power(img_o[valid_range[0], valid_range[1], 1] - warped_image[valid_range[0], valid_range[1], 1], 2) + \
+        np.power(img_o[valid_range[0], valid_range[1], 2] - warped_image[valid_range[0], valid_range[1], 2], 2)), 0.5))
     return error_map
 
 def mkdir_p(path):
@@ -1047,10 +1050,12 @@ def get_processed_images(data, im1, im2, grid_size):
     return im1_a_fn, im2_a_fn, img1_adjusted_denormalized, img2_adjusted_denormalized, m1, m2
 
 def calculate_photometric_error_convex_hull(arg):
-    grid_size, ii, jj, patchdataset, data, im1, im2, matches, flags = arg
+    grid_size, ii, jj, patchdataset, data, im1, im2, matches, flags, blurred, debug = arg
     best_error = sys.float_info.max
-    blurred, debug = True, False
-    logger.info('\tStarting to process {} / {}'.format(im1, im2))
+
+    if debug:
+        logger.info('\tStarting to process {} / {}'.format(im1, im2))
+
     if flags['masked_tags']:
         p1, f1, c1 = data.load_features_masked(im1)
         p2, f2, c2 = data.load_features_masked(im2)
@@ -1092,12 +1097,15 @@ def calculate_photometric_error_convex_hull(arg):
 def calculate_photometric_errors(ctx):
     data = ctx.data
     cameras = data.load_camera_models()
-    images = data.images()
+    images = sorted(data.images())
     exifs = ctx.exifs
     config = data.config
     processes = config['processes']
     grid_size = ctx.grid_size
     args = []
+    blurred = ctx.blurred
+    debug = ctx.debug
+
     flags = {'use_gamma_adjusted_images': True, 'masked_tags': False, 'num_samples': 500, 'outlier_threshold_percentage': 0.7, 'debug': False, 'lab_error_threshold': 50, \
         'use_kmeans': False, 'sampling_method': 'sample_polygon_uniformly', 'draw_hull': False, 'draw_matches': False, 'draw_triangles': False, 'draw_points': False, \
         'processes': processes, 'draw_outliers': False, 'kmeans_num_clusters': None }
@@ -1106,14 +1114,17 @@ def calculate_photometric_errors(ctx):
     #     logger.info('Photometric errors exist!')
     #     return
     logger.info('Calculating photometric errors...')
-    for im1 in images:
+    for i, im1 in enumerate(images):
         im1_all_matches, im1_valid_rmatches, im1_all_robust_matches = data.load_all_matches(im1)
-        for im2 in im1_all_robust_matches:
+        for j, im2 in enumerate(sorted(im1_all_robust_matches.keys())):
             em_fn = '{}-{}-a-em-unfiltered-ga'.format(os.path.basename(im1), os.path.basename(im2))
             m_fn = '{}-{}-a-m-unfiltered-ga'.format(os.path.basename(im1), os.path.basename(im2))
 
-            if not data.photometric_errors_map_exists(em_fn) or not data.photometric_errors_map_exists(m_fn):
+            # logger.info('Raj: UNDO THESE LINES')
+            if data.photometric_errors_map_exists(em_fn) and data.photometric_errors_map_exists(m_fn):
                 continue
+            # if i > 0 or j > 5:
+            #     continue
 
             rmatches = im1_all_robust_matches[im2]
             if len(rmatches) == 0:
@@ -1152,8 +1163,8 @@ def calculate_photometric_errors(ctx):
             #     im1 == 'DSC_1761.JPG' and im2 == 'DSC_1762.JPG':
             
             # if im1 == 'DSC_0286.JPG' and im2 == 'DSC_0289.JPG' or im1 == 'DSC_0286.JPG' and im2 == 'DSC_0288.JPG' or im1 == 'DSC_0286.JPG' and im2 == 'DSC_0287.JPG':
-            args.append([grid_size, 0, 1, None, ctx.data, im1, im2, rmatches[:, 0:2].astype(int), flags])
-            args.append([grid_size, 0, 1, None, ctx.data, im2, im1, np.concatenate((rmatches[:, 1].reshape((-1,1)), rmatches[:, 0].reshape((-1,1))), axis=1).astype(int), flags])
+            args.append([grid_size, 0, 1, None, ctx.data, im1, im2, rmatches[:, 0:2].astype(int), flags, blurred, debug])
+            args.append([grid_size, 0, 1, None, ctx.data, im2, im1, np.concatenate((rmatches[:, 1].reshape((-1,1)), rmatches[:, 0].reshape((-1,1))), axis=1).astype(int), flags, blurred, debug])
 
     t_start = timer()
     p_results = []
@@ -1161,6 +1172,7 @@ def calculate_photometric_errors(ctx):
     p = Pool(processes)
     # logger.info('Using {} thread(s)'.format(processes))
     # print args
+    s_time = timer()
     if processes == 1:
         for a, arg in enumerate(args):
             # logger.info('Finished processing photometric errors: {} / {} : {} / {}'.format(a, len(args), arg[4], arg[5]))
@@ -1168,7 +1180,7 @@ def calculate_photometric_errors(ctx):
     else:
         p.map(calculate_photometric_error_convex_hull, args)
         p.close()
-
+    logger.info("PE Time: {}".format(timer() - t_start))
     # for r in p_results:
 
     #     # im1, im2, polygon_area, polygon_area_percentage, total_triangles, histogram_counts, histogram_cumsum, histogram, bins = r
@@ -1197,8 +1209,7 @@ def calculate_photometric_errors(ctx):
 #         cv2.imwrite(os.path.join(data.data_path,'images-resized-processed',im_fn), cv2.resize(img, (grid_size, grid_size)))
 
 def perform_gamma_adjustment(arg):
-    data, im1, im2, grid_size, debug = arg
-    blurred = True
+    data, im1, im2, grid_size, blurred, debug = arg
     im1_fn = os.path.basename(im1)
     im2_fn = os.path.basename(im2)
 
@@ -1250,6 +1261,8 @@ def preprocess_images(ctx):
     g_args = []
     logger.info('Calculating gamma adjusted image pairs...')
     grid_size = ctx.grid_size
+    blurred = ctx.blurred
+    debug = ctx.debug
     for i,im1 in enumerate(sorted(data.images())):
         for j,im2 in enumerate(sorted(data.images())):
             if j <= i:
@@ -1257,13 +1270,13 @@ def preprocess_images(ctx):
             # if im1 == 'DSC_0286.JPG' and im2 == 'DSC_0289.JPG' or im2 == 'DSC_0286.JPG' and im1 == 'DSC_0289.JPG' or \
             #     im1 == 'DSC_0286.JPG' and im2 == 'DSC_0288.JPG' or im2 == 'DSC_0286.JPG' and im1 == 'DSC_0288.JPG' or \
             #     im1 == 'DSC_0286.JPG' and im2 == 'DSC_0287.JPG' or im2 == 'DSC_0286.JPG' and im1 == 'DSC_0287.JPG':
-            args.append([data, im1, im2, grid_size, False])
-        g_args.append([data, im1, grid_size, False])
+            args.append([data, im1, im2, grid_size, blurred, debug])
+        g_args.append([data, im1, grid_size, debug])
 
     p = Pool(processes)
     if processes == 1:    
         for arg in g_args:
-            perform_gaussian_blur(arg)
+            perform_gaussian_blur(g_args)
     else:
         p.map(perform_gaussian_blur, g_args)
 
@@ -1277,7 +1290,7 @@ def calculate_resized_images(ctx):
     data = ctx.data
     processes = ctx.data.config['processes']
     grid_size = ctx.grid_size
-    blurred, debug = False, False
+    blurred, debug = False, ctx.debug
     args = []
 
     for i,im in enumerate(sorted(data.images())):
