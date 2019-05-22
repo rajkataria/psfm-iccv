@@ -59,31 +59,136 @@ def mkdir_p(path):
     except os.error as exc:
         pass
 
-def calculate_dataset_auc(y, y_gt, color, ls):
-    if ls == 'solid':
-        width = 50
-    else:
-        width = 10
+def find_nearest(array, value):
+    array = np.asarray(array)
+    idx = (np.abs(array - value)).argmin()
+    return idx
 
-    precision, recall, threshs = sklearn.metrics.precision_recall_curve(y_gt, y)
+def plot_fpr(roc, color, markers = []):
+    fpr, tpr, threshs = roc
+    plt.plot(threshs, fpr, color=color)
+
+    marker_colors = ['black', 'blue', 'yellow']
+    for i, marker in enumerate(markers):
+        ri = find_nearest(threshs, marker)
+        plt.plot(threshs[ri], fpr[ri], color=marker_colors[i], marker='o') 
+
+def plot_tpr(roc, color, markers = []):
+    fpr, tpr, threshs = roc
+    plt.plot(threshs, tpr, color=color)
+
+    marker_colors = ['black', 'blue', 'yellow']
+    for i, marker in enumerate(markers):
+        ri = find_nearest(threshs, marker)
+        plt.plot(threshs[ri], tpr[ri], color=marker_colors[i], marker='o')
+
+def plot_rates(roc, metric, markers = []):
+    legend = []
+    plt.clf()
+    fig = plt.figure()
+    plt.title('ROC Rates (FPR/TPR) for Specific Thresholds')
+    plt.ylim([0.0, 1.05])
+    if metric == 'rmatches':
+        plt.xlim([15, 50])
+    else:
+        plt.xlim([0.0, 1.05])
+    plt.xlabel(metric)
+    plt.ylabel('TPR/FPR')
+    plot_fpr(roc, color='red', markers=markers)
+    plot_tpr(roc, color='green', markers=markers)
+
+    legend.extend(['False Positive Rate'])
+    legend.extend(['Marker threshold: {}'.format(i) for i in markers])
+    legend.extend(['True Positive Rate'])
+    legend.extend(['Marker threshold: {}'.format(i) for i in markers])
+    plt.legend(legend, loc='lower left', shadow=True, fontsize=10)
+
+    fig.set_size_inches(13.875, 7.875)
+    fig.canvas.draw()
+    fig_rates_np = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep='').reshape(fig.canvas.get_width_height()[::-1] + (3,))
+    plt.clf()
+
+    return fig_rates_np
+
+def plot_roc(roc, color, markers = []):
+    fpr, tpr, threshs = roc
+    plt.plot(fpr, tpr, color=color)
+
+    marker_colors = ['black', 'blue', 'yellow']
+    for i, marker in enumerate(markers):
+        ri = find_nearest(threshs, marker)
+        plt.plot(fpr[ri], tpr[ri], color=marker_colors[i], marker='o') 
+
+def plot_pr(pr, color, markers=[]):
+    precision, recall, threshs = pr
+    plt.step(recall, precision, color=color, alpha=5, where='post')
+
+    marker_colors = ['black', 'blue', 'yellow']
+    for i,marker in enumerate(markers):
+        ri = find_nearest(threshs, marker)
+        plt.plot(recall[ri], precision[ri], color=marker_colors[i], marker='o') 
+
+def plot_rocs(roc, roc_baseline, roc_auc, roc_auc_baseline, markers = [], markers_baseline=[]):
+    legend = []
+    plt.clf()
+    fig = plt.figure()
+    plt.ylim([0.0, 1.05])
+    plt.xlim([0.0, 1.05])
+    plt.title('ROC Curves')
+    plt.xlabel('False positive rate')
+    plt.ylabel('True positive rate')
+
+    plot_roc(roc_baseline, color='green', markers=markers_baseline)
+    plot_roc(roc, color='red', markers=markers)
+        
+    legend.extend(['Baseline AUC=' + str(round(roc_auc_baseline,3))])
+    legend.extend(['Marker threshold: {}'.format(i) for i in markers_baseline])
+    legend.extend(['ConvNet AUC=' + str(round(roc_auc,3))])
+    legend.extend(['Marker threshold: {}'.format(i) for i in markers])
+    plt.legend(legend, loc='lower right', shadow=True, fontsize=10)
+
+    fig.set_size_inches(13.875, 7.875)
+    fig.canvas.draw()
+    fig_np = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep='').reshape(fig.canvas.get_width_height()[::-1] + (3,))
+    plt.clf()
+    return fig_np
+
+def plot_prs(pr, pr_baseline, pr_auc, pr_auc_baseline, markers = [], markers_baseline=[]):
+    legend = []
+    plt.clf()
+    fig = plt.figure()
+    plt.xlim([0.0, 1.05])
+    plt.ylim([0.0, 1.05])
+    plt.title('Precision-Recall Curves')
+    plt.xlabel('Recall')
+    plt.ylabel('Precision')
+
+    plot_pr(pr_baseline, color='green', markers=markers_baseline)
+    plot_pr(pr, color='red', markers=markers)
+
+    legend.extend(['Baseline AUC=' + str(round(pr_auc_baseline,3))])
+    legend.extend(['Marker threshold: {}'.format(i) for i in markers_baseline])
+    legend.extend(['ConvNet AUC=' + str(round(pr_auc,3))])
+    legend.extend(['Marker threshold: {}'.format(i) for i in markers])
+    plt.legend(legend, loc='lower left', shadow=True, fontsize=10)
+
+    fig.set_size_inches(13.875, 7.875)
+    fig.canvas.draw()
+    fig_np = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep='').reshape(fig.canvas.get_width_height()[::-1] + (3,))
+    plt.clf()
+    return fig_np
+
+def calculate_dataset_auc(y, y_gt):
+    pr = sklearn.metrics.precision_recall_curve(y_gt, y)
     auc = sklearn.metrics.average_precision_score(y_gt, y)
     auc_roc = sklearn.metrics.roc_auc_score(y_gt, y)
-    plt.step(recall, precision, color=color, alpha=0.2 * width,
-        where='post')
-    return auc, auc_roc
+    roc = sklearn.metrics.roc_curve(y_gt, y)
+    return auc, auc_roc, pr, roc
 
 def calculate_per_image_mean_auc(dsets, fns, y, y_gt):
-
-    # precision, recall, threshs = sklearn.metrics.precision_recall_curve(y_gt, y)
-    # auc = sklearn.metrics.average_precision_score(y_gt, y)
-    # plt.step(recall, precision, color=color, alpha=0.2 * width,
-    #     where='post')
-    # return auc
     a_dsets, a_fns, a_precision_recall_auc = [], [], []
     for dset in sorted(list(set(dsets))):
         ri = np.where(dsets == dset)[0]
-        # print ('{}  /  {}'.format(dsets.shape, fns.shape))
-        # print (ri)
         dset_fns = fns[ri]
         dset_y = y[ri]
         dset_y_gt = y_gt[ri]
@@ -97,31 +202,14 @@ def calculate_per_image_mean_auc(dsets, fns, y, y_gt):
             f_precision, f_recall, f_threshs = sklearn.metrics.precision_recall_curve(f_y_gt, f_y)
             f_auc = sklearn.metrics.average_precision_score(f_y_gt, f_y)
             
-            # if len(f_y_gt) == np.sum(f_y_gt) or np.sum(f_y_gt) == 0:
-            #     continue
-            
-            # f_auc_roc = sklearn.metrics.roc_auc_score(f_y_gt, f_y)
             f_auc_roc = 0.0
             if np.isnan(f_auc):
                 continue
             
             a_dsets.append(dset)
             a_fns.append(f)
-            
-            
-                # f_auc = 0.0
             a_precision_recall_auc.append([f_precision, f_recall, f_auc, f_auc_roc])
-            # print (f_precision.shape)
 
-            # if np.isnan(f_auc):#
-            #     a_precision_recall_auc[-1][2] = 0.0
-
-            # if np.isnan(f_precision).any() or np.isnan(f_recall).any():
-            #     # print (a_precision_recall_auc)
-            #     print f_y_gt
-            #     print f_y
-            #     print [f_precision, f_recall, f_auc]
-            #     import sys; sys.exit(1)
     a_dsets = np.array(a_dsets)
     a_fns = np.array(a_fns)
     a_precision_recall_auc = np.array(a_precision_recall_auc)
@@ -184,35 +272,6 @@ def calculate_per_image_precision_top_k(dsets, fns, y, y_gt):
     overall_mean_precision = np.sum(a_precision_scores) / len(a_precision_scores)
 
     return a_dsets, a_fns, a_precision_scores, dset_mean_precisions, overall_mean_precision
-
-# def get_precision_recall(fns, labels, criteria, k, debug=False):
-#     raw_results = []
-#     aggregated_results = [0.0, 0.0]
-#     unique_fns = sorted(list(set(np.concatenate((fns[:,0], fns[:,1])).tolist())))
-#     for f in unique_fns:
-#         if debug:
-#             print ('\tPrecision/Recall for image "{}" at top {}'.format(f, k))
-
-#         ri = np.where((fns[:,0] == f) | (fns[:,1] == f))[0]
-#         criteria_ = criteria[ri]
-#         labels_ = labels[ri]
-
-#         order = criteria_.argsort()[::-1][:k]
-
-#         precision = np.sum(labels_[order]) / len(labels_[order])
-#         if np.sum(labels_) == 0:
-#             recall = 1.0
-#         else:
-#             recall = np.sum(labels_[order]) / np.sum(labels_)
-
-#         raw_results.append([f, precision, recall])
-#         aggregated_results[0] += precision
-#         aggregated_results[1] += recall
-#         if debug:
-#             print ('\t\tPrecision: {}  Recall: {}'.format(precision, recall))
-#     aggregated_results[0] /= len(unique_fns)
-#     aggregated_results[1] /= len(unique_fns)
-#     return raw_results, aggregated_results
 
 def get_postfix(datasets):
     root_datasets = []
@@ -586,7 +645,7 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
         fontsize=18)
 
     auc_s_t = timer()
-    auc_baseline_train, auc_roc_baseline_train = calculate_dataset_auc(num_rmatches_tr, labels_tr, color='green', ls='dashed')
+    auc_baseline_train, auc_roc_baseline_train, pr_baseline_train, roc_baseline_train = calculate_dataset_auc(num_rmatches_tr, labels_tr)#, color='green', ls='dashed', markers=[15, 16, 20])
     auc_e_t = timer()
     aucpi_s_t = timer()
     _, _, _, auc_per_image_per_dset_means_baseline_train, _, auc_per_image_mean_baseline_train, auc_roc_per_image_mean_baseline_train = \
@@ -602,7 +661,7 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
         ))
 
     auc_s_t = timer()
-    auc_baseline_test, auc_roc_baseline_test = calculate_dataset_auc(num_rmatches_te, labels_te, color='red', ls='dashed')
+    auc_baseline_test, auc_roc_baseline_test, pr_baseline_test, roc_baseline_test = calculate_dataset_auc(num_rmatches_te, labels_te)#, color='red', ls='dashed', markers=[15, 16, 20])
     auc_e_t = timer()
     aucpi_s_t = timer()
     _, _, _, auc_per_image_per_dset_means_baseline_test, _, auc_per_image_mean_baseline_test, auc_roc_per_image_mean_baseline_test = \
@@ -1123,7 +1182,7 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
             
             
             if not train_mode:
-                auc, auc_roc = calculate_dataset_auc(scores, labels, 'black', 'solid' if not train_mode else 'dashed')
+                auc, auc_roc, pr, roc = calculate_dataset_auc(scores, labels)#, 'black', 'solid' if not train_mode else 'dashed', markers=[0.3, 0.4, 0.5])
                 _, _, _, _, _,auc_per_image_mean, auc_roc_per_image_mean = calculate_per_image_mean_auc(dsets, fns, scores, labels)
                 _, _, _, _, mean_precision_per_image = calculate_per_image_precision_top_k(dsets, fns, scores, labels)
                 trained_classifier = None
@@ -1182,9 +1241,6 @@ def main(argv):
     parser.add_argument('--convnet_use_matches_map', help='')
     parser.add_argument('--convnet_use_photometric_error_maps', help='')
     
-    
-    # parser.set_defaults(use_all_training_data=False)
-  
     parser_options = parser.parse_args()
 
     if not parser_options.opensfm_path in sys.path:
@@ -1364,7 +1420,7 @@ def main(argv):
         'lr': float(parser_options.convnet_lr), 
         'optimizer': 'adam',
         'wd': 0.0001,
-        'epochs': 20,
+        'epochs': 30,
         'start_epoch': 0,
         'resume': True,
         'lr_decay': 0.01,
@@ -1402,7 +1458,9 @@ def main(argv):
         'convnet_use_rmatches_map': True if parser_options.convnet_use_rmatches_map == 'yes' else False,
         'convnet_use_matches_map': True if parser_options.convnet_use_matches_map == 'yes' else False,
         'convnet_use_photometric_error_maps': True if parser_options.convnet_use_photometric_error_maps == 'yes' else False,
-        'convnet_load_dataset_in_memory': False
+        'convnet_load_dataset_in_memory': False,
+        'pe_experiment': 'gamma_adjusted_unfiltered',
+        # 'pe_experiment': 'preprocessed_unfiltered'
     }
     if options['classifier'] == 'GCN':
         mkdir_p(options['gcn_log_dir'])
@@ -1410,8 +1468,8 @@ def main(argv):
 
     dataset_experiments = [
         # {
-        #     'training': ['SMALL'], 
-        #     'testing': ['SMALL']
+        #     'training': ['ETH3D'], 
+        #     'testing': ['ETH3D']
         # },
         # {
         #     'training': ['TanksAndTemples'], 

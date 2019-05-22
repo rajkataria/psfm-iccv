@@ -57,10 +57,11 @@ class Command:
         #             continue
         #         classifier.perform_gamma_adjustment(data, im1, im2, grid_size)
 
+
         start = timer()
 
         s_transformations = timer()
-        _, num_pairs = classifier.calculate_transformations(ctx)
+        classifier.calculate_transformations(ctx)
         e_transformations = timer()
 
         s_feature_matching_dataset = timer()
@@ -88,7 +89,7 @@ class Command:
         e_multiple_motions = timer()
 
         s_keypoint_maps = timer()
-        classifier.output_image_keypoints(ctx)
+        classifier.calculate_image_keypoints(ctx)
         e_keypoint_maps = timer()
 
         s_sequence_ranks = timer()
@@ -130,7 +131,6 @@ class Command:
         end = timer()
 
         report = {
-            "num_pairs": num_pairs,
             "transformations_wall_time": e_transformations - s_transformations,
             "feature_matching_dataset_wall_time": e_feature_matching_dataset - s_feature_matching_dataset,
             "resizing_images_wall_time": e_resizing_images - s_resizing_images,
