@@ -634,6 +634,9 @@ class DataSet:
         with gzip.open(self.__feature_shortest_paths_file(im, label=label), 'rb') as fin:
             shortest_paths = pickle.load(fin)
         return shortest_paths
+    
+    def shortest_paths_exists(self, im, label):
+        return os.path.isfile(self.__feature_shortest_paths_file(im, label=label))
 
     def matches_exists(self, image):
         return os.path.isfile(self.__matches_file(image))
@@ -755,6 +758,9 @@ class DataSet:
             lccs = pickle.load(fin)
         return lccs
 
+    def lccs_exists(self, im):
+        return os.path.isfile(self.__feature_lccs_file(im))
+
     def save_triplet_errors(self, triplet_errors):
         io.mkdir_p(self.__classifier_features_path())
         with gzip.open(self.__feature_triplet_errors_file('pkl.gz'), 'wb') as fout:
@@ -806,6 +812,9 @@ class DataSet:
         with gzip.open(self.__feature_sequence_ranks_file(im), 'rb') as fin:
             sequence_ranks = pickle.load(fin)
         return sequence_ranks
+
+    def sequence_ranks_exists(self, im):
+        return os.path.isfile(self.__feature_sequence_ranks_file(im))
 
     def save_spatial_entropies(self, im, spatial_entropies):
         io.mkdir_p(self.__classifier_features_spatial_entropies_path())
@@ -924,6 +933,9 @@ class DataSet:
         with gzip.open(self.__feature_closest_images(im, label=label, ext='pkl.gz'), 'rb') as fin:
             closest_images = pickle.load(fin)
         return closest_images
+
+    def closest_images_exists(self, im, label=None):
+        return os.path.isfile(self.__feature_closest_images(im, label=label, ext='pkl.gz'))        
 
     def save_image_matching_results(self, results, robust_matches_threshold):
         io.mkdir_p(self.__classifier_features_path())
@@ -1163,7 +1175,12 @@ class DataSet:
         total_images = len(self.images())
 
         for im1 in sorted(self.images()):
-            im1_sequence_ranks = self.load_sequence_ranks(im1)
+            if self.sequence_ranks_exists(im1):
+                im1_sequence_ranks = self.load_sequence_ranks(im1)
+            else:
+                im1_sequence_ranks = {}
+                for i in self.images():
+                    im1_sequence_ranks[i] = {'rank': 0, 'distance': 0}
 
             if im1 not in sequence_rank_scores_mean:
                 sequence_rank_scores_mean[im1] = {}
@@ -1172,7 +1189,14 @@ class DataSet:
                 sequence_distance_scores[im1] = {}
 
             for im2 in im1_sequence_ranks:
-                im2_sequence_ranks = self.load_sequence_ranks(im2)
+                if self.sequence_ranks_exists(im2):
+                    im2_sequence_ranks = self.load_sequence_ranks(im2)
+                else:
+                    im2_sequence_ranks = {}
+                    for i in self.images():
+                        im2_sequence_ranks[i] = {'rank': 0, 'distance': 0}
+                    
+
                 sequence_distance_scores[im1][im2] = \
                     (total_images - im1_sequence_ranks[im2]['distance']) / total_images
 
@@ -1193,15 +1217,7 @@ class DataSet:
     def save_image_matching_dataset(self, robust_matches_threshold):
         write_header = True
         lowes_threshold = 0.8
-        
-        # photometric_errors = self.load_photometric_errors()
-        
-        # triplet_pairwise_errors = self.load_triplet_pairwise_errors()
-        
-        
         vt_ranks, vt_scores = self.load_vocab_ranks_and_scores()
-        
-        
         sequence_scores_mean, sequence_scores_min, sequence_scores_max, sequence_distance_scores = \
             self.sequence_rank_adapter()
 
@@ -1211,16 +1227,52 @@ class DataSet:
             for im1 in sorted(self.images()):
                 if not self.transformations_exists(im1):
                     continue
-                shortest_paths = self.load_shortest_paths(im1, 'rm-cost')
+
                 im_transformations = self.load_transformations(im1)
                 im_spatial_entropies = self.load_spatial_entropies(im1)
                 im_all_matches, _, im_all_rmatches = self.load_all_matches(im1)
-                nbvs = self.load_nbvs(im1)
-                consistency_errors = self.load_consistency_errors(im1, cutoff=3, edge_threshold=15)
-                color_histogram_im1 = self.load_color_histogram(im1)
-                lccs_im1 = self.load_lccs(im1)
-                im1_closest_images = self.load_closest_images(im1, 'rm-cost-lmds-False')
-                im1_closest_images_gt = self.load_closest_images(im1, 'gt-lmds-False')
+
+                if self.consistency_errors_exists(im1, cutoff=3, edge_threshold=15):
+                    im_consistency_errors = self.load_consistency_errors(im1, cutoff=3, edge_threshold=15)
+                else:
+                    im_consistency_errors = {}
+                    for i in im_all_rmatches:
+                        im_consistency_errors[i] = {'histogram-cumsum': np.zeros((80,)).tolist()}
+
+                if self.nbvs_exists(im1):
+                    im_nbvs = self.load_nbvs(im1)
+                else:
+                    im_nbvs = {}
+                    for i in im_all_rmatches:
+                        im_nbvs[i] = {'nbvs_im1': 0, 'nbvs_im2': 0}
+
+                if self.shortest_paths_exists(im1, 'rm-cost'):
+                    im_shortest_paths = self.load_shortest_paths(im1, 'rm-cost')
+                else:
+                    im_shortest_paths = {}
+                    for i in im_all_rmatches:
+                        im_shortest_paths[i] = {'shortest_path': []}
+                if self.color_histogram_exists(im1):
+                    color_histogram_im1 = self.load_color_histogram(im1)
+                else:
+                    color_histogram_im1 = {'histogram': np.zeros((384,)).tolist()}
+                
+                if self.lccs_exists(im1):
+                    lccs_im1 = self.load_lccs(im1)
+                else:
+                    lccs_im1 = {}
+                    for t in [15, 20, 25, 30, 35, 40]:
+                        lccs_im1[t] = 0.0
+
+                if self.closest_images_exists(im1, 'rm-cost-lmds-False'):
+                    im1_closest_images = self.load_closest_images(im1, 'rm-cost-lmds-False')
+                else:
+                    im1_closest_images = []
+
+                if self.closest_images_exists(im1, 'gt-lmds-False'):
+                    im1_closest_images_gt = self.load_closest_images(im1, 'gt-lmds-False')
+                else:
+                    im1_closest_images_gt = []
                 
                 if self.unthresholded_inliers_exists(im1):
                     im_unthresholded_inliers = self.load_unthresholded_inliers(im1)
@@ -1232,13 +1284,30 @@ class DataSet:
                         continue
                     # print ('{} / {}'.format(im1, im2))
                     # te_histogram = np.array(triplet_pairwise_errors[im1][im2]['histogram-cumsum'])
-                    color_histogram_im2 = self.load_color_histogram(im2)
-                    lccs_im2 = self.load_lccs(im2)
-                    im2_closest_images = self.load_closest_images(im2, 'rm-cost-lmds-False')
-                    im2_closest_images_gt = self.load_closest_images(im2, 'gt-lmds-False')
+                    if self.color_histogram_exists(im2):
+                        color_histogram_im2 = self.load_color_histogram(im2)
+                    else:
+                        color_histogram_im2 = {'histogram': np.zeros((384,)).tolist()}
+
+                    if self.lccs_exists(im2):
+                        lccs_im2 = self.load_lccs(im2)
+                    else:
+                        lccs_im2 = {}
+                        for t in [15, 20, 25, 30, 35, 40]:
+                            lccs_im2[t] = 0.0
+
+                    if self.closest_images_exists(im2, 'rm-cost-lmds-False'):
+                        im2_closest_images = self.load_closest_images(im2, 'rm-cost-lmds-False')
+                    else:
+                        im2_closest_images = []
+
+                    if self.closest_images_exists(im2, 'gt-lmds-False'):
+                        im2_closest_images_gt = self.load_closest_images(im2, 'gt-lmds-False')
+                    else:
+                        im2_closest_images_gt = []
                     
-                    if im2 in consistency_errors:
-                        te_histogram = np.array(consistency_errors[im2]['histogram-cumsum'])
+                    if im2 in im_consistency_errors:
+                        te_histogram = np.array(im_consistency_errors[im2]['histogram-cumsum'])
                     else:
                         te_histogram = np.zeros((80,))    
 
@@ -1252,8 +1321,8 @@ class DataSet:
                     # pe_histogram = np.zeros((len(pe_histogram),))
                     # pe_histogram[0] = mu
                     # pe_histogram[1] = sigma
-                    if False:
-                        pe_histogram = np.array(photometric_errors[im1][im2]['histogram-cumsum'])
+                    # if False:
+                    #     pe_histogram = np.array(photometric_errors[im1][im2]['histogram-cumsum'])
                     pe_histogram = np.zeros((51,))
                     # mu, sigma = scipy.stats.norm.fit(pe_histogram)
                     # pe_histogram = np.zeros((len(pe_histogram),))
@@ -1269,8 +1338,8 @@ class DataSet:
                         pe_polygon_area_percentage = photometric_errors[im1][im2]['polygon_area_percentage']
                     pe_polygon_area_percentage = 0.0
                     
-                    nbvs_im1 = nbvs[im2]['nbvs_im1']
-                    nbvs_im2 = nbvs[im2]['nbvs_im2']
+                    nbvs_im1 = im_nbvs[im2]['nbvs_im1']
+                    nbvs_im2 = im_nbvs[im2]['nbvs_im2']
                     te_histogram = ','.join(map(str, np.around(te_histogram, decimals=2)))
                     # if False:
                     ch_im1 = ','.join(map(str, np.around(np.array(color_histogram_im1['histogram']), decimals=2)))
@@ -1280,8 +1349,16 @@ class DataSet:
 
                     vt_rank_percentage_im1_im2 = 100.0 * vt_ranks[im1][im2] / len(self.images())
                     vt_rank_percentage_im2_im1 = 100.0 * vt_ranks[im2][im1] / len(self.images())
-                    mds_rank_percentage_im1_im2 = 100.0 * im1_closest_images.index(im2) / len(self.images())
-                    mds_rank_percentage_im2_im1 = 100.0 * im2_closest_images.index(im1) / len(self.images())
+                    
+                    if im2 not in im1_closest_images:
+                        mds_rank_percentage_im1_im2 = 99.99
+                    else:
+                        mds_rank_percentage_im1_im2 = 100.0 * im1_closest_images.index(im2) / len(self.images())
+                        
+                    if im1 not in im2_closest_images:
+                        mds_rank_percentage_im2_im1 = 99.99
+                    else:
+                        mds_rank_percentage_im2_im1 = 100.0 * im2_closest_images.index(im1) / len(self.images())
 
                     if im2 not in im1_closest_images_gt:
                         distance_rank_percentage_im1_im2_gt = 99.99
@@ -1405,7 +1482,7 @@ class DataSet:
                         lccs_im1[30], lccs_im2[30], min(lccs_im1[30],lccs_im2[30]), max(lccs_im1[30],lccs_im2[30]), \
                         lccs_im1[35], lccs_im2[35], min(lccs_im1[35],lccs_im2[35]), max(lccs_im1[35],lccs_im2[35]), \
                         lccs_im1[40], lccs_im2[40], min(lccs_im1[40],lccs_im2[40]), max(lccs_im1[40],lccs_im2[40]), \
-                        len(shortest_paths[im2]["shortest_path"]), \
+                        len(im_shortest_paths[im2]["shortest_path"]), \
                         mds_rank_percentage_im1_im2, mds_rank_percentage_im2_im1, \
                         distance_rank_percentage_im1_im2_gt, distance_rank_percentage_im2_im1_gt, \
                         num_thresholded_gt_inliers, label))

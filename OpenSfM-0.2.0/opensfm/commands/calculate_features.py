@@ -97,35 +97,35 @@ class Command:
         e_keypoint_maps = timer()
 
         s_sequence_ranks = timer()
-        classifier.calculate_sequence_ranks(ctx)
+        # classifier.calculate_sequence_ranks(ctx)
         e_sequence_ranks = timer()
 
         s_consistency = timer()
-        classifier.calculate_consistency_errors(ctx)
+        # classifier.calculate_consistency_errors(ctx)
         e_consistency = timer()
 
         s_nbvs = timer()
-        classifier.calculate_nbvs(ctx)
+        # classifier.calculate_nbvs(ctx)
         e_nbvs = timer()
 
         s_shortest_paths = timer()
-        classifier.calculate_shortest_paths(ctx)
+        # classifier.calculate_shortest_paths(ctx)
         e_shortest_paths = timer()
 
         s_infer_positions = timer()
-        classifier.infer_positions(ctx)
+        # classifier.infer_positions(ctx)
         e_infer_positions = timer()
 
         s_infer_positions_mds = timer()
-        classifier.infer_cleaner_positions(ctx)
+        # classifier.infer_cleaner_positions(ctx)
         e_infer_positions_mds = timer()
 
         s_color_histograms = timer()
-        classifier.calculate_color_histograms(ctx)
+        # classifier.calculate_color_histograms(ctx)
         e_color_histograms = timer()
 
         s_lccs = timer()
-        classifier.calculate_lccs(ctx)
+        # classifier.calculate_lccs(ctx)
         e_lccs = timer()
 
         s_image_matching_dataset = timer()

@@ -499,7 +499,11 @@ class ImageMatchingDataset(data.Dataset):
                 else:
                     indices = [p_index, n_index]
             else:
-                indices = [p_index, n_index]
+                if random.random() >= 0.5:
+                    indices = [p_index, n_index]
+                else:
+                    indices = [n_index, p_index]
+                # indices = [p_index, n_index]
 
         elif self.train and self.options['triplet-sampling-strategy'] == 'uniform-files':
             # In train mode, index references positive samples only
@@ -659,8 +663,8 @@ class ImageMatchingDataset(data.Dataset):
                 self.shortest_path_length[i], \
                 self.mds_rank_percentage_im1_im2[i], self.mds_rank_percentage_im2_im1[i], \
                 self.distance_rank_percentage_im1_im2_gt[i], self.distance_rank_percentage_im2_im1_gt[i], \
-                self.labels[i], img1, img2, se_rmatches_img1, se_rmatches_img2, se_matches_img1, se_matches_img2, pe_img1, pe_img2, pe_mask_img1, pe_mask_img2, \
-                pe_warped_img1, pe_warped_img2, se_fm1, se_fm2, tm_fm1, tm_fm2, se_non_rmatches_img1, se_non_rmatches_img2, se_rmatches_secondary_motion_img1, se_rmatches_secondary_motion_img2
+                self.labels[i], img1, img2, se_rmatches_img1.clone(), se_rmatches_img2.clone(), se_matches_img1, se_matches_img2, pe_img1.clone(), pe_img2.clone(), pe_mask_img1.clone(), pe_mask_img2.clone(), \
+                pe_warped_img1, pe_warped_img2, se_fm1, se_fm2, tm_fm1, tm_fm2, se_non_rmatches_img1.clone(), se_non_rmatches_img2.clone(), se_rmatches_secondary_motion_img1, se_rmatches_secondary_motion_img2
                 ])
 
         return data
@@ -782,22 +786,22 @@ def inference(data_loader, model, epoch, run_dir, logger, opts, range_min, range
             target = Variable(_labels.type(torch.cuda.LongTensor))
 
             if j == 0:
-                y_predictions = nn.functional.softmax(y_prediction)
-                y_predictions_logits = y_prediction
-                positive_predictions = nn.functional.softmax(y_prediction)#y_prediction
-                positive_targets = target
-                targets = target
+                y_predictions_softmax = nn.functional.softmax(y_prediction).clone()
+                y_predictions_logits = y_prediction.clone()
+                positive_predictions = nn.functional.softmax(y_prediction).clone()#y_prediction
+                positive_targets = target.clone()
+                targets = target.clone()
                 num_rmatches_b = Variable(_num_rmatches)
                 shortest_path_lengths_b = Variable(_shortest_path_length)
                 fns_b = np.concatenate((np.array(im1s).reshape((-1,1)),np.array(im2s).reshape((-1,1))), axis=1)
                 dsets_b = np.array(dsets)
             else:
-                y_predictions = torch.cat((y_predictions, nn.functional.softmax(y_prediction)))
-                y_predictions_logits = torch.cat((y_predictions_logits, y_prediction))
-                negative_predictions = nn.functional.softmax(y_prediction)#y_prediction
-                negative_targets = target
-                targets = torch.cat((targets, target))
-                num_rmatches_b = torch.cat((num_rmatches_b, Variable(_num_rmatches)))
+                y_predictions_softmax = torch.cat((y_predictions_softmax, nn.functional.softmax(y_prediction).clone()))
+                y_predictions_logits = torch.cat((y_predictions_logits, y_prediction.clone()), dim=0)
+                negative_predictions = nn.functional.softmax(y_prediction).clone()#y_prediction
+                negative_targets = target.clone()
+                targets = torch.cat((targets, target.clone()), dim=0)
+                num_rmatches_b = torch.cat((num_rmatches_b, Variable(_num_rmatches)), dim=0)
                 shortest_path_lengths_b = torch.cat((shortest_path_lengths_b, Variable(_shortest_path_length)))
                 fns_b = np.concatenate((fns_b, np.concatenate((np.array(im1s).reshape((-1,1)),np.array(im2s).reshape((-1,1))), axis=1)), axis=0)
                 dsets_b = np.concatenate((dsets_b, np.array(dsets)), axis=0)
@@ -811,19 +815,40 @@ def inference(data_loader, model, epoch, run_dir, logger, opts, range_min, range
             loss = cross_entropy_loss(y_predictions_logits, targets)
         elif opts['loss'] == 'triplet':
             # loss = margin_ranking_loss(y_predictions_logits[:,1], y_predictions_logits[:,0], reformatted_targets)
-            ones_label = Variable(torch.ones(positive_predictions.size()[0]).cuda().type(torch.cuda.FloatTensor))
-            loss = margin_ranking_loss(positive_predictions[:,1], negative_predictions[:,1], ones_label)
+            # ones_label = Variable(torch.ones(positive_predictions.size()[0]).cuda().type(torch.cuda.FloatTensor))
+            # loss = margin_ranking_loss(positive_predictions[:,1], negative_predictions[:,1], ones_label)
+            # loss = 0.5*margin_ranking_loss(positive_predictions[:,1], negative_predictions[:,1], ones_label) + 0.5*cross_entropy_loss(y_predictions_logits, targets)
+            
+            # mloss = margin_ranking_loss(positive_predictions[:,1], negative_predictions[:,1], ones_label)
+            loss = cross_entropy_loss(y_predictions_logits, targets)
+
+            # loss = mloss + closs
+            # loss = closs
+            # print '#'*100
+            # print y_predictions_logits
+            # print positive_predictions
+            # print negative_predictions
+            # print '$'*100
+            # print num_rmatches_b
+            # print '-'*100
+            # print ones_label
+            # print targets
+            # print '!'*100
+            # print mloss
+            # print closs
+            # print loss
+            # import sys; sys.exit(1);
 
         if mode == 'train':
             loss.backward()
             optimizer.step()
 
-        correct_counts = correct_counts + get_correct_counts(targets, y_predictions, False)
+        correct_counts = correct_counts + get_correct_counts(targets, y_predictions_softmax, False)
         if not arrays_initialized:
             all_dsets = dsets_b
             all_fns = fns_b
             all_targets = targets.data.cpu().numpy()
-            all_predictions = y_predictions.data.cpu().numpy()
+            all_predictions = y_predictions_softmax.data.cpu().numpy()
             all_num_rmatches = num_rmatches_b.data.cpu().numpy()
             all_shortest_path_lengths = shortest_path_lengths_b.data.cpu().numpy()
             arrays_initialized = True
@@ -831,29 +856,32 @@ def inference(data_loader, model, epoch, run_dir, logger, opts, range_min, range
             all_dsets = np.concatenate((all_dsets, dsets_b), axis=0)
             all_fns = np.concatenate((all_fns, fns_b), axis=0)
             all_targets = np.concatenate((all_targets, targets.data.cpu().numpy()), axis=0)
-            all_predictions = np.concatenate((all_predictions, y_predictions.data.cpu().numpy()), axis=0)
+            all_predictions = np.concatenate((all_predictions, y_predictions_softmax.data.cpu().numpy()), axis=0)
             all_num_rmatches = np.concatenate((all_num_rmatches, num_rmatches_b.data.cpu().numpy()), axis=0)
             all_shortest_path_lengths = np.concatenate((all_shortest_path_lengths, shortest_path_lengths_b.data.cpu().numpy()), axis=0)
 
         if (batch_idx + 1) % opts['log_interval'] == 0:
             if opts['triplet-sampling-strategy'] == 'normal' or mode == 'test':
-                num_tests = (batch_idx + 1) * opts['batch_size'] # only one sample
+                num_tests_so_far = (batch_idx + 1) * opts['batch_size'] # only one sample
+                dataset_size = data_loader.dataset.__len__()
             else:
-                num_tests = (batch_idx + 1) * 2 * opts['batch_size'] # positive and negative samples
-            accuracy = correct_counts*100.0/num_tests
+                num_tests_so_far = (batch_idx + 1) * 2 * opts['batch_size'] # positive and negative samples
+                dataset_size = 2 * data_loader.dataset.__len__() # iterate over all positive examples * 2 (since negatives are repeated)
+
+            accuracy = correct_counts*100.0/num_tests_so_far
             if mode == 'train':
                 if logger is not None:
                     print(
                         '{} Epoch: {} Accuracy: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                             mode.upper(), epoch, accuracy, (batch_idx + 1) * opts['batch_size'], len(data_loader.dataset),
-                            100.0 * (batch_idx + 1) * opts['batch_size'] / data_loader.dataset.__len__(),
+                            100.0 * num_tests_so_far / dataset_size,
                             loss.data[0]))
             else:
                 if logger is not None:
                     print(
                         '{} Epoch: {} Accuracy: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                             mode.upper(), epoch, accuracy, (batch_idx + 1) * opts['batch_size'], len(data_loader.dataset),
-                            100.0 * (batch_idx + 1) * opts['batch_size'] / data_loader.dataset.__len__(),
+                            100.0 * num_tests_so_far / dataset_size,
                             loss.data[0]))
 
         # if mode == 'train':
@@ -867,7 +895,7 @@ def inference(data_loader, model, epoch, run_dir, logger, opts, range_min, range
         # accuracy = correct_counts*100.0/num_tests
 
         adjust_learning_rate(optimizer, opts)
-        cum_loss = cum_loss/(num_tests/(1.0*opts['batch_size']))
+        cum_loss = cum_loss/(num_tests_so_far/(1.0*opts['batch_size']))
         if logger is not None:
             logger.log_value('TRAIN-LR', optimizer.param_groups[0]['lr'])
             logger.log_value('TRAIN-ACCURACY', accuracy)
@@ -879,7 +907,7 @@ def inference(data_loader, model, epoch, run_dir, logger, opts, range_min, range
             torch.save({'epoch': epoch + 1, 'state_dict': model.state_dict(), 'optimizer': optimizer.state_dict()},
                '{}/checkpoint_{}.pth'.format(run_dir, epoch))
     else:
-        cum_loss = cum_loss/(num_tests/(1.0*opts['batch_size']))
+        cum_loss = cum_loss/(num_tests_so_far/(1.0*opts['batch_size']))
         if logger is not None:
             logger.log_value('TEST-ACCURACY-RANGE-{}-{}'.format(range_min, range_max), accuracy)
             logger.log_value('TEST-LOSS-RANGE-{}-{}'.format(range_min, range_max), cum_loss)
@@ -935,7 +963,7 @@ def inference(data_loader, model, epoch, run_dir, logger, opts, range_min, range
 
 
 triplet_loss = nn.TripletMarginLoss()
-margin_ranking_loss = nn.MarginRankingLoss(margin=0.5)
+margin_ranking_loss = nn.MarginRankingLoss()
 cross_entropy_loss = nn.CrossEntropyLoss()
 
 def adjust_learning_rate(optimizer, opts):
