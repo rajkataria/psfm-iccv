@@ -1,15 +1,15 @@
-copy_mode="minimal"
-# remote_server="ec2-18-220-63-118.us-east-2.compute.amazonaws.com" # tum_rgbd_slam
-# remote_server="ec2-52-15-210-131.us-east-2.compute.amazonaws.com" # eth3d and tanksandtemples
-remote_server="ec2-3-17-60-191.us-east-2.compute.amazonaws.com" # uiuctag
+copy_mode="matching_results"
+# remote_server="ec2-3-15-23-64.us-east-2.compute.amazonaws.com" # tum_rgbd_slam
+# remote_server="ec2-3-17-27-143.us-east-2.compute.amazonaws.com" # eth3d and tanksandtemples
+remote_server="ec2-3-17-62-157.us-east-2.compute.amazonaws.com" # uiuctag
 local_root="/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce"
 # relevant_dataset="TUM_RGBD_SLAM"
 # relevant_dataset="ETH3D"
 # relevant_dataset="TanksAndTemples"
 relevant_dataset="UIUCTag"
 
-# TanksAndTemples_relevant_sequences=('Barn' 'Caterpillar' 'Church' 'Courthouse' 'Ignatius' 'Meetingroom' 'Truck')
-TanksAndTemples_relevant_sequences=('Auditorium' 'Ballroom' 'Courtroom' 'Family' 'Francis' 'Horse' 'Lighthouse' 'M60' 'Museum' 'Palace' 'Panther' 'Playground' 'Temple' 'Train')
+TanksAndTemples_relevant_sequences=('Barn' 'Caterpillar' 'Church' 'Courthouse' 'Ignatius' 'Meetingroom' 'Truck')
+# TanksAndTemples_relevant_sequences=('Auditorium' 'Ballroom' 'Courtroom' 'Family' 'Francis' 'Horse' 'Lighthouse' 'M60' 'Museum' 'Palace' 'Panther' 'Playground' 'Temple' 'Train')
 
 datasets=($(ssh ubuntu@$remote_server ls -d /home/ubuntu/Results/completed-classifier-datasets-bruteforce/*/*/))
 echo "*********************************************************************************************************************************************************************************************"
