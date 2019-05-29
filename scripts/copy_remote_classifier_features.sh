@@ -1,6 +1,15 @@
-copy_mode="full"
-remote_server="ec2-3-17-81-213.us-east-2.compute.amazonaws.com"
-local_root="/hdd/Research/psfm-iccv/data/temp-copy"
+copy_mode="minimal"
+# remote_server="ec2-18-220-63-118.us-east-2.compute.amazonaws.com" # tum_rgbd_slam
+# remote_server="ec2-52-15-210-131.us-east-2.compute.amazonaws.com" # eth3d and tanksandtemples
+remote_server="ec2-3-17-60-191.us-east-2.compute.amazonaws.com" # uiuctag
+local_root="/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce"
+# relevant_dataset="TUM_RGBD_SLAM"
+# relevant_dataset="ETH3D"
+# relevant_dataset="TanksAndTemples"
+relevant_dataset="UIUCTag"
+
+# TanksAndTemples_relevant_sequences=('Barn' 'Caterpillar' 'Church' 'Courthouse' 'Ignatius' 'Meetingroom' 'Truck')
+TanksAndTemples_relevant_sequences=('Auditorium' 'Ballroom' 'Courtroom' 'Family' 'Francis' 'Horse' 'Lighthouse' 'M60' 'Museum' 'Palace' 'Panther' 'Playground' 'Temple' 'Train')
 
 datasets=($(ssh ubuntu@$remote_server ls -d /home/ubuntu/Results/completed-classifier-datasets-bruteforce/*/*/))
 echo "*********************************************************************************************************************************************************************************************"
@@ -9,35 +18,68 @@ for ds in "${datasets[@]}"; do
 	sequence_name=$(echo $ds | cut -d '/' -f 7)
 	local_folder=$(echo $local_root/$dataset_name/$sequence_name)
 	
+	echo -e "\tIterating dataset - $dataset_name : $sequence_name"
+	if [ "$dataset_name" != "$relevant_dataset" ] ;then
+		continue
+	fi
+
+	if [ "$relevant_dataset" == "TanksAndTemples" ] && [[ " ${TanksAndTemples_relevant_sequences[*]} " != *"$sequence_name"* ]];then
+		echo -e "\t\tTanksAndTemples: Skipping dataset - $sequence_name"
+		continue
+	fi
+
+	echo "*********************************************************************************************************************************************************************************************"
+	echo -e "\t\tProcessing dataset - $dataset_name : $sequence_name"
+
 	if [ "$copy_mode" == "full" ] || [ "$copy_mode" == "minimal" ];then
-		echo -e "\tCreating necessary folders under $local_folder"
+		echo -e "\t\tCreating necessary folders under $local_folder"
 		mkdir -p $local_folder
 		mkdir -p $local_folder/classifier_dataset/
 		mkdir -p $local_folder/classifier_features/
-		mkdir -p $local_folder/images-blurred/
-		mkdir -p $local_folder/images-resized/
-		mkdir -p $local_folder/images-resized-processed/
 		mkdir -p $local_folder/rmatches_secondary/
+		mkdir -p $local_folder/all_matches/
+		mkdir -p $local_folder/matches/
+		if [ "$copy_mode" == "full" ];then
+			mkdir -p $local_folder/images-blurred/
+			mkdir -p $local_folder/images-resized/
+			mkdir -p $local_folder/images-resized-processed/
+		fi
 	fi
 
-	echo -e "\tCopying dataset: "$ds" to $local_folder - mode: "$copy_mode;
+	start=$SECONDS
 	if [ "$copy_mode" == "full" ];then
-		echo "scp -r ubuntu@$remote_server:$ds/classifier_dataset/* $local_folder/classifier_dataset/"
-		echo "scp -r ubuntu@$remote_server:$ds/classifier_features/* $local_folder/classifier_features/"
-		echo "scp -r ubuntu@$remote_server:$ds/images-blurred/* $local_folder/images-blurred/"
-		echo "scp -r ubuntu@$remote_server:$ds/images-resized/* $local_folder/images-resized/"
-		echo "scp -r ubuntu@$remote_server:$ds/images-resized-processed/* $local_folder/images-resized-processed/"
-		echo "scp -r ubuntu@$remote_server:$ds/rmatches_secondary/* $local_folder/rmatches_secondary/"
+		echo -e "\t\tCopying dataset: "$ds" to $local_folder - mode: full";
+		rsync -aqz ubuntu@$remote_server:$ds/reconstruction_gt.json $local_folder/
+		rsync -aqz ubuntu@$remote_server:$ds/tracks.csv $local_folder/
+		rsync -aqz ubuntu@$remote_server:$ds/classifier_dataset/* $local_folder/classifier_dataset/
+		rsync -aqz ubuntu@$remote_server:$ds/classifier_features/* $local_folder/classifier_features/
+		rsync -aqz ubuntu@$remote_server:$ds/images-blurred/* $local_folder/images-blurred/
+		rsync -aqz ubuntu@$remote_server:$ds/images-resized/* $local_folder/images-resized/
+		rsync -aqz ubuntu@$remote_server:$ds/images-resized-processed/* $local_folder/images-resized-processed/
+		rsync -aqz ubuntu@$remote_server:$ds/rmatches_secondary/* $local_folder/rmatches_secondary/
+		rsync -aqz ubuntu@$remote_server:$ds/all_matches/* $local_folder/all_matches/
+		rsync -aqz ubuntu@$remote_server:$ds/matches/* $local_folder/matches/
 	elif [ "$copy_mode" == "minimal" ]; then
-		echo "scp -r ubuntu@$remote_server:$ds/classifier_dataset/image_matching_dataset_*.csv $local_folder/classifier_dataset/"
-		echo "scp -r ubuntu@$remote_server:$ds/classifier_features/feature_maps $local_folder/classifier_features/"
-		echo "scp -r ubuntu@$remote_server:$ds/classifier_features/match_maps $local_folder/classifier_features/"
-		echo "scp -r ubuntu@$remote_server:$ds/rmatches_secondary/* $local_folder/rmatches_secondary/"
+		echo -e "\t\tCopying dataset: "$ds" to $local_folder - mode: minimal";
+		rsync -aqz ubuntu@$remote_server:$ds/reconstruction_gt.json $local_folder/
+		rsync -aqz ubuntu@$remote_server:$ds/tracks.csv $local_folder/
+		rsync -aqz ubuntu@$remote_server:$ds/classifier_dataset/image_matching_dataset_*.csv $local_folder/classifier_dataset/
+		rsync -aqz ubuntu@$remote_server:$ds/classifier_features/feature_maps $local_folder/classifier_features/
+		rsync -aqz ubuntu@$remote_server:$ds/classifier_features/match_maps $local_folder/classifier_features/
+		rsync -aqz ubuntu@$remote_server:$ds/classifier_features/pe_maps $local_folder/classifier_features/
+		rsync -aqz ubuntu@$remote_server:$ds/rmatches_secondary/* $local_folder/rmatches_secondary/
+		rsync -aqz ubuntu@$remote_server:$ds/all_matches/* $local_folder/all_matches/
+		rsync -aqz ubuntu@$remote_server:$ds/matches/* $local_folder/matches/
 	elif [ "$copy_mode" == "matching_results" ]; then
-		echo "scp -r $local_folder/classifier_features/image_matching_results_* ubuntu@$remote_server:$ds/classifier_features/"
+		echo -e "\t\tCopying dataset: "$ds" to $local_folder - mode: matching_results";
+
+		rsync -aqz $local_folder/classifier_features/image_matching_results_* ubuntu@$remote_server:$ds/classifier_features/
 	else
 	   	echo -e "\tNeed to specify copy mode as either 'full', 'minimal' or 'matching_results'"
+	   	break;
 	fi
+	duration=$(( SECONDS - start ))
+	echo -e "\t\tTime: $duration secs"
 	echo "*********************************************************************************************************************************************************************************************"
-	break;
+	# break;
 done

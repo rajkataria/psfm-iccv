@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import os
+import glob
 import json
 import pickle
 import pyquaternion
@@ -842,6 +843,13 @@ class DataSet:
         scipy.misc.imsave(self.__feature_map_file(image), feature_map)
         # resized_match_map = cv2.resize(match_map, (224, 224))
         # cv2.imwrite(self.__match_map_file(image), resized_match_map)
+    
+    def all_feature_maps(self):
+        # list all images based on feature maps (local machine doesn't have images, but will have feature maps)
+        images = []
+        for f in glob.glob(self.__classifier_features_feature_map_path() + '/*.png'):
+            images.append(os.path.basename(f).split('---')[1][:-4])
+        return images
 
     def save_track_map(self, image, track_map):
         io.mkdir_p(self.__classifier_features_track_map_path())
@@ -937,11 +945,11 @@ class DataSet:
     def closest_images_exists(self, im, label=None):
         return os.path.isfile(self.__feature_closest_images(im, label=label, ext='pkl.gz'))        
 
-    def save_image_matching_results(self, results, robust_matches_threshold):
+    def save_image_matching_results(self, results, robust_matches_threshold, classifier):
         io.mkdir_p(self.__classifier_features_path())
-        with gzip.open(self.__feature_image_matching_results_file(ext='pkl.gz', suffix=robust_matches_threshold), 'wb') as fout:
+        with gzip.open(self.__feature_image_matching_results_file(ext='pkl.gz', suffix='{}-{}'.format(robust_matches_threshold, classifier)), 'wb') as fout:
             pickle.dump(results, fout)
-        with open(self.__feature_image_matching_results_file(ext='json', suffix=robust_matches_threshold), 'w') as fout:
+        with open(self.__feature_image_matching_results_file(ext='json', suffix='{}-{}'.format(robust_matches_threshold, classifier)), 'w') as fout:
             json.dump(results, fout, sort_keys=True, indent=4, separators=(',', ': '))
 
     def save_feature_matching_results(self, image, results):
@@ -951,8 +959,8 @@ class DataSet:
         with open(self.__feature_matching_results_file(image, 'json'), 'w') as fout:
             json.dump(results, fout, sort_keys=True, indent=4, separators=(',', ': '))
 
-    def load_image_matching_results(self, robust_matches_threshold):
-        with gzip.open(self.__feature_image_matching_results_file(ext='pkl.gz', suffix=robust_matches_threshold), 'rb') as fin:
+    def load_image_matching_results(self, robust_matches_threshold, classifier):
+        with gzip.open(self.__feature_image_matching_results_file(ext='pkl.gz', suffix='{}-{}'.format(robust_matches_threshold, classifier)), 'rb') as fin:
             results = pickle.load(fin)
         return results
 

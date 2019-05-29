@@ -27,107 +27,107 @@ class Command:
             'robust_matches_threshold': 15
         }
         
-        matches_pruned = self.load_pruned_matches(data, spl=2, options=options)
-        matches_distance_pruned = self.load_distance_pruned_matches(data, options=options)
-        matches_distance_w_seq_pruned = self.load_distance_w_seq_pruned_matches(data, options=options)
+        # matches_pruned = self.load_pruned_matches(data, spl=2, options=options)
+        # matches_distance_pruned = self.load_distance_pruned_matches(data, options=options)
+        # matches_distance_w_seq_pruned = self.load_distance_w_seq_pruned_matches(data, options=options)
         matches_all = self.load_all_matches(data, options=options)
-        matches_thresholded = self.load_thresholded_matches(data, options=options)
-        matches_pruned_thresholded = self.load_pruned_thresholded_matches(data, spl=2, options=options)
-        matches_distance_pruned_thresholded = self.load_distance_pruned_thresholded_matches(data, options=options)
-        matches_distance_w_seq_pruned_thresholded = self.load_distance_w_seq_pruned_thresholded_matches(data, options=options)
-        matches_all_weighted = self.load_all_weighted_matches(data, options=options)
-        matches_thresholded_weighted = self.load_thresholded_weighted_matches(data, options=options)
-        matches_pruned_thresholded_weighted = self.load_pruned_thresholded_weighted_matches(data, spl=2, options=options)
-        if not config.get('production_mode', True) and data.reconstruction_exists('reconstruction_gt.json'):
-            matches_gt_distance_pruned = self.load_gt_distance_pruned_matches(data, options=options)
-            matches_gt_distance_pruned_thresholded = self.load_gt_distance_pruned_thresholded_matches(data, options=options)
-            matches_gt = self.load_gt_matches(data, options=options)
-            matches_gt_pruned = self.load_gt_pruned_matches(data, spl=2, options=options)
-            matches_gt_selective = self.load_selective_gt_matches(data, options=options)
-        elif data.reconstruction_exists('reconstruction_gt.json'):
-            matches_gt_distance_pruned = self.load_gt_distance_pruned_matches(data, options=options)
-            matches_gt_distance_pruned_thresholded = self.load_gt_distance_pruned_thresholded_matches(data, options=options)
+        # matches_thresholded = self.load_thresholded_matches(data, options=options)
+        # matches_pruned_thresholded = self.load_pruned_thresholded_matches(data, spl=2, options=options)
+        # matches_distance_pruned_thresholded = self.load_distance_pruned_thresholded_matches(data, options=options)
+        # matches_distance_w_seq_pruned_thresholded = self.load_distance_w_seq_pruned_thresholded_matches(data, options=options)
+        # matches_all_weighted = self.load_all_weighted_matches(data, options=options)
+        # matches_thresholded_weighted = self.load_thresholded_weighted_matches(data, options=options)
+        # matches_pruned_thresholded_weighted = self.load_pruned_thresholded_weighted_matches(data, spl=2, options=options)
+        # if not config.get('production_mode', True) and data.reconstruction_exists('reconstruction_gt.json'):
+        #     matches_gt_distance_pruned = self.load_gt_distance_pruned_matches(data, options=options)
+        #     matches_gt_distance_pruned_thresholded = self.load_gt_distance_pruned_thresholded_matches(data, options=options)
+        #     matches_gt = self.load_gt_matches(data, options=options)
+        #     matches_gt_pruned = self.load_gt_pruned_matches(data, spl=2, options=options)
+        #     matches_gt_selective = self.load_selective_gt_matches(data, options=options)
+        # elif data.reconstruction_exists('reconstruction_gt.json'):
+        #     matches_gt_distance_pruned = self.load_gt_distance_pruned_matches(data, options=options)
+        #     matches_gt_distance_pruned_thresholded = self.load_gt_distance_pruned_thresholded_matches(data, options=options)
 
         matches_end = timer()
-        logger.info('Creating tracks graph using pruned rmatches')
-        tracks_graph_pruned = matching.create_tracks_graph(features, colors, matches_pruned,
-                                                    data.config)
-        logger.info('Creating tracks graph using distance pruned rmatches')
-        tracks_graph_distance_pruned = matching.create_tracks_graph(features, colors, matches_distance_pruned,
-                                                    data.config)
-        logger.info('Creating tracks graph using distance with sequences pruned rmatches')
-        tracks_graph_distance_w_seq_pruned = matching.create_tracks_graph(features, colors, matches_distance_w_seq_pruned,
-                                                    data.config)
+        # logger.info('Creating tracks graph using pruned rmatches')
+        # tracks_graph_pruned = matching.create_tracks_graph(features, colors, matches_pruned,
+        #                                             data.config)
+        # logger.info('Creating tracks graph using distance pruned rmatches')
+        # tracks_graph_distance_pruned = matching.create_tracks_graph(features, colors, matches_distance_pruned,
+        #                                             data.config)
+        # logger.info('Creating tracks graph using distance with sequences pruned rmatches')
+        # tracks_graph_distance_w_seq_pruned = matching.create_tracks_graph(features, colors, matches_distance_w_seq_pruned,
+        #                                             data.config)
         logger.info('Creating tracks graph using all matches')
         tracks_graph_all = matching.create_tracks_graph(features, colors, matches_all,
                                                     data.config)
-        logger.info('Creating tracks graph using thresholded matches')
-        tracks_graph_thresholded = matching.create_tracks_graph(features, colors, matches_thresholded,
-                                                    data.config)
-        logger.info('Creating tracks graph using pruned thresholded matches')
-        tracks_graph_pruned_thresholded = matching.create_tracks_graph(features, colors, matches_pruned_thresholded,
-                                                    data.config)
-        logger.info('Creating tracks graph using distance pruned thresholded matches')
-        tracks_graph_distance_pruned_thresholded = matching.create_tracks_graph(features, colors, matches_distance_pruned_thresholded,
-                                                    data.config)
-        logger.info('Creating tracks graph using distance with sequences pruned thresholded matches')
-        tracks_graph_distance_w_seq_pruned_thresholded = matching.create_tracks_graph(features, colors, matches_distance_w_seq_pruned_thresholded,
-                                                    data.config)
-        logger.info('Creating tracks graph using all weighted matches')
-        tracks_graph_all_weighted = matching.create_tracks_graph(features, colors, matches_all_weighted,
-                                                    data.config)
-        logger.info('Creating tracks graph using thresholded weighted matches')
-        tracks_graph_thresholded_weighted = matching.create_tracks_graph(features, colors, matches_thresholded_weighted,
-                                                    data.config)
-        logger.info('Creating tracks graph using pruned thresholded weighted matches')
-        tracks_graph_pruned_thresholded_weighted = matching.create_tracks_graph(features, colors, matches_pruned_thresholded_weighted,
-                                                    data.config)
+        # logger.info('Creating tracks graph using thresholded matches')
+        # tracks_graph_thresholded = matching.create_tracks_graph(features, colors, matches_thresholded,
+        #                                             data.config)
+        # logger.info('Creating tracks graph using pruned thresholded matches')
+        # tracks_graph_pruned_thresholded = matching.create_tracks_graph(features, colors, matches_pruned_thresholded,
+        #                                             data.config)
+        # logger.info('Creating tracks graph using distance pruned thresholded matches')
+        # tracks_graph_distance_pruned_thresholded = matching.create_tracks_graph(features, colors, matches_distance_pruned_thresholded,
+        #                                             data.config)
+        # logger.info('Creating tracks graph using distance with sequences pruned thresholded matches')
+        # tracks_graph_distance_w_seq_pruned_thresholded = matching.create_tracks_graph(features, colors, matches_distance_w_seq_pruned_thresholded,
+        #                                             data.config)
+        # logger.info('Creating tracks graph using all weighted matches')
+        # tracks_graph_all_weighted = matching.create_tracks_graph(features, colors, matches_all_weighted,
+        #                                             data.config)
+        # logger.info('Creating tracks graph using thresholded weighted matches')
+        # tracks_graph_thresholded_weighted = matching.create_tracks_graph(features, colors, matches_thresholded_weighted,
+        #                                             data.config)
+        # logger.info('Creating tracks graph using pruned thresholded weighted matches')
+        # tracks_graph_pruned_thresholded_weighted = matching.create_tracks_graph(features, colors, matches_pruned_thresholded_weighted,
+        #                                             data.config)
 
-        if not config.get('production_mode', True) and data.reconstruction_exists('reconstruction_gt.json'):
-            logger.info('Creating tracks graph using ground-truth distance pruned rmatches')
-            tracks_graph_gt_distance_pruned = matching.create_tracks_graph(features, colors, matches_gt_distance_pruned,
-                                                    data.config)
-            logger.info('Creating tracks graph using ground-truth distance pruned thresholded matches')
-            tracks_graph_gt_distance_pruned_thresholded = matching.create_tracks_graph(features, colors, matches_gt_distance_pruned_thresholded,
-                                                    data.config)
-            logger.info('Creating tracks graph using ground-truth matches')
-            tracks_graph_gt = matching.create_tracks_graph(features, colors, matches_gt,
-                                                        data.config)
-            logger.info('Creating tracks graph using pruned ground-truth matches')
-            tracks_graph_gt_pruned = matching.create_tracks_graph(features, colors, matches_gt_pruned,
-                                                        data.config)
-            logger.info('Creating tracks graph using selective ground-truth matches')
-            tracks_graph_gt_selective = matching.create_tracks_graph(features, colors, matches_gt_selective,
-                                                        data.config)
-        elif data.reconstruction_exists('reconstruction_gt.json'):
-            logger.info('Creating tracks graph using ground-truth distance pruned rmatches')
-            tracks_graph_gt_distance_pruned = matching.create_tracks_graph(features, colors, matches_gt_distance_pruned,
-                                                    data.config)
-            logger.info('Creating tracks graph using ground-truth distance pruned thresholded matches')
-            tracks_graph_gt_distance_pruned_thresholded = matching.create_tracks_graph(features, colors, matches_gt_distance_pruned_thresholded,
-                                                    data.config)
+        # if not config.get('production_mode', True) and data.reconstruction_exists('reconstruction_gt.json'):
+        #     logger.info('Creating tracks graph using ground-truth distance pruned rmatches')
+        #     tracks_graph_gt_distance_pruned = matching.create_tracks_graph(features, colors, matches_gt_distance_pruned,
+        #                                             data.config)
+        #     logger.info('Creating tracks graph using ground-truth distance pruned thresholded matches')
+        #     tracks_graph_gt_distance_pruned_thresholded = matching.create_tracks_graph(features, colors, matches_gt_distance_pruned_thresholded,
+        #                                             data.config)
+        #     logger.info('Creating tracks graph using ground-truth matches')
+        #     tracks_graph_gt = matching.create_tracks_graph(features, colors, matches_gt,
+        #                                                 data.config)
+        #     logger.info('Creating tracks graph using pruned ground-truth matches')
+        #     tracks_graph_gt_pruned = matching.create_tracks_graph(features, colors, matches_gt_pruned,
+        #                                                 data.config)
+        #     logger.info('Creating tracks graph using selective ground-truth matches')
+        #     tracks_graph_gt_selective = matching.create_tracks_graph(features, colors, matches_gt_selective,
+        #                                                 data.config)
+        # elif data.reconstruction_exists('reconstruction_gt.json'):
+        #     logger.info('Creating tracks graph using ground-truth distance pruned rmatches')
+        #     tracks_graph_gt_distance_pruned = matching.create_tracks_graph(features, colors, matches_gt_distance_pruned,
+        #                                             data.config)
+        #     logger.info('Creating tracks graph using ground-truth distance pruned thresholded matches')
+        #     tracks_graph_gt_distance_pruned_thresholded = matching.create_tracks_graph(features, colors, matches_gt_distance_pruned_thresholded,
+        #                                             data.config)
             
         tracks_end = timer()
-        data.save_tracks_graph(tracks_graph_pruned, 'tracks-pruned-matches.csv')
-        data.save_tracks_graph(tracks_graph_distance_pruned, 'tracks-distance-pruned-matches.csv')
-        data.save_tracks_graph(tracks_graph_distance_w_seq_pruned, 'tracks-distance-w-seq-pruned-matches.csv')
+        # data.save_tracks_graph(tracks_graph_pruned, 'tracks-pruned-matches.csv')
+        # data.save_tracks_graph(tracks_graph_distance_pruned, 'tracks-distance-pruned-matches.csv')
+        # data.save_tracks_graph(tracks_graph_distance_w_seq_pruned, 'tracks-distance-w-seq-pruned-matches.csv')
         data.save_tracks_graph(tracks_graph_all, 'tracks-all-matches.csv')
-        data.save_tracks_graph(tracks_graph_thresholded, 'tracks-thresholded-matches.csv')
-        data.save_tracks_graph(tracks_graph_pruned_thresholded, 'tracks-pruned-thresholded-matches.csv')
-        data.save_tracks_graph(tracks_graph_distance_pruned_thresholded, 'tracks-distance-pruned-thresholded-matches.csv')
-        data.save_tracks_graph(tracks_graph_distance_w_seq_pruned_thresholded, 'tracks-distance-w-seq-pruned-thresholded-matches.csv')
-        data.save_tracks_graph(tracks_graph_all_weighted, 'tracks-all-weighted-matches.csv')
-        data.save_tracks_graph(tracks_graph_thresholded_weighted, 'tracks-thresholded-weighted-matches.csv')
-        data.save_tracks_graph(tracks_graph_pruned_thresholded_weighted, 'tracks-pruned-thresholded-weighted-matches.csv')
-        if not config.get('production_mode', True) and data.reconstruction_exists('reconstruction_gt.json'):
-            data.save_tracks_graph(tracks_graph_gt_distance_pruned, 'tracks-gt-distance-pruned-matches.csv')
-            data.save_tracks_graph(tracks_graph_gt_distance_pruned_thresholded, 'tracks-gt-distance-pruned-thresholded-matches.csv')
-            data.save_tracks_graph(tracks_graph_gt, 'tracks-gt-matches.csv')
-            data.save_tracks_graph(tracks_graph_gt_pruned, 'tracks-gt-matches-pruned.csv')
-            data.save_tracks_graph(tracks_graph_gt_selective, 'tracks-gt-matches-selective.csv')
-        elif data.reconstruction_exists('reconstruction_gt.json'):
-            data.save_tracks_graph(tracks_graph_gt_distance_pruned, 'tracks-gt-distance-pruned-matches.csv')
-            data.save_tracks_graph(tracks_graph_gt_distance_pruned_thresholded, 'tracks-gt-distance-pruned-thresholded-matches.csv')
+        # data.save_tracks_graph(tracks_graph_thresholded, 'tracks-thresholded-matches.csv')
+        # data.save_tracks_graph(tracks_graph_pruned_thresholded, 'tracks-pruned-thresholded-matches.csv')
+        # data.save_tracks_graph(tracks_graph_distance_pruned_thresholded, 'tracks-distance-pruned-thresholded-matches.csv')
+        # data.save_tracks_graph(tracks_graph_distance_w_seq_pruned_thresholded, 'tracks-distance-w-seq-pruned-thresholded-matches.csv')
+        # data.save_tracks_graph(tracks_graph_all_weighted, 'tracks-all-weighted-matches.csv')
+        # data.save_tracks_graph(tracks_graph_thresholded_weighted, 'tracks-thresholded-weighted-matches.csv')
+        # data.save_tracks_graph(tracks_graph_pruned_thresholded_weighted, 'tracks-pruned-thresholded-weighted-matches.csv')
+        # if not config.get('production_mode', True) and data.reconstruction_exists('reconstruction_gt.json'):
+        #     data.save_tracks_graph(tracks_graph_gt_distance_pruned, 'tracks-gt-distance-pruned-matches.csv')
+        #     data.save_tracks_graph(tracks_graph_gt_distance_pruned_thresholded, 'tracks-gt-distance-pruned-thresholded-matches.csv')
+        #     data.save_tracks_graph(tracks_graph_gt, 'tracks-gt-matches.csv')
+        #     data.save_tracks_graph(tracks_graph_gt_pruned, 'tracks-gt-matches-pruned.csv')
+        #     data.save_tracks_graph(tracks_graph_gt_selective, 'tracks-gt-matches-selective.csv')
+        # elif data.reconstruction_exists('reconstruction_gt.json'):
+        #     data.save_tracks_graph(tracks_graph_gt_distance_pruned, 'tracks-gt-distance-pruned-matches.csv')
+        #     data.save_tracks_graph(tracks_graph_gt_distance_pruned_thresholded, 'tracks-gt-distance-pruned-thresholded-matches.csv')
 
         end = timer()
 
