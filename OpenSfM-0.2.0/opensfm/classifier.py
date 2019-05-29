@@ -220,6 +220,24 @@ def next_best_view_score(image_coordinates):
     score += np.sum(dmap) * grid_size * grid_size
   return score
 
+def next_best_view_score_weighted(image_coordinates, weights):
+  # Based on the paper Structure-from-Motion Revisited - https://demuc.de/papers/schoenberger2016sfm.pdf
+  # Get a score based on number of common tracks and spatial distribution of the tracks in the image
+  grid_sizes = [2, 4, 8]
+  score = 0
+
+  for grid_size in grid_sizes:
+    dmap = np.zeros((grid_size*grid_size,1))
+    # indx = ((image_coordinates[:,0] + 1)/2 * grid_size).astype(np.int32)
+    # indy = ((image_coordinates[:,1] + 1)/2 * grid_size).astype(np.int32)
+    denormalized_image_coordinates = features.denormalized_image_coordinates(image_coordinates, grid_size, grid_size)
+    indx = denormalized_image_coordinates[:,0].astype(np.int32)
+    indy = denormalized_image_coordinates[:,1].astype(np.int32)
+    dmap[indy*grid_size + indx] = weights
+    score += np.sum(dmap) * grid_size * grid_size
+  return score
+
+
 def classify_boosted_dts_feature_match(arg):
     fns, indices1, indices2, dists1, dists2, size1, size2, angle1, angle2, labels, \
         train, regr, options = arg

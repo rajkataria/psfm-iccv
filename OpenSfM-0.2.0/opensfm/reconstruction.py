@@ -771,6 +771,45 @@ def next_best_view_score_for_images(graph, reconstruction, images):
             res.append((image, nbvs))
     return sorted(res, key=lambda x: -x[1])
 
+def resectioning_using_classifier_weights(graph, reconstruction, images):
+    res = []
+    im_matches = {}
+    im_matching_results = data.load_image_matching_results(robust_matches_threshold=15)
+
+    for image in images:
+        if image not in reconstruction.shots:
+            visible_feature_coords = []
+            visible_track_ids = []
+            visible_track_weights = []
+            for track in graph[image]:
+                if track in reconstruction.points:
+                    track_score = 0.0
+                    feature_id = graph[image][track]['feature_id']
+                    visible_feature_coords.append(graph[image][track]['feature'])
+                    visible_track_ids.append(track)
+                    visible_track_weights.append(1.0)
+
+                    for track_image in graph[track]:
+                        if track_image not in reconstruction.shots:
+                            continue
+                        if track_image < image:
+                            im1 = track_image
+                            im2 = image
+                        else:
+                            im1 = image
+                            im2 = track_image
+
+                        image_matching_score = im_matching_results[im1][im2]['score']
+                        track_score += image_matching_score
+                    visible_track_weights.append(track_score)
+
+            if len(visible_feature_coords) > 0:
+                nbvs = classifier.next_best_view_score(np.array(visible_feature_coords), np.array(visible_track_weights))
+            else:
+                nbvs = 0.0
+            res.append((image, nbvs))
+    return sorted(res, key=lambda x: -x[1])
+
 def reconstructed_weighted_points_for_images(data, graph, reconstruction, images):#, im_matches, im_match_scores):
     """Number of reconstructed points visible on each image.
 
@@ -781,15 +820,15 @@ def reconstructed_weighted_points_for_images(data, graph, reconstruction, images
     res = []
     res_common_tracks = []
     resectioning_score = {}
-    track_scores = {}
+    im_track_scores = {}
     im_matches = {}
-    im_fmr = {} # feature matching results
-    im_matching_results = data.load_image_matching_results()
+    # im_fmr = {} # feature matching results
+    im_matching_results = data.load_image_matching_results(robust_matches_threshold=15)
     for image in images:
         resectioning_score[image] = 0.0
         if image not in reconstruction.shots:
             common_tracks = 0
-            track_scores[image] = {}
+            im_track_scores[image] = {}
             for track in graph[image]:
                 feature_id = graph[image][track]['feature_id']
                 track_score = 0.0
@@ -843,12 +882,12 @@ def reconstructed_weighted_points_for_images(data, graph, reconstruction, images
                     track_score += feature_matching_score * image_matching_score
 
                 resectioning_score[image] += track_score
-                track_scores[image][track] = track_scores
+                im_track_scores[image][track] = track_scores
                 if track in reconstruction.points:
                     common_tracks += 1
             res.append((image, resectioning_score[image]))
             res_common_tracks.append((image, common_tracks))
-    return sorted(res, key=lambda x: -x[1]) #, sorted(res_common_tracks, key=lambda x: -x[1]), track_scores
+    return sorted(res, key=lambda x: -x[1]) #, sorted(res_common_tracks, key=lambda x: -x[1]), im_track_scores
 
 def resect(data, graph, reconstruction, shot_id):
     """Try resecting and adding a shot to the reconstruction.

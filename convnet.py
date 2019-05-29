@@ -305,123 +305,123 @@ class ImageMatchingDataset(data.Dataset):
         self.unique_fns = np.array([])
         self.unique_imgs = {}
 
-        if self.options['convnet_load_dataset_in_memory']:
-            self.f_img1 = []
-            self.f_img2 = []
-            self.f_se_rmatches_img1 = []
-            self.f_se_matches_img1 = []
-            self.f_pe_img1 = []
-            self.f_pe_mask_img1 = []
-            self.f_pe_warped_img1 = []
-            self.f_se_rmatches_img2 = []
-            self.f_se_matches_img2 = []
-            self.f_pe_img2 = []
-            self.f_pe_mask_img2 = []
-            self.f_pe_warped_img2 = []
-            self.f_se_fm1 = []
-            self.f_se_fm2 = []
-            self.f_tm_fm1 = []
-            self.f_tm_fm2 = []
-            self.f_se_non_rmatches_img1 = []
-            self.f_se_non_rmatches_img2 = []
-            self.f_se_rmatches_secondary_motion_img1 = []
-            self.f_se_rmatches_secondary_motion_img2 = []
-            for i, _ in enumerate(self.fns):
-                img1_fn = os.path.join(self.dsets[i], 'images-resized', self.fns[i,0])
-                img2_fn = os.path.join(self.dsets[i], 'images-resized', self.fns[i,1])
-                se_rmatches_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'match_maps', 'rmatches---{}-{}.png'.format(self.fns[i,0], self.fns[i,1]))
-                se_rmatches_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'match_maps', 'rmatches---{}-{}.png'.format(self.fns[i,1], self.fns[i,0]))
-                se_matches_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'match_maps', 'matches---{}-{}.png'.format(self.fns[i,0], self.fns[i,1]))
-                se_matches_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'match_maps', 'matches---{}-{}.png'.format(self.fns[i,1], self.fns[i,0]))
-                # pe_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps-10-iterations-size-224', '{}-{}-a-em-filtered.png'.format(self.fns[i,0], self.fns[i,1]))
-                # pe_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps-10-iterations-size-224', '{}-{}-a-em-filtered.png'.format(self.fns[i,1], self.fns[i,0]))
-                # pe_mask_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps-10-iterations-size-224', '{}-{}-a-m-filtered.png'.format(self.fns[i,0], self.fns[i,1]))
-                # pe_mask_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps-10-iterations-size-224', '{}-{}-a-m-filtered.png'.format(self.fns[i,1], self.fns[i,0]))
-                # pe_warped_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps-10-iterations-size-224', '{}-{}-a-wi-filtered.png'.format(self.fns[i,0], self.fns[i,1]))
-                # pe_warped_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps-10-iterations-size-224', '{}-{}-a-wi-filtered.png'.format(self.fns[i,1], self.fns[i,0]))
-                pe_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_{}'.format(self.options['pe_experiment']), '{}-{}-a-em-unfiltered-ga.png'.format(self.fns[i,0], self.fns[i,1]))
-                pe_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_{}'.format(self.options['pe_experiment']), '{}-{}-a-em-unfiltered-ga.png'.format(self.fns[i,1], self.fns[i,0]))
-                pe_mask_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_{}'.format(self.options['pe_experiment']), '{}-{}-a-m-unfiltered-ga.png'.format(self.fns[i,0], self.fns[i,1]))
-                pe_mask_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_{}'.format(self.options['pe_experiment']), '{}-{}-a-m-unfiltered-ga.png'.format(self.fns[i,1], self.fns[i,0]))
-                pe_warped_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_{}'.format(self.options['pe_experiment']), '{}-{}-a-wi-unfiltered-ga.png'.format(self.fns[i,0], self.fns[i,1]))
-                pe_warped_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_{}'.format(self.options['pe_experiment']), '{}-{}-a-wi-unfiltered-ga.png'.format(self.fns[i,1], self.fns[i,0]))
+        # if self.options['convnet_load_dataset_in_memory']:
+        #     self.f_img1 = []
+        #     self.f_img2 = []
+        #     self.f_se_rmatches_img1 = []
+        #     self.f_se_matches_img1 = []
+        #     self.f_pe_img1 = []
+        #     self.f_pe_mask_img1 = []
+        #     self.f_pe_warped_img1 = []
+        #     self.f_se_rmatches_img2 = []
+        #     self.f_se_matches_img2 = []
+        #     self.f_pe_img2 = []
+        #     self.f_pe_mask_img2 = []
+        #     self.f_pe_warped_img2 = []
+        #     self.f_se_fm1 = []
+        #     self.f_se_fm2 = []
+        #     self.f_tm_fm1 = []
+        #     self.f_tm_fm2 = []
+        #     self.f_se_non_rmatches_img1 = []
+        #     self.f_se_non_rmatches_img2 = []
+        #     self.f_se_rmatches_secondary_motion_img1 = []
+        #     self.f_se_rmatches_secondary_motion_img2 = []
+        #     for i, _ in enumerate(self.fns):
+        #         img1_fn = os.path.join(self.dsets[i], 'images-resized', self.fns[i,0])
+        #         img2_fn = os.path.join(self.dsets[i], 'images-resized', self.fns[i,1])
+        #         se_rmatches_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'match_maps', 'rmatches---{}-{}.png'.format(self.fns[i,0], self.fns[i,1]))
+        #         se_rmatches_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'match_maps', 'rmatches---{}-{}.png'.format(self.fns[i,1], self.fns[i,0]))
+        #         se_matches_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'match_maps', 'matches---{}-{}.png'.format(self.fns[i,0], self.fns[i,1]))
+        #         se_matches_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'match_maps', 'matches---{}-{}.png'.format(self.fns[i,1], self.fns[i,0]))
+        #         # pe_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps-10-iterations-size-224', '{}-{}-a-em-filtered.png'.format(self.fns[i,0], self.fns[i,1]))
+        #         # pe_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps-10-iterations-size-224', '{}-{}-a-em-filtered.png'.format(self.fns[i,1], self.fns[i,0]))
+        #         # pe_mask_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps-10-iterations-size-224', '{}-{}-a-m-filtered.png'.format(self.fns[i,0], self.fns[i,1]))
+        #         # pe_mask_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps-10-iterations-size-224', '{}-{}-a-m-filtered.png'.format(self.fns[i,1], self.fns[i,0]))
+        #         # pe_warped_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps-10-iterations-size-224', '{}-{}-a-wi-filtered.png'.format(self.fns[i,0], self.fns[i,1]))
+        #         # pe_warped_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps-10-iterations-size-224', '{}-{}-a-wi-filtered.png'.format(self.fns[i,1], self.fns[i,0]))
+        #         pe_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps', '{}-{}-a-em-filtered-ga.png'.format(self.fns[i,0], self.fns[i,1]))
+        #         pe_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps', '{}-{}-a-em-filtered-ga.png'.format(self.fns[i,1], self.fns[i,0]))
+        #         pe_mask_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps', '{}-{}-a-m-filtered-ga.png'.format(self.fns[i,0], self.fns[i,1]))
+        #         pe_mask_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps', '{}-{}-a-m-filtered-ga.png'.format(self.fns[i,1], self.fns[i,0]))
+        #         pe_warped_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps', '{}-{}-a-wi-filtered-ga.png'.format(self.fns[i,0], self.fns[i,1]))
+        #         pe_warped_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps', '{}-{}-a-wi-filtered-ga.png'.format(self.fns[i,1], self.fns[i,0]))
 
-                se_fm1_fn = os.path.join(self.dsets[i], 'classifier_features', 'feature_maps', 'feature---{}.png'.format(self.fns[i,0]))
-                se_fm2_fn = os.path.join(self.dsets[i], 'classifier_features', 'feature_maps', 'feature---{}.png'.format(self.fns[i,1]))
-                tm_fm1_fn = os.path.join(self.dsets[i], 'classifier_features', 'track_maps', '{}.png'.format(self.fns[i,0]))
-                tm_fm2_fn = os.path.join(self.dsets[i], 'classifier_features', 'track_maps', '{}.png'.format(self.fns[i,1]))
-                se_non_rmatches_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'match_maps', 'non_rmatches---{}-{}.png'.format(self.fns[i,0], self.fns[i,1]))
-                se_non_rmatches_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'match_maps', 'non_rmatches---{}-{}.png'.format(self.fns[i,1], self.fns[i,0]))
-                se_rmatches_secondary_motion_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'match_maps', 'rmatches_secondary_motion---{}-{}.png'.format(self.fns[i,0], self.fns[i,1]))
-                se_rmatches_secondary_motion_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'match_maps', 'rmatches_secondary_motion---{}-{}.png'.format(self.fns[i,1], self.fns[i,0]))
+        #         se_fm1_fn = os.path.join(self.dsets[i], 'classifier_features', 'feature_maps', 'feature---{}.png'.format(self.fns[i,0]))
+        #         se_fm2_fn = os.path.join(self.dsets[i], 'classifier_features', 'feature_maps', 'feature---{}.png'.format(self.fns[i,1]))
+        #         tm_fm1_fn = os.path.join(self.dsets[i], 'classifier_features', 'track_maps', '{}.png'.format(self.fns[i,0]))
+        #         tm_fm2_fn = os.path.join(self.dsets[i], 'classifier_features', 'track_maps', '{}.png'.format(self.fns[i,1]))
+        #         se_non_rmatches_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'match_maps', 'non_rmatches---{}-{}.png'.format(self.fns[i,0], self.fns[i,1]))
+        #         se_non_rmatches_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'match_maps', 'non_rmatches---{}-{}.png'.format(self.fns[i,1], self.fns[i,0]))
+        #         se_rmatches_secondary_motion_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'match_maps', 'rmatches_secondary_motion---{}-{}.png'.format(self.fns[i,0], self.fns[i,1]))
+        #         se_rmatches_secondary_motion_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'match_maps', 'rmatches_secondary_motion---{}-{}.png'.format(self.fns[i,1], self.fns[i,0]))
 
                 
-                if self.options['convnet_use_rmatches_map']:
-                    self.f_se_rmatches_img1.append(self.loader(se_rmatches_img1_fn).convert('L'))
-                    self.f_se_rmatches_img2.append(self.loader(se_rmatches_img2_fn).convert('L'))
-                else:
-                    self.f_se_rmatches_img1.append(np.zeros((1,1,1)))
-                    self.f_se_rmatches_img2.append(np.zeros((1,1,1)))
+        #         if self.options['convnet_use_rmatches_map']:
+        #             self.f_se_rmatches_img1.append(self.loader(se_rmatches_img1_fn).convert('L'))
+        #             self.f_se_rmatches_img2.append(self.loader(se_rmatches_img2_fn).convert('L'))
+        #         else:
+        #             self.f_se_rmatches_img1.append(np.zeros((1,1,1)))
+        #             self.f_se_rmatches_img2.append(np.zeros((1,1,1)))
 
-                if self.options['convnet_use_matches_map']:
-                    self.f_se_matches_img1.append(self.loader(se_matches_img1_fn).convert('L'))
-                    self.f_se_matches_img2.append(self.loader(se_matches_img2_fn).convert('L'))
-                else:
-                    self.f_se_matches_img1.append(np.zeros((1,1,1)))
-                    self.f_se_matches_img2.append(np.zeros((1,1,1)))
+        #         if self.options['convnet_use_matches_map']:
+        #             self.f_se_matches_img1.append(self.loader(se_matches_img1_fn).convert('L'))
+        #             self.f_se_matches_img2.append(self.loader(se_matches_img2_fn).convert('L'))
+        #         else:
+        #             self.f_se_matches_img1.append(np.zeros((1,1,1)))
+        #             self.f_se_matches_img2.append(np.zeros((1,1,1)))
 
-                if self.options['convnet_use_photometric_error_maps']:
-                    self.f_pe_img1.append(self.loader(pe_img1_fn).convert('L'))
-                    self.f_pe_mask_img1.append(self.loader(pe_mask_img1_fn).convert('L'))
-                    self.f_pe_img2.append(self.loader(pe_img2_fn).convert('L'))
-                    self.f_pe_mask_img2.append(self.loader(pe_mask_img2_fn).convert('L'))
-                else:
-                    self.f_pe_img1.append(np.zeros((1,1,1)))
-                    self.f_pe_mask_img1.append(np.zeros((1,1,1)))
-                    self.f_pe_img2.append(np.zeros((1,1,1)))
-                    self.f_pe_mask_img2.append(np.zeros((1,1,1)))
+        #         if self.options['convnet_use_photometric_error_maps']:
+        #             self.f_pe_img1.append(self.loader(pe_img1_fn).convert('L'))
+        #             self.f_pe_mask_img1.append(self.loader(pe_mask_img1_fn).convert('L'))
+        #             self.f_pe_img2.append(self.loader(pe_img2_fn).convert('L'))
+        #             self.f_pe_mask_img2.append(self.loader(pe_mask_img2_fn).convert('L'))
+        #         else:
+        #             self.f_pe_img1.append(np.zeros((1,1,1)))
+        #             self.f_pe_mask_img1.append(np.zeros((1,1,1)))
+        #             self.f_pe_img2.append(np.zeros((1,1,1)))
+        #             self.f_pe_mask_img2.append(np.zeros((1,1,1)))
 
-                if self.options['convnet_use_images']:
-                    self.f_img1.append(self.loader(img1_fn))
-                    self.f_img2.append(self.loader(img2_fn))
-                else:
-                    self.f_img1.append(np.zeros((1,1,1)))
-                    self.f_img2.append(np.zeros((1,1,1)))
+        #         if self.options['convnet_use_images']:
+        #             self.f_img1.append(self.loader(img1_fn))
+        #             self.f_img2.append(self.loader(img2_fn))
+        #         else:
+        #             self.f_img1.append(np.zeros((1,1,1)))
+        #             self.f_img2.append(np.zeros((1,1,1)))
 
-                if self.options['convnet_use_warped_images']:
-                    self.f_pe_warped_img1.append(self.loader(pe_warped_img1_fn))    
-                    self.f_pe_warped_img2.append(self.loader(pe_warped_img2_fn))
-                else:
-                    self.f_pe_warped_img1.append(np.zeros((1,1,1)))
-                    self.f_pe_warped_img2.append(np.zeros((1,1,1)))
+        #         if self.options['convnet_use_warped_images']:
+        #             self.f_pe_warped_img1.append(self.loader(pe_warped_img1_fn))    
+        #             self.f_pe_warped_img2.append(self.loader(pe_warped_img2_fn))
+        #         else:
+        #             self.f_pe_warped_img1.append(np.zeros((1,1,1)))
+        #             self.f_pe_warped_img2.append(np.zeros((1,1,1)))
 
-                if self.options['convnet_use_feature_match_map']:
-                    self.f_se_fm1.append(self.loader(se_fm1_fn).convert('L'))
-                    self.f_se_fm2.append(self.loader(se_fm2_fn).convert('L'))
-                else:
-                    self.f_se_fm1.append(np.zeros((1,1,1)))
-                    self.f_se_fm2.append(np.zeros((1,1,1)))
+        #         if self.options['convnet_use_feature_match_map']:
+        #             self.f_se_fm1.append(self.loader(se_fm1_fn).convert('L'))
+        #             self.f_se_fm2.append(self.loader(se_fm2_fn).convert('L'))
+        #         else:
+        #             self.f_se_fm1.append(np.zeros((1,1,1)))
+        #             self.f_se_fm2.append(np.zeros((1,1,1)))
 
-                if self.options['convnet_use_track_map']:
-                    self.f_tm_fm1.append(self.loader(tm_fm1_fn).convert('L'))
-                    self.f_tm_fm2.append(self.loader(tm_fm2_fn).convert('L'))
-                else:
-                    self.f_tm_fm1.append(np.zeros((1,1,1)))
-                    self.f_tm_fm2.append(np.zeros((1,1,1)))
+        #         if self.options['convnet_use_track_map']:
+        #             self.f_tm_fm1.append(self.loader(tm_fm1_fn).convert('L'))
+        #             self.f_tm_fm2.append(self.loader(tm_fm2_fn).convert('L'))
+        #         else:
+        #             self.f_tm_fm1.append(np.zeros((1,1,1)))
+        #             self.f_tm_fm2.append(np.zeros((1,1,1)))
 
-                if self.options['convnet_use_non_rmatches_map']:
-                    self.f_se_non_rmatches_img1.append(self.loader(se_non_rmatches_img1_fn).convert('L'))
-                    self.f_se_non_rmatches_img2.append(self.loader(se_non_rmatches_img2_fn).convert('L'))
-                else:
-                    self.f_se_non_rmatches_img1.append(np.zeros((1,1,1)))
-                    self.f_se_non_rmatches_img2.append(np.zeros((1,1,1)))
+        #         if self.options['convnet_use_non_rmatches_map']:
+        #             self.f_se_non_rmatches_img1.append(self.loader(se_non_rmatches_img1_fn).convert('L'))
+        #             self.f_se_non_rmatches_img2.append(self.loader(se_non_rmatches_img2_fn).convert('L'))
+        #         else:
+        #             self.f_se_non_rmatches_img1.append(np.zeros((1,1,1)))
+        #             self.f_se_non_rmatches_img2.append(np.zeros((1,1,1)))
 
-                if self.options['convnet_use_rmatches_secondary_motion_map']:
-                    self.f_se_rmatches_secondary_motion_img1.append(self.loader(se_rmatches_secondary_motion_img1_fn).convert('L'))
-                    self.f_se_rmatches_secondary_motion_img2.append(self.loader(se_rmatches_secondary_motion_img2_fn).convert('L'))
-                else:
-                    self.f_se_rmatches_secondary_motion_img1.append(np.zeros((1,1,1)))
-                    self.f_se_rmatches_secondary_motion_img2.append(np.zeros((1,1,1)))
+        #         if self.options['convnet_use_rmatches_secondary_motion_map']:
+        #             self.f_se_rmatches_secondary_motion_img1.append(self.loader(se_rmatches_secondary_motion_img1_fn).convert('L'))
+        #             self.f_se_rmatches_secondary_motion_img2.append(self.loader(se_rmatches_secondary_motion_img2_fn).convert('L'))
+        #         else:
+        #             self.f_se_rmatches_secondary_motion_img1.append(np.zeros((1,1,1)))
+        #             self.f_se_rmatches_secondary_motion_img2.append(np.zeros((1,1,1)))
 
         if self.train and self.options['triplet-sampling-strategy'] == 'random':
             self.positive_sample_indices = np.where(self.labels >= 1)[0]
@@ -536,120 +536,137 @@ class ImageMatchingDataset(data.Dataset):
 
         data = []
         for i in indices:
-            if self.options['convnet_load_dataset_in_memory']:
-                img1 = self.transform(self.f_img1[i])
-                img2 = self.transform(self.f_img2[i])
-                # No need to cache these images since they're only used once per epoch (they're unique for each pair of images)
-                se_rmatches_img1 = self.transform(self.f_se_rmatches_img1[i])
-                se_matches_img1 = self.transform(self.f_se_matches_img1[i])
-                pe_img1 = self.transform(self.f_pe_img1[i])
-                pe_mask_img1 = self.transform(self.f_pe_mask_img1[i])
-                pe_warped_img1 = self.transform(self.f_pe_warped_img1[i])
-                se_rmatches_img2 = self.transform(self.f_se_rmatches_img2[i])
-                se_matches_img2 = self.transform(self.f_se_matches_img2[i])
-                pe_img2 = self.transform(self.f_pe_img2[i])
-                pe_mask_img2 = self.transform(self.f_pe_mask_img2[i])
-                pe_warped_img2 = self.transform(self.f_pe_warped_img2[i])
-                se_fm1 = self.transform(self.f_se_fm1[i])
-                se_fm2 = self.transform(self.f_se_fm2[i])
-                tm_fm1 = self.transform(self.f_tm_fm1[i])
-                tm_fm2 = self.transform(self.f_tm_fm2[i])
-                se_non_rmatches_img1 = self.transform(self.f_se_non_rmatches_img1[i])
-                se_non_rmatches_img2 = self.transform(self.f_se_non_rmatches_img2[i])
-                se_rmatches_secondary_motion_img1 = self.transform(self.f_se_rmatches_secondary_motion_img1[i])
-                se_rmatches_secondary_motion_img2 = self.transform(self.f_se_rmatches_secondary_motion_img2[i])
+            # if self.options['convnet_load_dataset_in_memory']:
+            #     img1 = self.transform(self.f_img1[i])
+            #     img2 = self.transform(self.f_img2[i])
+            #     # No need to cache these images since they're only used once per epoch (they're unique for each pair of images)
+            #     se_rmatches_img1 = self.transform(self.f_se_rmatches_img1[i])
+            #     se_matches_img1 = self.transform(self.f_se_matches_img1[i])
+            #     pe_img1 = self.transform(self.f_pe_img1[i])
+            #     pe_mask_img1 = self.transform(self.f_pe_mask_img1[i])
+            #     pe_warped_img1 = self.transform(self.f_pe_warped_img1[i])
+            #     se_rmatches_img2 = self.transform(self.f_se_rmatches_img2[i])
+            #     se_matches_img2 = self.transform(self.f_se_matches_img2[i])
+            #     pe_img2 = self.transform(self.f_pe_img2[i])
+            #     pe_mask_img2 = self.transform(self.f_pe_mask_img2[i])
+            #     pe_warped_img2 = self.transform(self.f_pe_warped_img2[i])
+            #     se_fm1 = self.transform(self.f_se_fm1[i])
+            #     se_fm2 = self.transform(self.f_se_fm2[i])
+            #     tm_fm1 = self.transform(self.f_tm_fm1[i])
+            #     tm_fm2 = self.transform(self.f_tm_fm2[i])
+            #     se_non_rmatches_img1 = self.transform(self.f_se_non_rmatches_img1[i])
+            #     se_non_rmatches_img2 = self.transform(self.f_se_non_rmatches_img2[i])
+            #     se_rmatches_secondary_motion_img1 = self.transform(self.f_se_rmatches_secondary_motion_img1[i])
+            #     se_rmatches_secondary_motion_img2 = self.transform(self.f_se_rmatches_secondary_motion_img2[i])
+            # else:
+            img1_fn = os.path.join(self.dsets[i], 'images-resized', self.fns[i,0])
+            img2_fn = os.path.join(self.dsets[i], 'images-resized', self.fns[i,1])
+            
+            # Example: rmatches---DSC_0322.JPG-DSC_0308.JPG.png
+            se_rmatches_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'match_maps', 'rmatches---{}-{}.png'.format(self.fns[i,0], self.fns[i,1]))
+            se_rmatches_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'match_maps', 'rmatches---{}-{}.png'.format(self.fns[i,1], self.fns[i,0]))
+            se_matches_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'match_maps', 'matches---{}-{}.png'.format(self.fns[i,0], self.fns[i,1]))
+            se_matches_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'match_maps', 'matches---{}-{}.png'.format(self.fns[i,1], self.fns[i,0]))
+
+            if 'pe_filtered' in self.options['experiment']:
+                pe_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps', '{}-{}-a-em-filtered-ga.png'.format(self.fns[i,0], self.fns[i,1]))
+                pe_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps', '{}-{}-a-em-filtered-ga.png'.format(self.fns[i,1], self.fns[i,0]))
+                pe_mask_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps', '{}-{}-a-m-filtered-ga.png'.format(self.fns[i,0], self.fns[i,1]))
+                pe_mask_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps', '{}-{}-a-m-filtered-ga.png'.format(self.fns[i,1], self.fns[i,0]))
+                pe_warped_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps', '{}-{}-a-wi-filtered-ga.png'.format(self.fns[i,0], self.fns[i,1]))
+                pe_warped_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps', '{}-{}-a-wi-filtered-ga.png'.format(self.fns[i,1], self.fns[i,0]))
             else:
-                img1_fn = os.path.join(self.dsets[i], 'images-resized', self.fns[i,0])
-                img2_fn = os.path.join(self.dsets[i], 'images-resized', self.fns[i,1])
-                
-                # Example: rmatches---DSC_0322.JPG-DSC_0308.JPG.png
-                se_rmatches_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'match_maps', 'rmatches---{}-{}.png'.format(self.fns[i,0], self.fns[i,1]))
-                se_rmatches_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'match_maps', 'rmatches---{}-{}.png'.format(self.fns[i,1], self.fns[i,0]))
-                se_matches_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'match_maps', 'matches---{}-{}.png'.format(self.fns[i,0], self.fns[i,1]))
-                se_matches_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'match_maps', 'matches---{}-{}.png'.format(self.fns[i,1], self.fns[i,0]))
+                pe_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps', '{}-{}-a-em-unfiltered-ga.png'.format(self.fns[i,0], self.fns[i,1]))
+                pe_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps', '{}-{}-a-em-unfiltered-ga.png'.format(self.fns[i,1], self.fns[i,0]))
+                pe_mask_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps', '{}-{}-a-m-unfiltered-ga.png'.format(self.fns[i,0], self.fns[i,1]))
+                pe_mask_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps', '{}-{}-a-m-unfiltered-ga.png'.format(self.fns[i,1], self.fns[i,0]))
+                pe_warped_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps', '{}-{}-a-wi-unfiltered-ga.png'.format(self.fns[i,0], self.fns[i,1]))
+                pe_warped_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps', '{}-{}-a-wi-unfiltered-ga.png'.format(self.fns[i,1], self.fns[i,0]))
 
-                pe_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_{}'.format(self.options['pe_experiment']), '{}-{}-a-em-unfiltered-ga.png'.format(self.fns[i,0], self.fns[i,1]))
-                pe_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_{}'.format(self.options['pe_experiment']), '{}-{}-a-em-unfiltered-ga.png'.format(self.fns[i,1], self.fns[i,0]))
-                pe_mask_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_{}'.format(self.options['pe_experiment']), '{}-{}-a-m-unfiltered-ga.png'.format(self.fns[i,0], self.fns[i,1]))
-                pe_mask_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_{}'.format(self.options['pe_experiment']), '{}-{}-a-m-unfiltered-ga.png'.format(self.fns[i,1], self.fns[i,0]))
-                pe_warped_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_{}'.format(self.options['pe_experiment']), '{}-{}-a-wi-unfiltered-ga.png'.format(self.fns[i,0], self.fns[i,1]))
-                pe_warped_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'pe_maps_{}'.format(self.options['pe_experiment']), '{}-{}-a-wi-unfiltered-ga.png'.format(self.fns[i,1], self.fns[i,0]))
+            se_fm1_fn = os.path.join(self.dsets[i], 'classifier_features', 'feature_maps', 'feature---{}.png'.format(self.fns[i,0]))
+            se_fm2_fn = os.path.join(self.dsets[i], 'classifier_features', 'feature_maps', 'feature---{}.png'.format(self.fns[i,1]))
+            tm_fm1_fn = os.path.join(self.dsets[i], 'classifier_features', 'track_maps', '{}.png'.format(self.fns[i,0]))
+            tm_fm2_fn = os.path.join(self.dsets[i], 'classifier_features', 'track_maps', '{}.png'.format(self.fns[i,1]))
+            se_non_rmatches_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'match_maps', 'non_rmatches---{}-{}.png'.format(self.fns[i,0], self.fns[i,1]))
+            se_non_rmatches_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'match_maps', 'non_rmatches---{}-{}.png'.format(self.fns[i,1], self.fns[i,0]))
+            se_rmatches_secondary_motion_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'match_maps', 'rmatches_secondary_motion---{}-{}.png'.format(self.fns[i,0], self.fns[i,1]))
+            se_rmatches_secondary_motion_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'match_maps', 'rmatches_secondary_motion---{}-{}.png'.format(self.fns[i,1], self.fns[i,0]))
 
-                se_fm1_fn = os.path.join(self.dsets[i], 'classifier_features', 'feature_maps', 'feature---{}.png'.format(self.fns[i,0]))
-                se_fm2_fn = os.path.join(self.dsets[i], 'classifier_features', 'feature_maps', 'feature---{}.png'.format(self.fns[i,1]))
-                tm_fm1_fn = os.path.join(self.dsets[i], 'classifier_features', 'track_maps', '{}.png'.format(self.fns[i,0]))
-                tm_fm2_fn = os.path.join(self.dsets[i], 'classifier_features', 'track_maps', '{}.png'.format(self.fns[i,1]))
-                se_non_rmatches_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'match_maps', 'non_rmatches---{}-{}.png'.format(self.fns[i,0], self.fns[i,1]))
-                se_non_rmatches_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'match_maps', 'non_rmatches---{}-{}.png'.format(self.fns[i,1], self.fns[i,0]))
-                se_rmatches_secondary_motion_img1_fn = os.path.join(self.dsets[i], 'classifier_features', 'match_maps', 'rmatches_secondary_motion---{}-{}.png'.format(self.fns[i,0], self.fns[i,1]))
-                se_rmatches_secondary_motion_img2_fn = os.path.join(self.dsets[i], 'classifier_features', 'match_maps', 'rmatches_secondary_motion---{}-{}.png'.format(self.fns[i,1], self.fns[i,0]))
+            if self.options['convnet_use_rmatches_map']:
+                se_rmatches_img1 = self.transform(self.loader(se_rmatches_img1_fn).convert('L'))
+                se_rmatches_img2 = self.transform(self.loader(se_rmatches_img2_fn).convert('L'))
+            else:
+                se_rmatches_img1 = np.zeros((1,1,1))
+                se_rmatches_img2 = np.zeros((1,1,1))
 
-                if self.options['convnet_use_rmatches_map']:
-                    se_rmatches_img1 = self.transform(self.loader(se_rmatches_img1_fn).convert('L'))
-                    se_rmatches_img2 = self.transform(self.loader(se_rmatches_img2_fn).convert('L'))
+            if self.options['convnet_use_matches_map']:
+                se_matches_img1 = self.transform(self.loader(se_matches_img1_fn).convert('L'))
+                se_matches_img2 = self.transform(self.loader(se_matches_img2_fn).convert('L'))
+            else:
+                se_matches_img1 = np.zeros((1,1,1))
+                se_matches_img2 = np.zeros((1,1,1))
+
+            if self.options['convnet_use_photometric_error_maps']:
+                if not os.path.isfile(pe_img1_fn):
+                    pe_img1 = self.transform(Image.new('L', (self.options['convnet_input_size'], self.options['convnet_input_size'])))
+                    pe_mask_img1 = self.transform(Image.new('L', (self.options['convnet_input_size'], self.options['convnet_input_size'])))
                 else:
-                    se_rmatches_img1 = np.zeros((1,1,1))
-                    se_rmatches_img2 = np.zeros((1,1,1))
-
-                if self.options['convnet_use_matches_map']:
-                    se_matches_img1 = self.transform(self.loader(se_matches_img1_fn).convert('L'))
-                    se_matches_img2 = self.transform(self.loader(se_matches_img2_fn).convert('L'))
-                else:
-                    se_matches_img1 = np.zeros((1,1,1))
-                    se_matches_img2 = np.zeros((1,1,1))
-
-                if self.options['convnet_use_photometric_error_maps']:
                     pe_img1 = self.transform(self.loader(pe_img1_fn).convert('L'))
                     pe_mask_img1 = self.transform(self.loader(pe_mask_img1_fn).convert('L'))
+
+                if not os.path.isfile(pe_img2_fn):
+                    pe_img2 = self.transform(Image.new('L', (self.options['convnet_input_size'], self.options['convnet_input_size'])))
+                    pe_mask_img2 = self.transform(Image.new('L', (self.options['convnet_input_size'], self.options['convnet_input_size'])))
+                else:
                     pe_img2 = self.transform(self.loader(pe_img2_fn).convert('L'))
                     pe_mask_img2 = self.transform(self.loader(pe_mask_img2_fn).convert('L'))
-                else:
-                    pe_img1 = np.zeros((1,1,1))
-                    pe_mask_img1 = np.zeros((1,1,1))
-                    pe_img2 = np.zeros((1,1,1))
-                    pe_mask_img2 = np.zeros((1,1,1))
-                
-                if self.options['convnet_use_images']:
-                    img1 = self.transform(self.loader(img1_fn))
-                    img2 = self.transform(self.loader(img2_fn))
-                else:
-                    img1 = np.zeros((1,1,1))
-                    img2 = np.zeros((1,1,1))
-
-                if self.options['convnet_use_warped_images']:
-                    pe_warped_img1 = self.transform(self.loader(pe_warped_img1_fn))
-                    pe_warped_img2 = self.transform(self.loader(pe_warped_img2_fn))
-                else:
-                    pe_warped_img1 = np.zeros((1,1,1))
-                    pe_warped_img2 = np.zeros((1,1,1))
-
-                if self.options['convnet_use_feature_match_map']:
-                    se_fm1 = self.transform(self.loader(se_fm1_fn).convert('L'))
-                    se_fm2 = self.transform(self.loader(se_fm2_fn).convert('L'))
-                else:
-                    se_fm1 = np.zeros((1,1,1))
-                    se_fm2 = np.zeros((1,1,1))
-
-                if self.options['convnet_use_track_map']:
-                    tm_fm1 = self.transform(self.loader(tm_fm1_fn).convert('L'))
-                    tm_fm2 = self.transform(self.loader(tm_fm2_fn).convert('L'))
-                else:
-                    tm_fm1 = np.zeros((1,1,1))
-                    tm_fm2 = np.zeros((1,1,1))
+            else:
+                pe_img1 = np.zeros((1,1,1))
+                pe_mask_img1 = np.zeros((1,1,1))
+                pe_img2 = np.zeros((1,1,1))
+                pe_mask_img2 = np.zeros((1,1,1))
             
-                if self.options['convnet_use_non_rmatches_map']:
-                    se_non_rmatches_img1 = self.transform(self.loader(se_non_rmatches_img1_fn).convert('L'))
-                    se_non_rmatches_img2 = self.transform(self.loader(se_non_rmatches_img2_fn).convert('L'))
-                else:
-                    se_non_rmatches_img1 = np.zeros((1,1,1))
-                    se_non_rmatches_img2 = np.zeros((1,1,1))
+            if self.options['convnet_use_images']:
+                img1 = self.transform(self.loader(img1_fn))
+                img2 = self.transform(self.loader(img2_fn))
+            else:
+                img1 = np.zeros((1,1,1))
+                img2 = np.zeros((1,1,1))
 
-                if self.options['convnet_use_rmatches_secondary_motion_map']:
-                    se_rmatches_secondary_motion_img1 = self.transform(self.loader(se_rmatches_secondary_motion_img1_fn).convert('L'))
-                    se_rmatches_secondary_motion_img2 = self.transform(self.loader(se_rmatches_secondary_motion_img2_fn).convert('L'))
-                else:
-                    se_rmatches_secondary_motion_img1 = np.zeros((1,1,1))
-                    se_rmatches_secondary_motion_img2 = np.zeros((1,1,1))
+            if self.options['convnet_use_warped_images']:
+                pe_warped_img1 = self.transform(self.loader(pe_warped_img1_fn))
+                pe_warped_img2 = self.transform(self.loader(pe_warped_img2_fn))
+            else:
+                pe_warped_img1 = np.zeros((1,1,1))
+                pe_warped_img2 = np.zeros((1,1,1))
+
+            if self.options['convnet_use_feature_match_map']:
+                se_fm1 = self.transform(self.loader(se_fm1_fn).convert('L'))
+                se_fm2 = self.transform(self.loader(se_fm2_fn).convert('L'))
+            else:
+                se_fm1 = np.zeros((1,1,1))
+                se_fm2 = np.zeros((1,1,1))
+
+            if self.options['convnet_use_track_map']:
+                tm_fm1 = self.transform(self.loader(tm_fm1_fn).convert('L'))
+                tm_fm2 = self.transform(self.loader(tm_fm2_fn).convert('L'))
+            else:
+                tm_fm1 = np.zeros((1,1,1))
+                tm_fm2 = np.zeros((1,1,1))
+        
+            if self.options['convnet_use_non_rmatches_map']:
+                se_non_rmatches_img1 = self.transform(self.loader(se_non_rmatches_img1_fn).convert('L'))
+                se_non_rmatches_img2 = self.transform(self.loader(se_non_rmatches_img2_fn).convert('L'))
+            else:
+                se_non_rmatches_img1 = np.zeros((1,1,1))
+                se_non_rmatches_img2 = np.zeros((1,1,1))
+
+            if self.options['convnet_use_rmatches_secondary_motion_map']:
+                se_rmatches_secondary_motion_img1 = self.transform(self.loader(se_rmatches_secondary_motion_img1_fn).convert('L'))
+                se_rmatches_secondary_motion_img2 = self.transform(self.loader(se_rmatches_secondary_motion_img2_fn).convert('L'))
+            else:
+                se_rmatches_secondary_motion_img1 = np.zeros((1,1,1))
+                se_rmatches_secondary_motion_img2 = np.zeros((1,1,1))
 
 
             data.append([self.dsets[i].tolist(), self.fns[i,0].tolist(), self.fns[i,1].tolist(), self.R11s[i], self.R12s[i], self.R13s[i], \
@@ -663,8 +680,8 @@ class ImageMatchingDataset(data.Dataset):
                 self.shortest_path_length[i], \
                 self.mds_rank_percentage_im1_im2[i], self.mds_rank_percentage_im2_im1[i], \
                 self.distance_rank_percentage_im1_im2_gt[i], self.distance_rank_percentage_im2_im1_gt[i], \
-                self.labels[i], img1, img2, se_rmatches_img1.clone(), se_rmatches_img2.clone(), se_matches_img1, se_matches_img2, pe_img1.clone(), pe_img2.clone(), pe_mask_img1.clone(), pe_mask_img2.clone(), \
-                pe_warped_img1, pe_warped_img2, se_fm1, se_fm2, tm_fm1, tm_fm2, se_non_rmatches_img1.clone(), se_non_rmatches_img2.clone(), se_rmatches_secondary_motion_img1, se_rmatches_secondary_motion_img2
+                self.labels[i], img1, img2, se_rmatches_img1, se_rmatches_img2, se_matches_img1, se_matches_img2, pe_img1, pe_img2, pe_mask_img1, pe_mask_img2, \
+                pe_warped_img1, pe_warped_img2, se_fm1, se_fm2, tm_fm1, tm_fm2, se_non_rmatches_img1, se_non_rmatches_img2, se_rmatches_secondary_motion_img1, se_rmatches_secondary_motion_img2
                 ])
 
         return data
@@ -786,21 +803,21 @@ def inference(data_loader, model, epoch, run_dir, logger, opts, range_min, range
             target = Variable(_labels.type(torch.cuda.LongTensor))
 
             if j == 0:
-                y_predictions_softmax = nn.functional.softmax(y_prediction).clone()
-                y_predictions_logits = y_prediction.clone()
-                positive_predictions = nn.functional.softmax(y_prediction).clone()#y_prediction
-                positive_targets = target.clone()
-                targets = target.clone()
+                y_predictions_softmax = nn.functional.softmax(y_prediction)
+                y_predictions_logits = y_prediction
+                positive_predictions = nn.functional.softmax(y_prediction)#y_prediction
+                positive_targets = target
+                targets = target
                 num_rmatches_b = Variable(_num_rmatches)
                 shortest_path_lengths_b = Variable(_shortest_path_length)
                 fns_b = np.concatenate((np.array(im1s).reshape((-1,1)),np.array(im2s).reshape((-1,1))), axis=1)
                 dsets_b = np.array(dsets)
             else:
-                y_predictions_softmax = torch.cat((y_predictions_softmax, nn.functional.softmax(y_prediction).clone()))
-                y_predictions_logits = torch.cat((y_predictions_logits, y_prediction.clone()), dim=0)
-                negative_predictions = nn.functional.softmax(y_prediction).clone()#y_prediction
-                negative_targets = target.clone()
-                targets = torch.cat((targets, target.clone()), dim=0)
+                y_predictions_softmax = torch.cat((y_predictions_softmax, nn.functional.softmax(y_prediction)))
+                y_predictions_logits = torch.cat((y_predictions_logits, y_prediction), dim=0)
+                negative_predictions = nn.functional.softmax(y_prediction)#y_prediction
+                negative_targets = target
+                targets = torch.cat((targets, target), dim=0)
                 num_rmatches_b = torch.cat((num_rmatches_b, Variable(_num_rmatches)), dim=0)
                 shortest_path_lengths_b = torch.cat((shortest_path_lengths_b, Variable(_shortest_path_length)))
                 fns_b = np.concatenate((fns_b, np.concatenate((np.array(im1s).reshape((-1,1)),np.array(im2s).reshape((-1,1))), axis=1)), axis=0)
@@ -1062,7 +1079,7 @@ def classify_convnet_image_match_initialization(train_loader, test_loaders, run_
     # create logger
     run_dir = os.path.join(opts['convnet_log_dir'], \
         # 'run-opt-{}-bs-{}-lr-{}-exp-{}-loss-{}-triplet-sampling-{}-sample-inclass-{}-min-images-{}-max-images-{}-use-all-data-{}-model-{}-is-{}-mlp-layer-size-{}-use-images-{}-use_fmm-{}-use_tm-{}-tov-{}-use_rmm-{}-use_mm-{}-use_pems-{}'.format(\
-        'run-ss-{}-sample-inclass-{}-model-{}-lr-{}-is-{}-mlp-layer-size-{}-use-images-{}-use_fmm-{}-use_tm-{}-tov-{}-use_rmm-{}-use_mm-{}-use_nrmm-{}-use-rmsmm-{}-use_pems-{}-pe_exp-{}'.format(\
+        'run-ss-{}-sample-inclass-{}-model-{}-lr-{}-is-{}-mlp-layer-size-{}-use-images-{}-use_fmm-{}-use_tm-{}-tov-{}-use_rmm-{}-use_mm-{}-use_nrmm-{}-use-rmsmm-{}-use_pems-{}-exp-{}'.format(\
             # opts['optimizer'], \
             # opts['batch_size'], \
             
@@ -1087,7 +1104,7 @@ def classify_convnet_image_match_initialization(train_loader, test_loaders, run_
             opts['convnet_use_non_rmatches_map'], \
             opts['convnet_use_rmatches_secondary_motion_map'], \
             opts['convnet_use_photometric_error_maps'], \
-            opts['pe_experiment']
+            opts['experiment']
         )
     )
     
@@ -1095,6 +1112,7 @@ def classify_convnet_image_match_initialization(train_loader, test_loaders, run_
     # logger_test = Logger('{}-{}'.format(run_dir, 'test'))
 
     logger = Logger(run_dir)
+    logger.global_step = start
     
     for epoch in range(start, end):
         _, _, training_scores, _ = inference(train_loader, model, epoch, run_dir, logger, opts, range_min=None, range_max=None,  mode='train', optimizer=optimizer)
@@ -1113,7 +1131,7 @@ def classify_convnet_image_match_training(arg, arg_te):
 
     run_dir = os.path.join(opts['convnet_log_dir'], \
         # 'run-opt-{}-bs-{}-lr-{}-exp-{}-loss-{}-triplet-sampling-{}-sample-inclass-{}-min-images-{}-max-images-{}-use-all-data-{}-model-{}-is-{}-mlp-layer-size-{}-use-images-{}-use_fmm-{}-use_tm-{}-tov-{}-use_rmm-{}-use_mm-{}-use_pems-{}'.format(\
-        'run-ss-{}-sample-inclass-{}-model-{}-lr-{}-is-{}-mlp-layer-size-{}-use-images-{}-use_fmm-{}-use_tm-{}-tov-{}-use_rmm-{}-use_mm-{}-use_nrmm-{}-use-rmsmm-{}-use_pems-{}-pe_exp-{}'.format(\
+        'run-ss-{}-sample-inclass-{}-model-{}-lr-{}-is-{}-mlp-layer-size-{}-use-images-{}-use_fmm-{}-use_tm-{}-tov-{}-use_rmm-{}-use_mm-{}-use_nrmm-{}-use-rmsmm-{}-use_pems-{}-exp-{}'.format(\
             # opts['optimizer'], \
             # opts['batch_size'], \
             
@@ -1138,7 +1156,7 @@ def classify_convnet_image_match_training(arg, arg_te):
             opts['convnet_use_non_rmatches_map'], \
             opts['convnet_use_rmatches_secondary_motion_map'], \
             opts['convnet_use_photometric_error_maps'], \
-            opts['pe_experiment']
+            opts['experiment']
         )
     )
     matching_classifiers.mkdir_p(run_dir)
