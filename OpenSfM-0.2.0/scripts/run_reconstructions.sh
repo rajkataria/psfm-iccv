@@ -1,4 +1,5 @@
 dataset=$1
+mode="reconstruction"
 
 echo "############################################################################################################"
 echo "############################################################################################################"
@@ -312,10 +313,39 @@ declare -A run36=(
 # all_runs=(run18 run19 run20 run21 run22 run23 run29 run30 run31 run32 run33 run34)
 
 # all_runs=(run1 run35)
-all_runs=(run35)
+# all_runs=(run35)
 # all_runs=(run36)
 # all_runs=(run1)
 
+
+# Baseline + colmap
+declare -A run100=(
+	[use_gt_matches]='false'                    [use_gt_selective_matches]='false'        	[use_image_matching_classifier]='false'
+	[use_weighted_resectioning]='false'         [use_colmap_resectioning]='true'          	[use_weighted_feature_matches]='false'
+	[use_image_matching_thresholding]='false'   [use_shortest_path_pruning]='false'       	[image_matching_classifier_threshold]='0.5'
+	[use_closest_images_pruning]='false'		[closest_images_top_k]='H'					[use_gt_closest_images_pruning]='false'
+	[use_yan_disambiguation]='false'
+	)
+
+# Baseline + weighted colmap resectioning
+declare -A run101=(
+	[use_gt_matches]='false'                    [use_gt_selective_matches]='false'        	[use_image_matching_classifier]='false'
+	[use_weighted_resectioning]='true'         	[use_colmap_resectioning]='false'          	[use_weighted_feature_matches]='false'
+	[use_image_matching_thresholding]='false'   [use_shortest_path_pruning]='false'       	[image_matching_classifier_threshold]='0.5'
+	[use_closest_images_pruning]='false'		[closest_images_top_k]='H'					[use_gt_closest_images_pruning]='false'
+	[use_yan_disambiguation]='false'
+	)
+
+# Image matching classifier + weighted colmap resectioning (no thresholding used now)
+declare -A run102=(
+	[use_gt_matches]='false'                    [use_gt_selective_matches]='false'        	[use_image_matching_classifier]='true'
+	[use_weighted_resectioning]='true'         	[use_colmap_resectioning]='false'          	[use_weighted_feature_matches]='false'
+	[use_image_matching_thresholding]='false'   [use_shortest_path_pruning]='false'       	[image_matching_classifier_threshold]='0.5'
+	[use_closest_images_pruning]='false'		[closest_images_top_k]='H'					[use_gt_closest_images_pruning]='false'
+	[use_yan_disambiguation]='false'
+	)
+
+all_runs=(100 101 102)
 count=0
 for run_name in "${all_runs[@]}"; do
     declare -n run_ref="$run_name"
@@ -378,10 +408,12 @@ for run_name in "${all_runs[@]}"; do
 	# 	# ./bin/opensfm classify_images $dataset
 	# fi
 
-	
-	./bin/opensfm yan $dataset
-	# ./bin/opensfm create_tracks_classifier $dataset
-	./bin/opensfm reconstruct $dataset
+	if [ "$mode" == "reconstruction" ];then
+		# ./bin/opensfm yan $dataset
+		./bin/opensfm create_tracks $dataset
+		./bin/opensfm create_tracks_classifier $dataset
+		./bin/opensfm reconstruct $dataset
+	fi
 
 	echo "************************************************************************************************************"
 	echo "************************************************************************************************************"
