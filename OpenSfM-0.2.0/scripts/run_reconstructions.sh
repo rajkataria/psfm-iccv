@@ -345,7 +345,8 @@ declare -A run102=(
 	[use_yan_disambiguation]='false'
 	)
 
-all_runs=(100 101 102)
+all_runs=(run100 run101 run102)
+
 count=0
 for run_name in "${all_runs[@]}"; do
     declare -n run_ref="$run_name"
