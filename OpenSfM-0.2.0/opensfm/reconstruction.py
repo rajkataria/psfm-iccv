@@ -790,8 +790,6 @@ def resectioning_using_classifier_weights(data, graph, reconstruction, images):
                     feature_id = graph[image][track]['feature_id']
                     visible_feature_coords.append(graph[image][track]['feature'])
                     visible_track_ids.append(track)
-                    visible_track_weights.append(1.0)
-
                     for track_image in graph[track]:
                         if track_image not in reconstruction.shots:
                             continue
@@ -801,13 +799,15 @@ def resectioning_using_classifier_weights(data, graph, reconstruction, images):
                         else:
                             im1 = image
                             im2 = track_image
-
-                        image_matching_score = im_matching_results[im1][im2]['score']
+                      
+			if im1 not in im_matching_results or im2 not in im_matching_results[im1]:
+			    continue 
+			image_matching_score = im_matching_results[im1][im2]['score']
                         track_score += image_matching_score
                     visible_track_weights.append(track_score)
 
             if len(visible_feature_coords) > 0:
-                nbvs = classifier.next_best_view_score(np.array(visible_feature_coords), np.array(visible_track_weights))
+                nbvs = classifier.next_best_view_score_weighted(np.array(visible_feature_coords), np.array(visible_track_weights).reshape((-1,1)))
             else:
                 nbvs = 0.0
             res.append((image, nbvs))
@@ -1315,7 +1315,7 @@ def incremental_reconstruction(data):
     if data.config.get('use_colmap_resectioning', False):
         graph = data.load_tracks_graph('tracks.csv')
     else:
-        graph = data.load_tracks_graph('tracks-all.csv')
+        graph = data.load_tracks_graph('tracks-all-matches.csv')
     # if data.config.get('use_yan_disambiguation', False):
     #     graph = data.load_tracks_graph('tracks-yan.csv')    
     # elif data.config.get('use_gt_matches', False):
