@@ -1,6 +1,7 @@
 import warnings
 warnings.filterwarnings('ignore')
 
+import glob
 import json
 import logging
 import math
@@ -25,6 +26,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.pylab as pylab
 from matplotlib.patches import Ellipse
+from distutils.util import strtobool
 
 logger = logging.getLogger(__name__)
 
@@ -80,31 +82,24 @@ def get_reconstruction_results(data):
 
     if data.tracks_graph_exists('tracks.csv'):
         tracks_graph = data.load_tracks_graph('tracks.csv')    
-    if data.tracks_graph_exists('tracks-pruned-matches.csv'):
-        tracks_graph_pruned = data.load_tracks_graph('tracks-pruned-matches.csv')
+    # if data.tracks_graph_exists('tracks-pruned-matches.csv'):
+    #     tracks_graph_pruned = data.load_tracks_graph('tracks-pruned-matches.csv')
     if data.tracks_graph_exists('tracks-all-matches.csv'):
         tracks_graph_all = data.load_tracks_graph('tracks-all-matches.csv')
-    if data.tracks_graph_exists('tracks-thresholded-matches.csv'):
-        tracks_graph_thresholded = data.load_tracks_graph('tracks-thresholded-matches.csv')
-    if data.tracks_graph_exists('tracks-pruned-thresholded-matches.csv'):
-        tracks_graph_pruned_thresholded = data.load_tracks_graph('tracks-pruned-thresholded-matches.csv')
-    if data.tracks_graph_exists('tracks-all-weighted-matches.csv'):
-        tracks_graph_all_weighted = data.load_tracks_graph('tracks-all-weighted-matches.csv')
-    if data.tracks_graph_exists('tracks-thresholded-weighted-matches.csv'):
-        tracks_graph_thresholded_weighted = data.load_tracks_graph('tracks-thresholded-weighted-matches.csv')
-    if data.tracks_graph_exists('tracks-pruned-thresholded-weighted-matches.csv'):
-        tracks_graph_pruned_thresholded_weighted = data.load_tracks_graph('tracks-pruned-thresholded-weighted-matches.csv')
-    if data.tracks_graph_exists('tracks-gt-matches.csv'):
-        tracks_graph_gt = data.load_tracks_graph('tracks-gt-matches.csv')
-    if data.tracks_graph_exists('tracks-gt-matches-pruned.csv'):
-        tracks_graph_gt_pruned = data.load_tracks_graph('tracks-gt-matches-pruned.csv')
-
-    # Get results for baselines
-    if data.reconstruction_exists('reconstruction.json'):
-        logger.info('Computing reconstruction results for baseline...')
-        stats_label = 'baseline'
-        reconstruction_baseline = data.load_reconstruction('reconstruction.json')[0]
-        relevant_reconstructions.append([tracks_graph, reconstruction_baseline, baseline_command_keys, stats_label])
+    # if data.tracks_graph_exists('tracks-thresholded-matches.csv'):
+    #     tracks_graph_thresholded = data.load_tracks_graph('tracks-thresholded-matches.csv')
+    # if data.tracks_graph_exists('tracks-pruned-thresholded-matches.csv'):
+    #     tracks_graph_pruned_thresholded = data.load_tracks_graph('tracks-pruned-thresholded-matches.csv')
+    # if data.tracks_graph_exists('tracks-all-weighted-matches.csv'):
+    #     tracks_graph_all_weighted = data.load_tracks_graph('tracks-all-weighted-matches.csv')
+    # if data.tracks_graph_exists('tracks-thresholded-weighted-matches.csv'):
+    #     tracks_graph_thresholded_weighted = data.load_tracks_graph('tracks-thresholded-weighted-matches.csv')
+    # if data.tracks_graph_exists('tracks-pruned-thresholded-weighted-matches.csv'):
+    #     tracks_graph_pruned_thresholded_weighted = data.load_tracks_graph('tracks-pruned-thresholded-weighted-matches.csv')
+    # if data.tracks_graph_exists('tracks-gt-matches.csv'):
+    #     tracks_graph_gt = data.load_tracks_graph('tracks-gt-matches.csv')
+    # if data.tracks_graph_exists('tracks-gt-matches-pruned.csv'):
+    #     tracks_graph_gt_pruned = data.load_tracks_graph('tracks-gt-matches-pruned.csv')
 
     if data.reconstruction_exists('reconstruction_colmap.json'):
         logger.info('Computing reconstruction results for colmap...')
@@ -112,37 +107,24 @@ def get_reconstruction_results(data):
         reconstruction_colmap = data.load_reconstruction('reconstruction_colmap.json')[0]
         relevant_reconstructions.append([tracks_graph, reconstruction_colmap, {}, stats_label])
 
-    for imc in [True, False]:
-        for wr in [True, False]:
-            for colmapr in [True, False]:
-                for gm in [True, False]:
-                    for gsm in [True, False]:
-                        for wfm in [True, False]:
-                            for imt in [True, False]:
-                                for imtv in [0.2, 0.3, 0.4, 0.5]:
-                                    for spp in [True, False]:
-                                        for cip in [False]:
-                                            stats_label = 'imc-{}-wr-{}-colmapr-{}-gm-{}-gsm-{}-wfm-{}-imt-{}-imtv-{}-spp-{}-cip-{}-cipgt-False-cipk-H'.format(imc, wr, colmapr, gm, gsm, wfm, imt, imtv, spp, cip)
-                                            reconstruction_fn = 'reconstruction-{}.json'.format(stats_label)
-                                            if data.reconstruction_exists(reconstruction_fn):
-                                                logger.info('Computing reconstruction results - {}'.format(reconstruction_fn))
-                                                reconstruction_ = data.load_reconstruction(reconstruction_fn)[0]
 
-                                                if gm is True and spp is True:
-                                                    graph = tracks_graph_gt_pruned
-                                                elif gm is True and spp is False:
-                                                    graph = tracks_graph_gt
-                                                elif imc is False and wfm is False and imt is False and spp is False:
-                                                    graph = tracks_graph
-                                                elif imc is False and wfm is False and imt is False and spp is True:
-                                                    graph = tracks_graph_pruned
-                                                elif imc is True and wfm is False and imt is True and spp is False:
-                                                    graph = tracks_graph_thresholded
-                                                elif imc is True and wfm is False and imt is True and spp is True:
-                                                    graph = tracks_graph_pruned_thresholded
+    for r in glob.glob(data.data_path + '/reconstruction-*.json'):
+        stats_label= os.path.basename(r).split('reconstruction-')[1].split('.json')[0]
+        imc, wr, colmapr = [v for v in stats_label.split('-')[1::2]]
+        imc, colmapr = bool(strtobool(imc)), bool(strtobool(colmapr))
+        reconstruction_fn = 'reconstruction-{}.json'.format(stats_label)
+        if data.reconstruction_exists(reconstruction_fn):
+            logger.info('Computing reconstruction results - {}'.format(reconstruction_fn))
+            reconstruction_ = data.load_reconstruction(reconstruction_fn)[0]
 
-
-                                                relevant_reconstructions.append([graph, reconstruction_, classifier_command_keys, stats_label])
+            if imc is False and wr != 'sum' and wr != 'max' and colmapr is True:
+                graph = tracks_graph
+            elif imc is False and (wr == 'sum' or wr == 'max') and colmapr is False:
+                graph = tracks_graph_all
+            elif imc is True and (wr == 'sum' or wr == 'max') and colmapr is False:
+                graph = tracks_graph_all
+            
+            relevant_reconstructions.append([graph, reconstruction_, classifier_command_keys, stats_label])
 
     for datum in relevant_reconstructions:
         g, r, k, l = datum
@@ -169,7 +151,7 @@ def get_gt_results(data, options):
             _distance_rank_percentage_im1_im2_gt, _distance_rank_percentage_im2_im1_gt, \
             _num_gt_inliers, _labels] \
             = data.load_image_matching_dataset(robust_matches_threshold=options['robust_matches_threshold'])
-        image_matching_results = data.load_image_matching_results(options['robust_matches_threshold'])
+        image_matching_results = data.load_image_matching_results(options['robust_matches_threshold'], 'CONVNET')
 
         fns = []
         y_gt = []
@@ -183,22 +165,22 @@ def get_gt_results(data, options):
                 y_gt.append(_labels[ri])
                 num_rmatches.append(_num_rmatches[ri])
 
-        auc, _ = classifier.calculate_dataset_auc(np.array(y), np.array(y_gt), debug=False)
+        auc, auc_roc, pr, roc = classifier.calculate_dataset_auc(np.array(y), np.array(y_gt), debug=False)
         _, _, f_auc, _ = classifier.calculate_per_image_mean_auc(np.array(fns), np.array(y), np.array(y_gt), debug=False)
 
-        baseline_auc, _ = classifier.calculate_dataset_auc(np.array(num_rmatches), np.array(y_gt), debug=False)
+        baseline_auc, baseline_auc_roc, baseline_pr, baseline_roc = classifier.calculate_dataset_auc(np.array(num_rmatches), np.array(y_gt), debug=False)
         _, _, baseline_f_auc, _ = classifier.calculate_per_image_mean_auc(np.array(fns), np.array(num_rmatches), np.array(y_gt), debug=False)
     else:
-        baseline_auc, baseline_f_auc, auc, f_auc = None, None, None, None
+        baseline_auc, baseline_auc_roc, baseline_f_auc, auc, auc_roc, f_auc = None, None, None, None, None, None
 
     # Get results for baselines
-    if data.reconstruction_exists('reconstruction.json'):
-        logger.info('Computing ground-truth evaluation results for baseline...')
-        stats_label = 'baseline'
-        reconstruction_baseline_gt = data.load_reconstruction('reconstruction_gt.json')[0]
-        reconstruction_baseline = data.load_reconstruction('reconstruction.json')[0]
-        intersect_reconstructions(data, reconstruction_baseline_gt, reconstruction_baseline)
-        relevant_reconstructions.append([reconstruction_baseline_gt, reconstruction_baseline, stats_label])
+    # if data.reconstruction_exists('reconstruction.json'):
+    #     logger.info('Computing ground-truth evaluation results for baseline...')
+    #     stats_label = 'baseline'
+    #     reconstruction_baseline_gt = data.load_reconstruction('reconstruction_gt.json')[0]
+    #     reconstruction_baseline = data.load_reconstruction('reconstruction.json')[0]
+    #     intersect_reconstructions(data, reconstruction_baseline_gt, reconstruction_baseline)
+    #     relevant_reconstructions.append([reconstruction_baseline_gt, reconstruction_baseline, stats_label])
 
     if data.reconstruction_exists('reconstruction_colmap.json'):
         logger.info('Computing ground-truth evaluation results for colmap reconstruction...')
@@ -208,27 +190,30 @@ def get_gt_results(data, options):
         intersect_reconstructions(data, reconstruction_colmap_gt, reconstruction_colmap)
         relevant_reconstructions.append([reconstruction_colmap_gt, reconstruction_colmap, stats_label])
 
-    for imc in [True, False]:
-        for wr in [True, False]:
-            for colmapr in [True, False]:
-                for gm in [True, False]:
-                    for gsm in [True, False]:
-                        for wfm in [True, False]:
-                            for imt in [True, False]:
-                                for imtv in [0.2, 0.3, 0.4, 0.5]:
-                                    for spp in [True, False]:
-                                        for cip in [False]:
-                                            stats_label = 'imc-{}-wr-{}-colmapr-{}-gm-{}-gsm-{}-wfm-{}-imt-{}-imtv-{}-spp-{}-cip-{}-cipgt-False-cipk-H'.format(imc, wr, colmapr, gm, gsm, wfm, imt, imtv, spp, cip)
-                                            reconstruction_fn = 'reconstruction-{}.json'.format(stats_label)
-                                            if data.reconstruction_exists(reconstruction_fn):
-                                                logger.info('Computing ground-truth evaluation results - {}'.format(reconstruction_fn))
-                                                reconstruction_ = data.load_reconstruction(reconstruction_fn)[0]
+    # for imc in [True, False]:
+    #     for wr in [True, False]:
+    #         for colmapr in [True, False]:
+    #             for gm in [True, False]:
+    #                 for gsm in [True, False]:
+    #                     for wfm in [True, False]:
+    #                         for imt in [True, False]:
+    #                             for imtv in [0.2, 0.3, 0.4, 0.5]:
+    #                                 for spp in [True, False]:
+    #                                     for cip in [False]:
+    for r in glob.glob(data.data_path + '/reconstruction-*.json'):
+        stats_label= os.path.basename(r).split('reconstruction-')[1].split('.json')[0]
+        imc, wr, colmapr = [v for v in stats_label.split('-')[1::2]]
+        imc, colmapr = bool(strtobool(imc)), bool(strtobool(colmapr))
+        reconstruction_fn = 'reconstruction-{}.json'.format(stats_label)
+        if data.reconstruction_exists('reconstruction_gt.json'):
+            logger.info('Computing ground-truth evaluation results - {}'.format(reconstruction_fn))
+            reconstruction_ = data.load_reconstruction(reconstruction_fn)[0]
 
-                                                reconstruction_gt = data.load_reconstruction('reconstruction_gt.json')[0]
-                                                reconstruction_ = data.load_reconstruction(reconstruction_fn)[0]
-                                                intersect_reconstructions(data, reconstruction_gt, reconstruction_)
+            reconstruction_gt = data.load_reconstruction('reconstruction_gt.json')[0]
+            reconstruction_ = data.load_reconstruction(reconstruction_fn)[0]
+            intersect_reconstructions(data, reconstruction_gt, reconstruction_)
 
-                                                relevant_reconstructions.append([reconstruction_gt, reconstruction_, stats_label])
+            relevant_reconstructions.append([reconstruction_gt, reconstruction_, stats_label])
 
     for datum in relevant_reconstructions:
         r_gt, r, label = datum
@@ -243,8 +228,10 @@ def get_gt_results(data, options):
     auc_results = {
         'Baseline AUC': baseline_auc,
         'Baseline AUCPI': baseline_f_auc,
+        'Baseline ROC': baseline_auc_roc,
         'Experiment AUC': auc,
-        'Experiment AUCPI': f_auc
+        'Experiment AUCPI': f_auc,
+        'Experiment ROC': auc_roc
     }
     for k in ate_results.keys():
         ate_results[k].update(auc_results)

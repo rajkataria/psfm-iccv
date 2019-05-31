@@ -212,7 +212,7 @@ def classify_images(datasets, options={}):
         num_rmatches_te_ = []
         # print data.all_feature_maps()
         # import sys; sys.exit(1)
-        for im1 in data.all_feature_maps():
+        for im1 in sorted(data.all_feature_maps()):
             im1_all_matches, im1_valid_rmatches, im1_all_robust_matches = data.load_all_matches(im1)
             for im2 in im1_all_robust_matches:
                 rmatches = im1_all_robust_matches[im2]
@@ -434,36 +434,36 @@ def main(argv):
         # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/terrains',
 
         # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/ece_floor2_hall',
-        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/ece_floor3_loop',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/ece_floor3_loop_ccw',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/ece_floor3_loop_cw',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/ece_floor5',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/ece_floor5_stairs',
-        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/ece_floor5_wall',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/ece_stairs',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/yeh_day_all',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/yeh_day_atrium',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/yeh_day_backward',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/yeh_day_forward',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/yeh_night_all',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/yeh_night_atrium',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/yeh_night_backward',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/yeh_night_forward',
+        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/ece_floor3_loop',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/ece_floor3_loop_ccw',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/ece_floor3_loop_cw',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/ece_floor5',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/ece_floor5_stairs',
+        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/ece_floor5_wall',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/ece_stairs',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/yeh_day_all',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/yeh_day_atrium',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/yeh_day_backward',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/yeh_day_forward',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/yeh_night_all',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/yeh_night_atrium',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/yeh_night_backward',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/yeh_night_forward',
 
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Auditorium',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Ballroom',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Courtroom',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Family',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Francis',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Horse',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Lighthouse',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/M60',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Museum',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Palace',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Panther',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Playground',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Temple',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Train',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Auditorium',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Ballroom',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Courtroom',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Family',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Francis',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Horse',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Lighthouse',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/M60',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Museum',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Palace',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Panther',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Playground',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Temple',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Train',
     ]
 
     # datasets = ['/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/botanical_garden']

@@ -771,7 +771,7 @@ def next_best_view_score_for_images(graph, reconstruction, images):
             res.append((image, nbvs))
     return sorted(res, key=lambda x: -x[1])
 
-def resectioning_using_classifier_weights(data, graph, reconstruction, images):
+def resectioning_using_classifier_weights_sum(data, graph, reconstruction, images):
     res = []
     im_matches = {}
     if data.config['use_image_matching_classifier']:
@@ -800,11 +800,53 @@ def resectioning_using_classifier_weights(data, graph, reconstruction, images):
                             im1 = image
                             im2 = track_image
                       
-			if im1 not in im_matching_results or im2 not in im_matching_results[im1]:
-			    continue 
-			image_matching_score = im_matching_results[im1][im2]['score']
+            			if im1 not in im_matching_results or im2 not in im_matching_results[im1]:
+            			    continue 
+            			image_matching_score = im_matching_results[im1][im2]['score']
                         track_score += image_matching_score
                     visible_track_weights.append(track_score)
+
+            if len(visible_feature_coords) > 0:
+                nbvs = classifier.next_best_view_score_weighted(np.array(visible_feature_coords), np.array(visible_track_weights).reshape((-1,1)))
+            else:
+                nbvs = 0.0
+            res.append((image, nbvs))
+    return sorted(res, key=lambda x: -x[1])
+
+def resectioning_using_classifier_weights_max(data, graph, reconstruction, images):
+    res = []
+    im_matches = {}
+    if data.config['use_image_matching_classifier']:
+        im_matching_results = data.load_image_matching_results(robust_matches_threshold=15, classifier='CONVNET')
+    else:
+        im_matching_results = data.load_image_matching_results(robust_matches_threshold=15, classifier='BASELINE')
+
+    for image in images:
+        if image not in reconstruction.shots:
+            visible_feature_coords = []
+            visible_track_ids = []
+            visible_track_weights = []
+            for track in graph[image]:
+                if track in reconstruction.points:
+                    track_score = []
+                    feature_id = graph[image][track]['feature_id']
+                    visible_feature_coords.append(graph[image][track]['feature'])
+                    visible_track_ids.append(track)
+                    for track_image in graph[track]:
+                        if track_image not in reconstruction.shots:
+                            continue
+                        if track_image < image:
+                            im1 = track_image
+                            im2 = image
+                        else:
+                            im1 = image
+                            im2 = track_image
+                      
+                        if im1 not in im_matching_results or im2 not in im_matching_results[im1]:
+                            continue 
+                        image_matching_score = im_matching_results[im1][im2]['score']
+                        track_score.append(image_matching_score)
+                    visible_track_weights.append(np.maximum(np.array(track_score)))
 
             if len(visible_feature_coords) > 0:
                 nbvs = classifier.next_best_view_score_weighted(np.array(visible_feature_coords), np.array(visible_track_weights).reshape((-1,1)))
@@ -1215,9 +1257,10 @@ def grow_reconstruction(data, graph, reconstruction, images, gcp):
 
         if data.config.get('use_colmap_resectioning', False):
             common_tracks = next_best_view_score_for_images(graph, reconstruction, images)
-        elif data.config.get('use_weighted_resectioning', False):
-            # common_tracks = reconstructed_weighted_points_for_images(data, graph, reconstruction, images)
-            common_tracks = resectioning_using_classifier_weights(data, graph, reconstruction, images)
+        elif data.config.get('use_weighted_resectioning', 'sum') == 'sum':
+            common_tracks = resectioning_using_classifier_weights_sum(data, graph, reconstruction, images)
+        elif data.config.get('use_weighted_resectioning', 'sum') == 'max':
+            common_tracks = resectioning_using_classifier_weights_max(data, graph, reconstruction, images)
         else:
             common_tracks = reconstructed_points_for_images(graph, reconstruction, images)
 

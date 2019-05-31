@@ -35,13 +35,19 @@ from timeit import default_timer as timer
 logger = logging.getLogger(__name__)
 
 def calculate_dataset_auc(y, y_gt, debug):
-    precision, recall, threshs = sklearn.metrics.precision_recall_curve(y_gt, y)
+    pr = sklearn.metrics.precision_recall_curve(y_gt, y)
     auc = sklearn.metrics.average_precision_score(y_gt, y)
     auc_roc = sklearn.metrics.roc_auc_score(y_gt, y)
-    if debug:
-        plt.step(recall, precision, color='green', alpha=10,
-            where='post')
-    return auc, auc_roc
+    roc = sklearn.metrics.roc_curve(y_gt, y)
+    return auc, auc_roc, pr, roc
+
+    # precision, recall, threshs = sklearn.metrics.precision_recall_curve(y_gt, y)
+    # auc = sklearn.metrics.average_precision_score(y_gt, y)
+    # auc_roc = sklearn.metrics.roc_auc_score(y_gt, y)
+    # if debug:
+    #     plt.step(recall, precision, color='green', alpha=10,
+    #         where='post')
+    # return auc, auc_roc
 
 def calculate_per_image_mean_auc(fns, y, y_gt, debug):
 # def calculate_per_image_mean_auc(dsets, fns, y, y_gt):

@@ -1,6 +1,9 @@
+# copy_mode="minimal"
 copy_mode="matching_results"
-# remote_server="ec2-3-15-23-64.us-east-2.compute.amazonaws.com" # tum_rgbd_slam
-remote_server="ec2-3-17-27-143.us-east-2.compute.amazonaws.com" # eth3d and tanksandtemples
+# copy_mode="reconstructions"
+
+remote_server="ec2-3-15-23-64.us-east-2.compute.amazonaws.com" # tum_rgbd_slam
+# remote_server="ec2-3-17-27-143.us-east-2.compute.amazonaws.com" # eth3d and tanksandtemples
 # remote_server="ec2-3-17-62-157.us-east-2.compute.amazonaws.com" # uiuctag
 local_root="/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce"
 # relevant_dataset="TUM_RGBD_SLAM"
@@ -70,9 +73,12 @@ for ds in "${datasets[@]}"; do
 		rsync -aqz ubuntu@$remote_server:$ds/rmatches_secondary/* $local_folder/rmatches_secondary/
 		rsync -aqz ubuntu@$remote_server:$ds/all_matches/* $local_folder/all_matches/
 		rsync -aqz ubuntu@$remote_server:$ds/matches/* $local_folder/matches/
+	elif [ "$copy_mode" == "reconstructions" ]; then
+		echo -e "\t\tCopying dataset: "$ds" to $local_folder - mode: reconstructions";
+		rsync -aqz ubuntu@$remote_server:$ds/tracks*.csv $local_folder/
+		rsync -aqz ubuntu@$remote_server:$ds/reconstruction-*.json $local_folder/
 	elif [ "$copy_mode" == "matching_results" ]; then
 		echo -e "\t\tCopying dataset: "$ds" to $local_folder - mode: matching_results";
-
 		rsync -aqz $local_folder/classifier_features/image_matching_results_* ubuntu@$remote_server:$ds/classifier_features/
 	else
 	   	echo -e "\tNeed to specify copy mode as either 'full', 'minimal' or 'matching_results'"

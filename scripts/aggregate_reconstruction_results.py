@@ -159,28 +159,12 @@ def main(argv):
     experiments = {
         'colmap': \
             {'key': 1, 'desc': 'Colmap baseline'},
-        # 'imc-False-wr-False-colmapr-True-gm-False-gsm-False-wfm-False-imt-False-imtv-0.5-spp-False-cip-False-cipk-10': \
-        #     {'key': 2, 'desc': 'Baseline with colmap resectioning'},
-        # 'imc-True-wr-False-colmapr-True-gm-False-gsm-False-wfm-False-imt-True-imtv-0.2-spp-False-cip-False-cipk-10': \
-        #     {'key': 3, 'desc': 'Image matching classifier (0.2) with colmap resectioning'},
-        # 'imc-True-wr-False-colmapr-True-gm-False-gsm-False-wfm-False-imt-True-imtv-0.3-spp-False-cip-False-cipk-10': \
-        #     {'key': 4, 'desc': 'Image matching classifier (0.3) with colmap resectioning'},
-        # 'imc-True-wr-False-colmapr-True-gm-False-gsm-False-wfm-False-imt-True-imtv-0.4-spp-False-cip-False-cipk-10': \
-        #     {'key': 5, 'desc': 'Image matching classifier (0.4) with colmap resectioning'},
-        # 'imc-True-wr-False-colmapr-True-gm-False-gsm-False-wfm-False-imt-True-imtv-0.5-spp-False-cip-False-cipk-10': \
-        #     {'key': 6, 'desc': 'Image matching classifier (0.5) with colmap resectioning'}
-        'imc-False-wr-False-colmapr-True-gm-False-gsm-False-wfm-False-imt-False-imtv-0.5-spp-False-cip-False-cipgt-False-cipk-H': \
+        'imc-False-wr-False-colmapr-True': \
             {'key': 2, 'desc': 'Baseline with colmap resectioning'},
-        'imc-True-wr-False-colmapr-True-gm-False-gsm-False-wfm-False-imt-True-imtv-0.2-spp-False-cip-False-cipgt-False-cipk-H': \
-            {'key': 3, 'desc': 'Image matching classifier (0.2) with colmap resectioning'},
-        'imc-True-wr-False-colmapr-True-gm-False-gsm-False-wfm-False-imt-True-imtv-0.3-spp-False-cip-False-cipgt-False-cipk-H': \
-            {'key': 4, 'desc': 'Image matching classifier (0.3) with colmap resectioning'},
-        'imc-True-wr-False-colmapr-True-gm-False-gsm-False-wfm-False-imt-True-imtv-0.4-spp-False-cip-False-cipgt-False-cipk-H': \
-            {'key': 5, 'desc': 'Image matching classifier (0.4) with colmap resectioning'},
-        'imc-True-wr-False-colmapr-True-gm-False-gsm-False-wfm-False-imt-True-imtv-0.5-spp-False-cip-False-cipgt-False-cipk-H': \
-            {'key': 6, 'desc': 'Image matching classifier (0.5) with colmap resectioning'}
-        # 'imc-True-wr-True-gm-True-wfm-False-imt-False': \
-        #     {'key': 7, 'desc': 'Ground-truth image matching scores with weighted resectioning (uses image and feature matching scores)'}
+        'imc-False-wr-True-colmapr-False': \
+            {'key': 3, 'desc': 'Baseline with weighted resectioning'},
+        'imc-True-wr-True-colmapr-False': \
+            {'key': 4, 'desc': 'Image matching classifier with weighted resectioning'}
     }
     metadata, results = get_results(parser_options.root_directory, experiments)
     output_csv(metadata, experiments, results)
