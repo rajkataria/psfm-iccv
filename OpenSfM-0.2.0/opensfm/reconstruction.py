@@ -828,7 +828,7 @@ def resectioning_using_classifier_weights_max(data, graph, reconstruction, image
             visible_track_weights = []
             for track in graph[image]:
                 if track in reconstruction.points:
-                    track_score = []
+                    track_score = [0.0]
                     feature_id = graph[image][track]['feature_id']
                     visible_feature_coords.append(graph[image][track]['feature'])
                     visible_track_ids.append(track)

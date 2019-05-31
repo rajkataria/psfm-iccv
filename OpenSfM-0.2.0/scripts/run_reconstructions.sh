@@ -364,7 +364,7 @@ declare -A run104=(
 	)
 
 # all_runs=(run100 run101 run102 run103 run104)
-all_runs=(run103 run104)
+all_runs=(run101 run102 run103 run104)
 
 count=0
 for run_name in "${all_runs[@]}"; do
