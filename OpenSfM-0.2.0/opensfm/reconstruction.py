@@ -846,7 +846,7 @@ def resectioning_using_classifier_weights_max(data, graph, reconstruction, image
                             continue 
                         image_matching_score = im_matching_results[im1][im2]['score']
                         track_score.append(image_matching_score)
-                    visible_track_weights.append(np.maximum(np.array(track_score)))
+                    visible_track_weights.append(np.max(np.array(track_score)))
 
             if len(visible_feature_coords) > 0:
                 nbvs = classifier.next_best_view_score_weighted(np.array(visible_feature_coords), np.array(visible_track_weights).reshape((-1,1)))
