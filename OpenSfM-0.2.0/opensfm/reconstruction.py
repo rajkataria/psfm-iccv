@@ -800,9 +800,9 @@ def resectioning_using_classifier_weights_sum(data, graph, reconstruction, image
                             im1 = image
                             im2 = track_image
                       
-            			if im1 not in im_matching_results or im2 not in im_matching_results[im1]:
-            			    continue 
-            			image_matching_score = im_matching_results[im1][im2]['score']
+                        if im1 not in im_matching_results or im2 not in im_matching_results[im1]:
+                            continue 
+                        image_matching_score = im_matching_results[im1][im2]['score']
                         track_score += image_matching_score
                     visible_track_weights.append(track_score)
 
