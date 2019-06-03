@@ -1300,7 +1300,7 @@ def preprocess_images(ctx):
     p = Pool(processes)
     if processes == 1:    
         for arg in g_args:
-            perform_gaussian_blur(g_args)
+            perform_gaussian_blur(arg)
     else:
         p.map(perform_gaussian_blur, g_args)
 
