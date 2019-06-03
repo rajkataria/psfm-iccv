@@ -68,9 +68,10 @@ class Command:
         classifier.calculate_transformations(ctx)
         e_transformations = timer()
 
-        s_feature_matching_dataset = timer()
-        classifier.create_feature_matching_dataset(ctx)
-        e_feature_matching_dataset = timer()
+        if data.reconstruction_exists('reconstruction_gt.json'):
+            s_feature_matching_dataset = timer()
+            classifier.create_feature_matching_dataset(ctx)
+            e_feature_matching_dataset = timer()
 
         s_resizing_images = timer()
         classifier.calculate_resized_images(ctx)
@@ -96,41 +97,47 @@ class Command:
         classifier.calculate_image_keypoints(ctx)
         e_keypoint_maps = timer()
 
-        s_sequence_ranks = timer()
-        # classifier.calculate_sequence_ranks(ctx)
-        e_sequence_ranks = timer()
+        if data.reconstruction_exists('reconstruction_gt.json'):
+            s_sequence_ranks = timer()
+            # classifier.calculate_sequence_ranks(ctx)
+            e_sequence_ranks = timer()
 
-        s_consistency = timer()
-        # classifier.calculate_consistency_errors(ctx)
-        e_consistency = timer()
+            s_consistency = timer()
+            # classifier.calculate_consistency_errors(ctx)
+            e_consistency = timer()
 
-        s_nbvs = timer()
-        # classifier.calculate_nbvs(ctx)
-        e_nbvs = timer()
+            s_nbvs = timer()
+            # classifier.calculate_nbvs(ctx)
+            e_nbvs = timer()
 
-        s_shortest_paths = timer()
-        # classifier.calculate_shortest_paths(ctx)
-        e_shortest_paths = timer()
+            s_shortest_paths = timer()
+            # classifier.calculate_shortest_paths(ctx)
+            e_shortest_paths = timer()
 
-        s_infer_positions = timer()
-        # classifier.infer_positions(ctx)
-        e_infer_positions = timer()
+            s_infer_positions = timer()
+            # classifier.infer_positions(ctx)
+            e_infer_positions = timer()
 
-        s_infer_positions_mds = timer()
-        # classifier.infer_cleaner_positions(ctx)
-        e_infer_positions_mds = timer()
+            s_infer_positions_mds = timer()
+            # classifier.infer_cleaner_positions(ctx)
+            e_infer_positions_mds = timer()
 
-        s_color_histograms = timer()
-        # classifier.calculate_color_histograms(ctx)
-        e_color_histograms = timer()
+            s_color_histograms = timer()
+            # classifier.calculate_color_histograms(ctx)
+            e_color_histograms = timer()
 
-        s_lccs = timer()
-        # classifier.calculate_lccs(ctx)
-        e_lccs = timer()
+            s_lccs = timer()
+            # classifier.calculate_lccs(ctx)
+            e_lccs = timer()
 
-        s_image_matching_dataset = timer()
-        classifier.create_image_matching_dataset(ctx)
-        e_image_matching_dataset = timer()
+            s_image_matching_dataset = timer()
+            classifier.create_image_matching_dataset(ctx)
+            e_image_matching_dataset = timer()
+        else:
+            s_sequence_ranks, e_sequence_ranks, s_consistency, e_consistency, s_nbvs, e_nbvs, s_shortest_paths, e_shortest_paths, s_infer_positions, e_infer_positions, \
+                s_infer_positions_mds, e_infer_positions_mds, s_color_histograms, e_color_histograms, s_lccs, e_lccs, s_image_matching_dataset, e_image_matching_dataset = \
+                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+
 
         end = timer()
 

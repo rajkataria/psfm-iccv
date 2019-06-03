@@ -38,6 +38,8 @@ class Command:
         # matches_all_weighted = self.load_all_weighted_matches(data, options=options)
         # matches_thresholded_weighted = self.load_thresholded_weighted_matches(data, options=options)
         # matches_pruned_thresholded_weighted = self.load_pruned_thresholded_weighted_matches(data, spl=2, options=options)
+        if data.reconstruction_exists('reconstruction_gt.json'):
+            matches_gt = self.load_gt_matches(data, options=options)
         # if not config.get('production_mode', True) and data.reconstruction_exists('reconstruction_gt.json'):
         #     matches_gt_distance_pruned = self.load_gt_distance_pruned_matches(data, options=options)
         #     matches_gt_distance_pruned_thresholded = self.load_gt_distance_pruned_thresholded_matches(data, options=options)
@@ -90,9 +92,10 @@ class Command:
         #     logger.info('Creating tracks graph using ground-truth distance pruned thresholded matches')
         #     tracks_graph_gt_distance_pruned_thresholded = matching.create_tracks_graph(features, colors, matches_gt_distance_pruned_thresholded,
         #                                             data.config)
-        #     logger.info('Creating tracks graph using ground-truth matches')
-        #     tracks_graph_gt = matching.create_tracks_graph(features, colors, matches_gt,
-        #                                                 data.config)
+        if data.reconstruction_exists('reconstruction_gt.json'):
+            logger.info('Creating tracks graph using ground-truth matches')
+            tracks_graph_gt = matching.create_tracks_graph(features, colors, matches_gt,
+                                                        data.config)
         #     logger.info('Creating tracks graph using pruned ground-truth matches')
         #     tracks_graph_gt_pruned = matching.create_tracks_graph(features, colors, matches_gt_pruned,
         #                                                 data.config)
@@ -122,7 +125,8 @@ class Command:
         # if not config.get('production_mode', True) and data.reconstruction_exists('reconstruction_gt.json'):
         #     data.save_tracks_graph(tracks_graph_gt_distance_pruned, 'tracks-gt-distance-pruned-matches.csv')
         #     data.save_tracks_graph(tracks_graph_gt_distance_pruned_thresholded, 'tracks-gt-distance-pruned-thresholded-matches.csv')
-        #     data.save_tracks_graph(tracks_graph_gt, 'tracks-gt-matches.csv')
+        if data.reconstruction_exists('reconstruction_gt.json'):
+            data.save_tracks_graph(tracks_graph_gt, 'tracks-gt-matches.csv')
         #     data.save_tracks_graph(tracks_graph_gt_pruned, 'tracks-gt-matches-pruned.csv')
         #     data.save_tracks_graph(tracks_graph_gt_selective, 'tracks-gt-matches-selective.csv')
         # elif data.reconstruction_exists('reconstruction_gt.json'):
@@ -456,8 +460,7 @@ class Command:
 
     def load_gt_matches(self, data, options):
         matches = {}
-        image_matching_classifier_range = data.config.get('image_matching_classifier_range')
-        im_matching_results = data.load_groundtruth_image_matching_results(image_matching_classifier_range)
+        im_matching_results = data.load_groundtruth_image_matching_results(options['robust_matches_threshold'])
         for im1 in data.images():
             try:
                 _, _, im1_matches = data.load_all_matches(im1)
