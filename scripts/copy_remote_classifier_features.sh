@@ -1,13 +1,13 @@
-# copy_mode="minimal"
-copy_mode="matching_results"
+copy_mode="minimal"
+# copy_mode="matching_results"
 # copy_mode="reconstructions"
 
 remote_server="ec2-3-15-23-64.us-east-2.compute.amazonaws.com" # tum_rgbd_slam
 # remote_server="ec2-3-17-27-143.us-east-2.compute.amazonaws.com" # eth3d and tanksandtemples
 # remote_server="ec2-3-17-62-157.us-east-2.compute.amazonaws.com" # uiuctag
 local_root="/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce"
-# relevant_dataset="TUM_RGBD_SLAM"
-relevant_dataset="ETH3D"
+relevant_dataset="TUM_RGBD_SLAM"
+# relevant_dataset="ETH3D"
 # relevant_dataset="TanksAndTemples"
 # relevant_dataset="UIUCTag"
 

@@ -995,7 +995,7 @@ class DataSet:
     def non_iconic_image_list_exists(self):
         return os.path.isfile(self.__non_iconic_image_list_file('json'))
 
-    def load_groundtruth_image_matching_results(self, image_matching_classifier_thresholds):
+    def load_groundtruth_image_matching_results(self, robust_matches_threshold):
         # Load all path lengths
         fns, [R11s, R12s, R13s, R21s, R22s, R23s, R31s, R32s, R33s, num_rmatches, num_matches, spatial_entropy_1_8x8, \
             spatial_entropy_2_8x8, spatial_entropy_1_16x16, spatial_entropy_2_16x16, pe_histogram, pe_polygon_area_percentage, \
@@ -1008,21 +1008,27 @@ class DataSet:
             lcc_im1_35, lcc_im2_35, min_lcc_35, max_lcc_35, \
             lcc_im1_40, lcc_im2_40, min_lcc_40, max_lcc_40, \
             shortest_path_length, \
+            mds_rank_percentage_im1_im2, mds_rank_percentage_im2_im1, \
+            distance_rank_percentage_im1_im2_gt, distance_rank_percentage_im2_im1_gt, \
             num_gt_inliers, labels] \
-            = self.load_image_matching_dataset(robust_matches_threshold=15)
+            = self.load_image_matching_dataset(robust_matches_threshold=robust_matches_threshold)
 
         gt_results = {}
         for idx, _ in enumerate(fns[:,0]):
             im1 = fns[idx,0]
             im2 = fns[idx,1]
-            if labels[idx] >= 1.0:
-                if im1 not in gt_results:
-                    gt_results[im1] = {}
-                if im2 not in gt_results:
-                    gt_results[im2] = {}
 
-                gt_results[im1][im2] = {"im1": im1, "im2": im2, "score": 1.0, "rmatches": num_rmatches[idx], 'shortest_path_length': shortest_path_length[idx]}
-                gt_results[im2][im1] = {"im1": im2, "im2": im1, "score": 1.0, "rmatches": num_rmatches[idx], 'shortest_path_length': shortest_path_length[idx]}
+            if im1 not in gt_results:
+                gt_results[im1] = {}
+            if im2 not in gt_results:
+                gt_results[im2] = {}
+
+            if labels[idx] >= 1.0:
+                label = 1.0
+            else:
+                label = 0.0
+            gt_results[im1][im2] = {"im1": im1, "im2": im2, "score": label, "rmatches": num_rmatches[idx], 'shortest_path_length': shortest_path_length[idx]}
+            gt_results[im2][im1] = {"im1": im2, "im2": im1, "score": label, "rmatches": num_rmatches[idx], 'shortest_path_length': shortest_path_length[idx]}
         return gt_results
 
     def save_unthresholded_matches(self, image, matches):

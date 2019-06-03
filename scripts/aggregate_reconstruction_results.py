@@ -164,6 +164,14 @@ def main(argv):
         'imc-False-wr-True-colmapr-False': \
             {'key': 3, 'desc': 'Baseline with weighted resectioning'},
         'imc-True-wr-True-colmapr-False': \
+            {'key': 4, 'desc': 'Image matching classifier with weighted resectioning'},
+        'imc-True-wr-sum-colmapr-False': \
+            {'key': 4, 'desc': 'Image matching classifier with weighted resectioning'},
+        'imc-True-wr-sum-colmapr-False': \
+            {'key': 4, 'desc': 'Image matching classifier with weighted resectioning'},
+        'imc-True-wr-max-colmapr-False': \
+            {'key': 4, 'desc': 'Image matching classifier with weighted resectioning'},
+        'imc-True-wr-max-colmapr-False': \
             {'key': 4, 'desc': 'Image matching classifier with weighted resectioning'}
     }
     metadata, results = get_results(parser_options.root_directory, experiments)

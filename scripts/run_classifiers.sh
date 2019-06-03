@@ -255,11 +255,22 @@ declare -A run9=(
 	[train_on_val]='no'												[convnet_use_rmatches_secondary_motion_map]='no'					[experiment]='pe_unfiltered+use-BF-data'
 	)
 
+# Run: RMM + NRMM + PEMs unfiltered
+declare -A run10=(
+	[n_estimators]='50'                    							[max_depth]='6'    													[lr]='0.01'
+	[image_match_classifier_min_match]='15'                    		[image_match_classifier_max_match]='5000'  							[classifier]='CONVNET'
+	[use_all_training_data]='yes'									[convnet_use_feature_match_map]='yes'								[convnet_use_non_rmatches_map]='yes'
+	[convnet_use_matches_map]='yes'									[convnet_use_rmatches_map]='yes'									[convnet_use_photometric_error_maps]='yes'
+	[convnet_use_track_map]='no'									[convnet_use_images]='no'											[convnet_features]='RM'
+	[convnet_resnet_model]='18'										[convnet_loss]='ce'																			
+	[train_on_val]='no'												[convnet_use_rmatches_secondary_motion_map]='no'					[experiment]='pe_unfiltered'
+	)
+
 # all_runs=(run2 run3 run4 run5 run6)
 
 # all_runs=(run5 run1)
 # all_runs=(run6)
-all_runs=(run8 run9)
+all_runs=(run10)
 
 for run_name in "${all_runs[@]}"; do
 	echo "**********************************************************************************";
