@@ -43,15 +43,18 @@ import gcn
 from argparse import ArgumentParser
 
 def save_classifier(regr, name):
-    name_ = name + '.pkl'
-    joblib.dump(regr, name_)
+    # name_ = name + '.pkl'
+    joblib.dump(regr, name)
 
 def load_classifier(name):
-    if name.split('.')[-1] != 'pkl':
-        name_ = name + '.pkl'
-    else:
-        name_ = name
-    return joblib.load(name_)
+    # if name.split('.')[-1] != 'pkl':
+    #     name_ = name + '.pkl'
+    # else:
+    #     name_ = name
+    return joblib.load(name)
+
+def classifier_exists(name):
+    return os.path.isfile(name)
 
 def mkdir_p(path):
     try:
@@ -68,7 +71,7 @@ def plot_fpr(roc, color, markers = []):
     fpr, tpr, threshs = roc
     plt.plot(threshs, fpr, color=color)
 
-    marker_colors = ['black', 'blue', 'yellow']
+    marker_colors = ['black', 'blue', 'yellow', 'green', 'cyan', 'red']
     for i, marker in enumerate(markers):
         ri = find_nearest(threshs, marker)
         plt.plot(threshs[ri], fpr[ri], color=marker_colors[i], marker='o') 
@@ -77,7 +80,7 @@ def plot_tpr(roc, color, markers = []):
     fpr, tpr, threshs = roc
     plt.plot(threshs, tpr, color=color)
 
-    marker_colors = ['black', 'blue', 'yellow']
+    marker_colors = ['black', 'blue', 'yellow', 'green', 'cyan', 'red']
     for i, marker in enumerate(markers):
         ri = find_nearest(threshs, marker)
         plt.plot(threshs[ri], tpr[ri], color=marker_colors[i], marker='o')
@@ -106,15 +109,15 @@ def plot_rates(roc, metric, markers = []):
     fig.set_size_inches(13.875, 7.875)
     fig.canvas.draw()
     fig_rates_np = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep='').reshape(fig.canvas.get_width_height()[::-1] + (3,))
-    plt.clf()
+    # plt.clf()
 
-    return fig_rates_np
+    return fig, fig_rates_np
 
 def plot_roc(roc, color, markers = []):
     fpr, tpr, threshs = roc
     plt.plot(fpr, tpr, color=color)
 
-    marker_colors = ['black', 'blue', 'yellow']
+    marker_colors = ['black', 'blue', 'yellow', 'green', 'cyan', 'red']
     for i, marker in enumerate(markers):
         ri = find_nearest(threshs, marker)
         plt.plot(fpr[ri], tpr[ri], color=marker_colors[i], marker='o') 
@@ -123,7 +126,7 @@ def plot_pr(pr, color, markers=[]):
     precision, recall, threshs = pr
     plt.step(recall, precision, color=color, alpha=5, where='post')
 
-    marker_colors = ['black', 'blue', 'yellow']
+    marker_colors = ['black', 'blue', 'yellow', 'green', 'cyan', 'red']
     for i,marker in enumerate(markers):
         ri = find_nearest(threshs, marker)
         plt.plot(recall[ri], precision[ri], color=marker_colors[i], marker='o') 
@@ -143,15 +146,15 @@ def plot_rocs(roc, roc_baseline, roc_auc, roc_auc_baseline, markers = [], marker
         
     legend.extend(['Baseline AUC=' + str(round(roc_auc_baseline,3))])
     legend.extend(['Marker threshold: {}'.format(i) for i in markers_baseline])
-    legend.extend(['ConvNet AUC=' + str(round(roc_auc,3))])
+    legend.extend(['Classifier AUC=' + str(round(roc_auc,3))])
     legend.extend(['Marker threshold: {}'.format(i) for i in markers])
     plt.legend(legend, loc='lower right', shadow=True, fontsize=10)
 
     fig.set_size_inches(13.875, 7.875)
     fig.canvas.draw()
     fig_np = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep='').reshape(fig.canvas.get_width_height()[::-1] + (3,))
-    plt.clf()
-    return fig_np
+    # plt.clf()
+    return fig, fig_np
 
 def plot_prs(pr, pr_baseline, pr_auc, pr_auc_baseline, markers = [], markers_baseline=[]):
     legend = []
@@ -168,15 +171,15 @@ def plot_prs(pr, pr_baseline, pr_auc, pr_auc_baseline, markers = [], markers_bas
 
     legend.extend(['Baseline AUC=' + str(round(pr_auc_baseline,3))])
     legend.extend(['Marker threshold: {}'.format(i) for i in markers_baseline])
-    legend.extend(['ConvNet AUC=' + str(round(pr_auc,3))])
+    legend.extend(['Classifier AUC=' + str(round(pr_auc,3))])
     legend.extend(['Marker threshold: {}'.format(i) for i in markers])
     plt.legend(legend, loc='lower left', shadow=True, fontsize=10)
 
     fig.set_size_inches(13.875, 7.875)
     fig.canvas.draw()
     fig_np = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep='').reshape(fig.canvas.get_width_height()[::-1] + (3,))
-    plt.clf()
-    return fig_np
+    # plt.clf()
+    return fig, fig_np
 
 def calculate_dataset_auc(y, y_gt):
     pr = sklearn.metrics.precision_recall_curve(y_gt, y)
@@ -281,16 +284,19 @@ def get_postfix(datasets):
     root_datasets = list(set(root_datasets))
     return '+'.join(root_datasets) + '+'
 
-def feature_matching_learned_classifier(options, training_datasets, testing_datasets):
+def feature_matching_learned_classifier(training_datasets, testing_datasets, options):
     #################################################################################################################################
     #################################################################################################################################
     ############################################################ Training ###########################################################
     #################################################################################################################################
     #################################################################################################################################    
+    training_postfix = get_postfix(training_datasets)
+    classifier_fn = '{}{}-{}.pkl'.format(training_postfix, options['max_depth'], options['n_estimators'])
+    fm_data_folder = options['feature_matching_data_folder']
     for i,t in enumerate(training_datasets):
         data = dataset.DataSet(t)
         _fns, [_indices_1, _indices_2, _dists1, _dists2, _errors, _size1, _size2, _angle1, _angle2, _rerr1, \
-            _rerr2, _labels] = data.load_feature_matching_dataset(lowes_threshold=0.95)
+            _rerr2, _labels] = data.load_feature_matching_dataset(lowes_threshold=0.8)
         if i == 0:
             fns, indices_1, indices_2, dists1, dists2, errors, size1, size2, angle1, angle2, rerr1, \
                 rerr2, labels = _fns, _indices_1, _indices_2, _dists1, _dists2, _errors, _size1, _size2, _angle1, _angle2, _rerr1, \
@@ -311,13 +317,18 @@ def feature_matching_learned_classifier(options, training_datasets, testing_data
             labels = np.concatenate((labels, _labels), axis=0)
     labels[labels < 0] = 0
     max_distances = np.maximum(dists1, dists2)
-    auc_baseline_train = calculate_dataset_auc(-1.0 * max_distances**2, labels, color='green', ls='dashed')
-    _, _, _, _, regr_bdt, y = classifier.classify_boosted_dts_feature_match([fns, dists1, dists2, size1, size2, angle1, angle2, labels, True, None, options])
-    auc_bdts_train = calculate_dataset_auc(y, labels,'r','dashed')
-    training_postfix = get_postfix(training_datasets)
-    fm_data_folder = options['feature_matching_data_folder']
+    auc_pr_baseline_train, auc_roc_baseline_train, pr_baseline_train, roc_baseline_train = calculate_dataset_auc(-1.0 * max_distances + 1, labels )#, color='green', ls='dashed')
+    if classifier_exists(os.path.join(fm_data_folder, classifier_fn)):
+        regr_bdt__ = load_classifier(os.path.join(fm_data_folder, classifier_fn))
+    else:
+        regr_bdt__ = None
+    _, _, _, _, _, regr_bdt, y = classifier.classify_boosted_dts_feature_match([fns, indices_1, indices_2, dists1, dists2, size1, size2, angle1, angle2, labels, True, regr_bdt__, options])
+    auc_pr_train, auc_roc_train, pr_train, roc_train = calculate_dataset_auc(y, labels)#,'r','dashed')
+    
+    
     mkdir_p(fm_data_folder)
-    save_classifier(regr_bdt, os.path.join(fm_data_folder, '{}{}-{}'.format(training_postfix, options['max_depth'], options['n_estimators'])))
+    if not classifier_exists(os.path.join(fm_data_folder, classifier_fn)):
+        save_classifier(regr_bdt, os.path.join(fm_data_folder, classifier_fn))
     
     #################################################################################################################################
     #################################################################################################################################
@@ -350,27 +361,57 @@ def feature_matching_learned_classifier(options, training_datasets, testing_data
     labels[labels < 0] = 0
 
     max_distances = np.maximum(dists1, dists2)
-    auc_baseline_test = calculate_dataset_auc(-1.0 * max_distances**2, labels, color='blue', ls='dashed')
-    _, _, _, _, regr_bdt, y = classifier.classify_boosted_dts_feature_match([fns, dists1, dists2, size1, size2, angle1, angle2, labels, False, regr_bdt, options])
-    auc_bdts_test = calculate_dataset_auc(y, labels,'r','solid')
+    auc_pr_baseline, auc_roc_baseline, pr_baseline, roc_baseline = calculate_dataset_auc(-1.0 * max_distances + 1, labels)#, color='blue', ls='dashed')
+    _, _, _, _, _, regr_bdt, y = classifier.classify_boosted_dts_feature_match([fns, indices_1, indices_2, dists1, dists2, size1, size2, angle1, angle2, labels, False, regr_bdt, options])
+    auc_pr, auc_roc, pr, roc = calculate_dataset_auc(y, labels)#,'r','solid')
   
-    plt.legend(
-        ['Baseline (Train - ' + str([os.path.basename(t) for t in training_datasets]) + '), AUC=' + str(auc_baseline_train), 
-        'Boosted DTs (Train - ' + str([os.path.basename(t) for t in training_datasets]) + '), AUC=' + str(auc_bdts_train),
-        'Baseline (Test - ' + str([os.path.basename(t) for t in testing_datasets]) + '), AUC=' + str(auc_baseline_test),
-        'Boosted DTs (Test - ' + str([os.path.basename(t) for t in testing_datasets]) + '), AUC=' + str(auc_bdts_test),
-        ], 
-        loc='lower right', 
-        shadow=True,
-        fontsize=10
-        )
-
-    fig = plt.gcf()
-    fig.set_size_inches(18.5, 10.5)
-    plt.savefig(os.path.join(fm_data_folder, 'feature-matching-PR-{}{}-{}_{}.png'.format(\
-        training_postfix, options['max_depth'], options['n_estimators'], str(datetime.datetime.now()) 
+    fig_rocs, _ = plot_rocs(roc, roc_baseline, auc_roc, auc_roc_baseline, markers=[0.2, 0.4, 0.6, 0.8], markers_baseline=-1.0*np.array([0.6, 0.7, 0.8, 0.9])+1.0)
+    # fig_rocs.savefig(os.path.join(fm_data_folder, 'feature-matching-ROC-{}{}-{}_{}.png'.format(\
+    #     training_postfix, options['max_depth'], options['n_estimators'], str(datetime.datetime.now()) 
+    #     ))
+    # )
+    fig_rocs.savefig(os.path.join(fm_data_folder, 'feature-matching-ROC-{}{}-{}.png'.format(\
+        training_postfix, options['max_depth'], options['n_estimators'] 
         ))
     )
+
+    fig_prs, _ = plot_prs(pr, pr_baseline, auc_pr, auc_pr_baseline, markers=[0.2, 0.4, 0.6, 0.8], markers_baseline=-1.0*np.array([0.6, 0.7, 0.8, 0.9])+1.0)
+    fig_prs.savefig(os.path.join(fm_data_folder, 'feature-matching-PR-{}{}-{}.png'.format(\
+        training_postfix, options['max_depth'], options['n_estimators']
+        ))
+    )
+
+    fig_rates_baseline, _ = plot_rates(roc_baseline, metric='lowes ratio', markers=[0.6, 0.8, 0.9, 0.95])
+    fig_rates_baseline.savefig(os.path.join(fm_data_folder, 'feature-matching-baseline-rates-{}{}-{}.png'.format(\
+        training_postfix, options['max_depth'], options['n_estimators']
+        ))
+    )
+
+    fig_rates, _ = plot_rates(roc, metric='classifier scores', markers=[0.2, 0.4, 0.6, 0.8])
+    fig_rates.savefig(os.path.join(fm_data_folder, 'feature-matching-classifier-rates-{}{}-{}.png'.format(\
+        training_postfix, options['max_depth'], options['n_estimators']
+        ))
+    )
+
+    # plt.legend(
+    #     ['Baseline (Train - ' + str([os.path.basename(t) for t in training_datasets]) + '), AUC=' + str(auc_baseline_train), 
+    #     'Boosted DTs (Train - ' + str([os.path.basename(t) for t in training_datasets]) + '), AUC=' + str(auc_train),
+    #     'Baseline (Test - ' + str([os.path.basename(t) for t in testing_datasets]) + '), AUC=' + str(auc_baseline_test),
+    #     'Boosted DTs (Test - ' + str([os.path.basename(t) for t in testing_datasets]) + '), AUC=' + str(auc),
+    #     ], 
+    #     loc='lower right', 
+    #     shadow=True,
+    #     fontsize=10
+    #     )
+
+    # fig = plt.gcf()
+    # fig.set_size_inches(18.5, 10.5)
+
+
+    # fig_prs.savefig(os.path.join(fm_data_folder, 'feature-matching-PR-{}{}-{}_{}.png'.format(\
+    #     training_postfix, options['max_depth'], options['n_estimators'], str(datetime.datetime.now()) 
+    #     ))
+    # )
 
 def get_sample_weights(num_rmatches_tr, labels_tr):
     print ('Need to implement get_sample_weights')
@@ -385,7 +426,7 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
     #################################################################################################################################
     #################################################################################################################################    
     for i,t in enumerate(training_datasets):
-        print '\tDataset: {}'.format(t)
+        print ('\tDataset: {}'.format(t))
         data = dataset.DataSet(t)
         # _fns, [_R11s, _R12s, _R13s, _R21s, _R22s, _R23s, _R31s, _R32s, _R33s, _num_rmatches, _num_matches, _spatial_entropy_1_8x8, \
         #     _spatial_entropy_2_8x8, _spatial_entropy_1_16x16, _spatial_entropy_2_16x16, _pe_histogram, _pe_polygon_area_percentage, \
@@ -410,7 +451,7 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
             _distance_rank_percentage_im1_im2_gt, _distance_rank_percentage_im2_im1_gt, \
             _num_gt_inliers, _labels] \
             = data.load_image_matching_dataset(robust_matches_threshold=options['image_matching_gt_threshold'], rmatches_min_threshold=training_min_threshold, \
-                rmatches_max_threshold=training_max_threshold, spl=options['shortest_path_length'])
+                rmatches_max_threshold=training_max_threshold, spl=options['shortest_path_length'], balance=options['balance'])
 
         if i == 0:
             fns_tr, R11s_tr, R12s_tr, R13s_tr, R21s_tr, R22s_tr, R23s_tr, R31s_tr, R32s_tr, R33s_tr, num_rmatches_tr, num_matches_tr, spatial_entropy_1_8x8_tr, \
@@ -515,7 +556,7 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
     #################################################################################################################################
     #################################################################################################################################    
     for i,t in enumerate(testing_datasets):
-        print '\tDataset: {}'.format(t)
+        print ('\tDataset: {}'.format(t))
         data = dataset.DataSet(t)
         _fns, [_R11s, _R12s, _R13s, _R21s, _R22s, _R23s, _R31s, _R32s, _R33s, _num_rmatches, _num_matches, _spatial_entropy_1_8x8, \
             _spatial_entropy_2_8x8, _spatial_entropy_1_16x16, _spatial_entropy_2_16x16, _pe_histogram, _pe_polygon_area_percentage, \
@@ -532,7 +573,7 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
             _distance_rank_percentage_im1_im2_gt, _distance_rank_percentage_im2_im1_gt, \
             _num_gt_inliers, _labels] \
             = data.load_image_matching_dataset(robust_matches_threshold=options['image_matching_gt_threshold'], rmatches_min_threshold=options['image_match_classifier_min_match'], \
-                rmatches_max_threshold=options['image_match_classifier_max_match'], spl=options['shortest_path_length'])
+                rmatches_max_threshold=options['image_match_classifier_max_match'], spl=options['shortest_path_length'], balance=False)
 
         if i == 0:
             fns_te, R11s_te, R12s_te, R13s_te, R21s_te, R22s_te, R23s_te, R31s_te, R32s_te, R33s_te, num_rmatches_te, num_matches_te, spatial_entropy_1_8x8_te, \
@@ -696,7 +737,7 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
         ['RM'],
         # ['MDS'],
         # ['RM', 'MDS'],
-        ['RM', 'DIST-GT'],
+        # ['RM', 'DIST-GT'],
         # ['PE'],
         # ['SP'],
         # ['SE'],
@@ -708,11 +749,11 @@ def image_matching_learned_classifier(training_datasets, testing_datasets, optio
         # ['HIST'],
         # ['LCC'],
         # # ['SQ'],
-        # ['RM', 'PE'],
+        ['RM', 'PE'],
         # ['RM', 'SP'],
-        # ['RM', 'SE'],
+        ['RM', 'SE'],
         # ['RM', 'TE'],
-        # ['RM', 'NBVS'],
+        ['RM', 'NBVS'],
         # ['RM', 'VD'],
         # ['RM', 'TM'],
         # # ['RM', 'VT'],
@@ -1224,6 +1265,7 @@ def main(argv):
     parser.add_argument('-c', '--classifier', help='')
     parser.add_argument('-a', '--use_all_training_data', help='')
     parser.add_argument('-v', '--train_on_val', help='')
+    parser.add_argument('--matching', help='"feature" or "image"')
 
     parser.add_argument('--convnet_lr')
     parser.add_argument('--convnet_batch_size', default=1, help='8, 16, 32, ...')
@@ -1404,169 +1446,198 @@ def main(argv):
         }
     }
 
-    if parser_options.convnet_loss == 'ce':
-        convnet_loss = 'cross-entropy'
-    elif parser_options.convnet_loss == 't':
-        convnet_loss = 'triplet'
-    else:
-        convnet_loss = 'cross-entropy'
+    if parser_options.matching == 'image':
+        if parser_options.convnet_loss == 'ce':
+            convnet_loss = 'cross-entropy'
+        elif parser_options.convnet_loss == 't':
+            convnet_loss = 'triplet'
+        else:
+            convnet_loss = 'cross-entropy'
 
-    if parser_options.convnet_triplet_sampling_strategy == 'n':
-        triplet_sampling_strategy = 'normal'
-    elif parser_options.convnet_triplet_sampling_strategy == 'r':
-        triplet_sampling_strategy = 'random'
-    elif parser_options.convnet_triplet_sampling_strategy == 'u':
-        triplet_sampling_strategy = 'uniform-files'
-    else:
-        triplet_sampling_strategy = 'normal'
+        if parser_options.convnet_triplet_sampling_strategy == 'n':
+            triplet_sampling_strategy = 'normal'
+        elif parser_options.convnet_triplet_sampling_strategy == 'r':
+            triplet_sampling_strategy = 'random'
+        elif parser_options.convnet_triplet_sampling_strategy == 'u':
+            triplet_sampling_strategy = 'uniform-files'
+        else:
+            triplet_sampling_strategy = 'normal'
 
-    if parser_options.convnet_resnet_model == '18':
-        convnet_resnet_model = 'resnet18'
-    elif parser_options.convnet_resnet_model == '34':
-        convnet_resnet_model = 'resnet34'
-    elif parser_options.convnet_resnet_model == '50':
-        convnet_resnet_model = 'resnet50'
-    elif parser_options.convnet_resnet_model == '101':
-        convnet_resnet_model = 'resnet101'
-    elif parser_options.convnet_resnet_model == '152':
-        convnet_resnet_model = 'resnet152'
-    else:
-        convnet_resnet_model = 'resnet50'
+        if parser_options.convnet_resnet_model == '18':
+            convnet_resnet_model = 'resnet18'
+        elif parser_options.convnet_resnet_model == '34':
+            convnet_resnet_model = 'resnet34'
+        elif parser_options.convnet_resnet_model == '50':
+            convnet_resnet_model = 'resnet50'
+        elif parser_options.convnet_resnet_model == '101':
+            convnet_resnet_model = 'resnet101'
+        elif parser_options.convnet_resnet_model == '152':
+            convnet_resnet_model = 'resnet152'
+        else:
+            convnet_resnet_model = 'resnet50'
 
-    options = {
-        'feature_matching_data_folder': 'data/feature-matching-classifiers-results',
-        'image_matching_data_folder': 'data/image-matching-classifiers-results',
-        'image_matching_gt_threshold': 15,
-        'use_all_training_data': True if parser_options.use_all_training_data == 'yes' else False,
-        'train_on_val': True if parser_options.train_on_val == 'yes' else False,
-        # 'classifier': 'BDT',
-        'classifier': parser_options.classifier.upper(),
-        # 'classifier': 'GCN',
-        # BDT options
-        'max_depth': int(parser_options.max_depth),
-        'n_estimators': int(parser_options.n_estimators),
-        'image_match_classifier_min_match': int(parser_options.image_match_classifier_min_match),
-        'image_match_classifier_max_match': int(parser_options.image_match_classifier_max_match),
-        'shortest_path_length': 200000,
-        # 'feature_selection': False, \
-        # NN options
-        # 'batch_size': 128,
-        # 'batch_size': 1,
-        # 'batch_size': 1024 if parser_options.classifier.upper() != 'GCN' else 1,
-        'batch_size': int(parser_options.convnet_batch_size) if parser_options.classifier.upper() != 'GCN' else 1,
-        # 'shuffle': True,
-        'shuffle': True,
-        # 'lr': 0.01,
-        # 'lr': 0.005,
-        'lr': float(parser_options.convnet_lr), 
-        'optimizer': 'adam',
-        'wd': 0.0001,
-        'epochs': 30,
-        'start_epoch': 0,
-        'resume': True,
-        'lr_decay': 0.01,
-        'nn_log_dir': 'data/nn-image-matching-classifiers-results/logs',
-        'gcn_log_dir': 'data/nn-image-matching-classifiers-results/logs',
-        'convnet_log_dir': 'data/nn-image-matching-classifiers-results/logs',
-        'subsample_ratio': 1.0,
-        'log_interval': 1,
-        'opensfm_path': parser_options.opensfm_path,
-        # 'fine_tuning': True, \
-        # 'class_balance': False, \
-        # 'all_features': False, \
-        'triplet-sampling-strategy': triplet_sampling_strategy,
-        # 'triplet-sampling-strategy': 'random',
-        # 'triplet-sampling-strategy': 'uniform-files',
-        # 'triplet-sampling-strategy': 'normal',
-        # 'sample-inclass': True,
-        'sample-inclass': False,
-        # 'num_workers': 4,
-        'num_workers': 12 if parser_options.classifier.upper() != 'GCN' else 0,
-        # 'num_workers': 10,
-        # 'use_image_features': True,
-        # 'use_image_features': False,
-        'loss': convnet_loss,
-        'model': convnet_resnet_model,
-        'features': parser_options.convnet_features,
-        'convnet_input_size': 224,
-        'mlp-layer-size': 256,
-        'convnet_use_images': True if parser_options.convnet_use_images == 'yes' else False,
-        'convnet_use_feature_match_map': True if parser_options.convnet_use_feature_match_map == 'yes' else False,
-        'convnet_use_track_map': True if parser_options.convnet_use_track_map == 'yes' else False,
-        'convnet_use_warped_images': False,
-        'convnet_use_non_rmatches_map': True if parser_options.convnet_use_non_rmatches_map == 'yes' else False,
-        'convnet_use_rmatches_secondary_motion_map':  True if parser_options.convnet_use_rmatches_secondary_motion_map == 'yes' else False,
-        'convnet_use_rmatches_map': True if parser_options.convnet_use_rmatches_map == 'yes' else False,
-        'convnet_use_matches_map': True if parser_options.convnet_use_matches_map == 'yes' else False,
-        'convnet_use_photometric_error_maps': True if parser_options.convnet_use_photometric_error_maps == 'yes' else False,
-        # 'convnet_load_dataset_in_memory': False,
-        # 'pe_experiment': '',
-        'experiment': parser_options.experiment
-        # 'pe_experiment': 'preprocessed_unfiltered'
-    }
-    if options['classifier'] == 'GCN':
-        mkdir_p(options['gcn_log_dir'])
+        options = {
+            'balance': True,
+            'image_matching_data_folder': 'data/image-matching-classifiers-results',
+            'image_matching_gt_threshold': 15,
+            'use_all_training_data': True if parser_options.use_all_training_data == 'yes' else False,
+            'train_on_val': True if parser_options.train_on_val == 'yes' else False,
+            # 'classifier': 'BDT',
+            'classifier': parser_options.classifier.upper(),
+            # 'classifier': 'GCN',
+            # BDT options
+            'max_depth': int(parser_options.max_depth),
+            'n_estimators': int(parser_options.n_estimators),
+            'image_match_classifier_min_match': int(parser_options.image_match_classifier_min_match),
+            'image_match_classifier_max_match': int(parser_options.image_match_classifier_max_match),
+            'shortest_path_length': 200000,
+            # 'feature_selection': False, \
+            # NN options
+            # 'batch_size': 128,
+            # 'batch_size': 1,
+            # 'batch_size': 1024 if parser_options.classifier.upper() != 'GCN' else 1,
+            'batch_size': int(parser_options.convnet_batch_size) if parser_options.classifier.upper() != 'GCN' else 1,
+            # 'shuffle': True,
+            'shuffle': True,
+            # 'lr': 0.01,
+            # 'lr': 0.005,
+            'lr': float(parser_options.convnet_lr), 
+            'optimizer': 'adam',
+            'wd': 0.0001,
+            'epochs': 15,
+            'start_epoch': 0,
+            'resume': True,
+            'lr_decay': 0.01,
+            'nn_log_dir': 'data/nn-image-matching-classifiers-results/logs',
+            'gcn_log_dir': 'data/nn-image-matching-classifiers-results/logs',
+            'convnet_log_dir': 'data/nn-image-matching-classifiers-results/logs',
+            'subsample_ratio': 1.0,
+            'log_interval': 1,
+            'opensfm_path': parser_options.opensfm_path,
+            # 'fine_tuning': True, \
+            # 'class_balance': False, \
+            # 'all_features': False, \
+            'triplet-sampling-strategy': triplet_sampling_strategy,
+            # 'triplet-sampling-strategy': 'random',
+            # 'triplet-sampling-strategy': 'uniform-files',
+            # 'triplet-sampling-strategy': 'normal',
+            # 'sample-inclass': True,
+            'sample-inclass': False,
+            # 'num_workers': 4,
+            'num_workers': 0 if parser_options.classifier.upper() != 'GCN' else 0,
+            # 'num_workers': 10,
+            # 'use_image_features': True,
+            # 'use_image_features': False,
+            'loss': convnet_loss,
+            'model': convnet_resnet_model,
+            'features': parser_options.convnet_features,
+            'convnet_input_size': 224,
+            'mlp-layer-size': 256,
+            'convnet_use_images': True if parser_options.convnet_use_images == 'yes' else False,
+            'convnet_use_feature_match_map': True if parser_options.convnet_use_feature_match_map == 'yes' else False,
+            'convnet_use_track_map': True if parser_options.convnet_use_track_map == 'yes' else False,
+            'convnet_use_warped_images': False,
+            'convnet_use_non_rmatches_map': True if parser_options.convnet_use_non_rmatches_map == 'yes' else False,
+            'convnet_use_rmatches_secondary_motion_map':  True if parser_options.convnet_use_rmatches_secondary_motion_map == 'yes' else False,
+            'convnet_use_rmatches_map': True if parser_options.convnet_use_rmatches_map == 'yes' else False,
+            'convnet_use_matches_map': True if parser_options.convnet_use_matches_map == 'yes' else False,
+            'convnet_use_photometric_error_maps': True if parser_options.convnet_use_photometric_error_maps == 'yes' else False,
+            # 'convnet_load_dataset_in_memory': False,
+            # 'pe_experiment': '',
+            'experiment': parser_options.experiment
+            # 'pe_experiment': 'preprocessed_unfiltered'
+        }
+        if options['classifier'] == 'GCN':
+            mkdir_p(options['gcn_log_dir'])
 
 
-    dataset_experiments = [
-        # {
-        #     'training': ['ETH3D'], 
-        #     'testing': ['ETH3D']
-        # },
-        # {
-        #     'training': ['TanksAndTemples'], 
-        #     'testing': ['TanksAndTemples']
-        # },
-        # {
-        #     'training': ['TUM_RGBD_SLAM'], 
-        #     'testing': ['TUM_RGBD_SLAM']
-        # },
-        # {
-        #     'training': ['TanksAndTemples', 'ETH3D'], 
-        #     'testing': ['TanksAndTemples', 'ETH3D']
-        # },
-        # {
-        #     'training': ['TanksAndTemples-BF', 'ETH3D-BF', 'TUM_RGBD_SLAM-BF'], 
-        #     'testing': ['TanksAndTemples', 'ETH3D', 'TUM_RGBD_SLAM']
-        # },
-        {
-            'training': ['TanksAndTemples', 'ETH3D', 'TUM_RGBD_SLAM'], 
-            'testing': ['TanksAndTemples', 'ETH3D', 'TUM_RGBD_SLAM']
-        },
-        # {
-        #     'training': ['TanksAndTemples-temp'], 
-        #     'testing': ['ETH3D']
-        # },
-    ]
-    for dataset_exp in dataset_experiments:
-        print ('#'*200)
-        print ('#'*200)
-        print ('############################### Dataset Exps => Training : {}\t\t Testing: {} ###############################'.format( \
-            dataset_exp['training'], dataset_exp['testing']
-        ))
-        print ('#'*200)
-        print ('#'*200)
-        training_datasets = []
-        testing_datasets = []
+        dataset_experiments = [
+            # {
+            #     'training': ['ETH3D'], 
+            #     'testing': ['ETH3D']
+            # },
+            # {
+            #     'training': ['TanksAndTemples'], 
+            #     'testing': ['TanksAndTemples']
+            # },
+            # {
+            #     'training': ['TUM_RGBD_SLAM'], 
+            #     'testing': ['TUM_RGBD_SLAM']
+            # },
+            # {
+            #     'training': ['TanksAndTemples', 'ETH3D'], 
+            #     'testing': ['TanksAndTemples', 'ETH3D']
+            # },
+            # {
+            #     'training': ['TanksAndTemples-BF', 'ETH3D-BF', 'TUM_RGBD_SLAM-BF'], 
+            #     'testing': ['TanksAndTemples', 'ETH3D', 'TUM_RGBD_SLAM']
+            # },
+            {
+                'training': ['TanksAndTemples', 'ETH3D', 'TUM_RGBD_SLAM'], 
+                'testing': ['TanksAndTemples', 'ETH3D', 'TUM_RGBD_SLAM']
+            },
+            # {
+            #     'training': ['TanksAndTemples-temp'], 
+            #     'testing': ['ETH3D']
+            # },
+        ]
+        for dataset_exp in dataset_experiments:
+            print ('#'*200)
+            print ('#'*200)
+            print ('############################### Dataset Exps => Training : {}\t\t Testing: {} ###############################'.format( \
+                dataset_exp['training'], dataset_exp['testing']
+            ))
+            print ('#'*200)
+            print ('#'*200)
+            training_datasets = []
+            testing_datasets = []
 
-        for dataset_name in dataset_exp['training']:
-            if 'use-BF-data' in options['experiment']:
-                training_datasets.extend(datasets['training'][dataset_name + '-BF'])
-            else:    
+            for dataset_name in dataset_exp['training']:
+                if 'use-BF-data' in options['experiment']:
+                    training_datasets.extend(datasets['training'][dataset_name + '-BF'])
+                else:    
+                    training_datasets.extend(datasets['training'][dataset_name])
+                # training_datasets.extend(datasets['testing'][dataset_name])
+            if 'UIUCTag-BF' in options['experiment']:
+                training_datasets.extend(datasets['training']['UIUCTag-BF'])
+
+
+            for dataset_name in dataset_exp['testing']:
+                testing_datasets.extend(datasets['testing'][dataset_name])
+                if options['train_on_val']:
+                    training_datasets.extend(datasets['testing'][dataset_name])
+                # testing_datasets.extend(datasets['training'][dataset_name])
+
+            image_matching_learned_classifier(training_datasets, testing_datasets, options)
+    elif parser_options.matching == 'feature':
+        options = {
+            'feature_matching_data_folder': 'data/feature-matching-classifiers-results',
+            'max_depth': int(parser_options.max_depth),
+            'n_estimators': int(parser_options.n_estimators)
+            }
+        dataset_experiments = [
+            # {
+            #     'training': ['ETH3D'], 
+            #     'testing': ['ETH3D']
+            # },
+            {
+                'training': ['TanksAndTemples', 'ETH3D', 'TUM_RGBD_SLAM'], 
+                'testing': ['TanksAndTemples', 'ETH3D', 'TUM_RGBD_SLAM']
+            },
+            ]
+        for dataset_exp in dataset_experiments:
+            training_datasets = []
+            testing_datasets = []
+            for dataset_name in dataset_exp['training']:
                 training_datasets.extend(datasets['training'][dataset_name])
-            # training_datasets.extend(datasets['testing'][dataset_name])
-        if 'UIUCTag-BF' in options['experiment']:
-            training_datasets.extend(datasets['training']['UIUCTag-BF'])
 
+            for dataset_name in dataset_exp['testing']:
+                testing_datasets.extend(datasets['testing'][dataset_name])
 
-        for dataset_name in dataset_exp['testing']:
-            testing_datasets.extend(datasets['testing'][dataset_name])
-            if options['train_on_val']:
-                training_datasets.extend(datasets['testing'][dataset_name])
-            # testing_datasets.extend(datasets['training'][dataset_name])
-
-        # feature_matching_learned_classifier(options, training_datasets, testing_datasets)
-        image_matching_learned_classifier(training_datasets, testing_datasets, options)  
+            feature_matching_learned_classifier(training_datasets, testing_datasets, options)
+            # feature_matching_learned_classifier([training_datasets[0]], [testing_datasets[0]], options)
+    else:
+        print ('Specify either "feature" or "image" matching')
 
 if __name__ == '__main__':
     main(sys.argv)

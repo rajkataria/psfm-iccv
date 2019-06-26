@@ -477,9 +477,8 @@ class Command:
 
     def load_selective_gt_matches(self, data, options):
         matches = {}
-        image_matching_classifier_range = data.config.get('image_matching_classifier_range')
         gt_matches_selective_threshold = data.config.get('gt_matches_selective_threshold')
-        im_matching_results = data.load_groundtruth_image_matching_results(image_matching_classifier_range)
+        im_matching_results = data.load_groundtruth_image_matching_results(options['robust_matches_threshold'])
         for im1 in data.images():
             try:
                 im1_matches = data.load_matches(im1)
@@ -503,8 +502,7 @@ class Command:
     def load_gt_pruned_matches(self, data, spl, options):
         matches = {}
         shortest_path_rmatches_threshold = data.config['shortest_path_rmatches_threshold']
-        image_matching_classifier_range = data.config.get('image_matching_classifier_range')
-        im_matching_results = data.load_groundtruth_image_matching_results(image_matching_classifier_range)
+        im_matching_results = data.load_groundtruth_image_matching_results(options['robust_matches_threshold'])
         for im1 in data.images():
             try:
                 _, _, im1_matches = data.load_all_matches(im1)
