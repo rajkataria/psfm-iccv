@@ -892,17 +892,17 @@ def inference(data_loader, model, epoch, run_dir, logger, opts, range_min, range
                         '{} Epoch: {} Accuracy: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                             mode.upper(), epoch, accuracy, (batch_idx + 1) * opts['batch_size'], len(data_loader.dataset),
                             100.0 * num_tests_so_far / dataset_size,
-                            loss.data[0]))
+                            loss.item()))
             else:
                 if logger is not None:
                     print(
                         '{} Epoch: {} Accuracy: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                             mode.upper(), epoch, accuracy, (batch_idx + 1) * opts['batch_size'], len(data_loader.dataset),
                             100.0 * num_tests_so_far / dataset_size,
-                            loss.data[0]))
+                            loss.item()))
 
         # if mode == 'train':
-        cum_loss = cum_loss + loss.data[0]
+        cum_loss = cum_loss + loss.item()
 
   # num_tests = data_loader.dataset.__len__()
   # accuracy = correct_counts*100.0/num_tests
@@ -932,21 +932,21 @@ def inference(data_loader, model, epoch, run_dir, logger, opts, range_min, range
                 round(accuracy, 2), round(cum_loss,2)))
 
     if logger is not None:
-        markers_exp = [0.3, 0.4, 0.5]
+        markers_exp = [0.3, 0.4, 0.5, 0.6, 0.65, 0.7]
         auc_pr, auc_roc, pr, roc = matching_classifiers.calculate_dataset_auc(all_predictions[:,1], all_targets)#, color='red', ls='solid', markers=markers_exp)
         _, _, _, _, _, auc_per_image_mean, _ = matching_classifiers.calculate_per_image_mean_auc(all_dsets, all_fns, all_predictions[:,1], all_targets)
         _, _, _, _, mean_precision_per_image = matching_classifiers.calculate_per_image_precision_top_k(all_dsets, all_fns, all_predictions[:,1], all_targets)
 
-        markers_baseline = [15, 16, 20]
+        markers_baseline = [15, 16, 20, 25, 30, 40]
         auc_pr_baseline, auc_roc_baseline, pr_baseline, roc_baseline = matching_classifiers.calculate_dataset_auc(all_num_rmatches, all_targets)#, color='green', ls='dashed', markers=markers_baseline)
         _, _, _, _, _, auc_per_image_mean_baseline, _ = matching_classifiers.calculate_per_image_mean_auc(all_dsets, all_fns, all_num_rmatches, all_targets)
         _, _, _, _, mean_precision_per_image_baseline = matching_classifiers.calculate_per_image_precision_top_k(all_dsets, all_fns, all_num_rmatches, all_targets)
 
 
-        fig_rocs = matching_classifiers.plot_rocs(roc, roc_baseline, auc_roc, auc_roc_baseline, markers=markers_exp, markers_baseline=markers_baseline)
-        fig_prs = matching_classifiers.plot_prs(pr, pr_baseline, auc_pr, auc_pr_baseline, markers=markers_exp, markers_baseline=markers_baseline)
-        fig_rates_baseline = matching_classifiers.plot_rates(roc_baseline, metric='rmatches', markers=markers_baseline)
-        fig_rates = matching_classifiers.plot_rates(roc, metric='classifier scores', markers=markers_exp)
+        _, fig_rocs = matching_classifiers.plot_rocs(roc, roc_baseline, auc_roc, auc_roc_baseline, markers=markers_exp, markers_baseline=markers_baseline)
+        _, fig_prs = matching_classifiers.plot_prs(pr, pr_baseline, auc_pr, auc_pr_baseline, markers=markers_exp, markers_baseline=markers_baseline)
+        _, fig_rates_baseline = matching_classifiers.plot_rates(roc_baseline, metric='rmatches', markers=markers_baseline)
+        _, fig_rates = matching_classifiers.plot_rates(roc, metric='classifier scores', markers=markers_exp)
 
         print ('\t{} Epoch: {}     Experiment: {} AUC: {} / {} / {}'.format(mode.upper(), epoch, opts['experiment'], \
             round(auc_pr,3), round(auc_per_image_mean, 3), round(mean_precision_per_image, 3) \
@@ -1074,7 +1074,7 @@ def classify_convnet_image_match_initialization(train_loader, test_loaders, run_
             print('=> no checkpoint found')
 
     start = opts['start_epoch']
-    end = start + opts['epochs']
+    end = opts['epochs']
   
     # create logger
     run_dir = os.path.join(opts['convnet_log_dir'], \
@@ -1161,12 +1161,21 @@ def classify_convnet_image_match_training(arg, arg_te):
     )
     matching_classifiers.mkdir_p(run_dir)
 
-    train_transform = tv.transforms.Compose([
-        tv.transforms.Resize((opts['convnet_input_size'], opts['convnet_input_size'])),
-        tv.transforms.RandomHorizontalFlip(),
-        tv.transforms.RandomVerticalFlip(),
-        tv.transforms.ToTensor(),
-    ])
+    if 'rc-aug' in opts['experiment']:
+        train_transform = tv.transforms.Compose([
+            tv.transforms.Resize((opts['convnet_input_size'], opts['convnet_input_size'])),
+            tv.transforms.RandomHorizontalFlip(),
+            tv.transforms.RandomVerticalFlip(),
+            tv.transforms.RandomResizedCrop(opts['convnet_input_size'], scale=(0.8, 1.0)),
+            tv.transforms.ToTensor(),
+        ])
+    else:
+        train_transform = tv.transforms.Compose([
+            tv.transforms.Resize((opts['convnet_input_size'], opts['convnet_input_size'])),
+            tv.transforms.RandomHorizontalFlip(),
+            tv.transforms.RandomVerticalFlip(),
+            tv.transforms.ToTensor(),
+        ])
 
     test_transform = tv.transforms.Compose([
         tv.transforms.Resize((opts['convnet_input_size'], opts['convnet_input_size'])),

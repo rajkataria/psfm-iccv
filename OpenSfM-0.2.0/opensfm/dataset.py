@@ -374,7 +374,7 @@ class DataSet:
 
     def __feature_matching_results_path(self):
         """Return path of all matches directory"""
-        return os.path.join(self.data_path, 'feature_matching_results')
+        return os.path.join(self.__classifier_features_path(), 'feature_matching_results')
     
     def __classifier_dataset_path(self):
         return os.path.join(self.data_path, 'classifier_dataset')
@@ -553,14 +553,18 @@ class DataSet:
             return os.path.join(self.__classifier_features_closest_images_path(), '{}_closest_images-{}.{}'.format(im, label, ext))
         return os.path.join(self.__classifier_features_closest_images_path(), '{}_closest_images.{}'.format(im, ext))
 
-    def __feature_image_matching_results_file(self, ext='pkl.gz', suffix=15):
+    def __feature_image_matching_results_file(self, ext='pkl.gz', suffix='None'):
         """File for flags indicating whether calibrated robust matching occured"""
         return os.path.join(self.__classifier_features_path(), 'image_matching_results_{}.{}'.format(suffix, ext))
         # return os.path.join(self.__classifier_features_path(), 'image_matching_results.{}'.format(ext))
+    
+    def __histogram_track_classifier_file(self, histogram_type, matching_classifier):
+        # return os.path.join(self.__classifier_features_path(), 'image_matching_results_{}.{}'.format(suffix, ext))
+        return 'track_{}_distribution_{}_tl'.format(histogram_type, matching_classifier)
 
-    def __feature_matching_results_file(self, image, ext='pkl.gz'):
+    def __feature_matching_results_file(self, image, ext='pkl.gz', suffix='None'):
         """File for flags indicating whether calibrated robust matching occured"""
-        return os.path.join(self.__feature_matching_results_path(), '{}_fmr.{}'.format(image, ext))
+        return os.path.join(self.__feature_matching_results_path(), '{}_fmr_{}.{}'.format(image, suffix, ext))
 
     def __unthresholded_matches_file(self, image):
         return os.path.join(self.__classifier_dataset_unthresholded_matches_path(), '{}_matches.pkl.gz'.format(image))
@@ -952,20 +956,25 @@ class DataSet:
         with open(self.__feature_image_matching_results_file(ext='json', suffix='{}-{}'.format(robust_matches_threshold, classifier)), 'w') as fout:
             json.dump(results, fout, sort_keys=True, indent=4, separators=(',', ': '))
 
-    def save_feature_matching_results(self, image, results):
+    def save_feature_matching_results(self, image, results, lowes_ratio_threshold, classifier):
         io.mkdir_p(self.__feature_matching_results_path())
-        with gzip.open(self.__feature_matching_results_file(image, 'pkl.gz'), 'wb') as fout:
+        with gzip.open(self.__feature_matching_results_file(image, ext='pkl.gz', suffix='{}-{}'.format(lowes_ratio_threshold, classifier)), 'wb') as fout:
             pickle.dump(results, fout)
-        with open(self.__feature_matching_results_file(image, 'json'), 'w') as fout:
-            json.dump(results, fout, sort_keys=True, indent=4, separators=(',', ': '))
+        # with open(self.__feature_matching_results_file(image, ext='json', suffix='{}-{}'.format(lowes_ratio_threshold, classifier)), 'w') as fout:
+        #     json.dump(results, fout, sort_keys=True, indent=4, separators=(',', ': '))
 
     def load_image_matching_results(self, robust_matches_threshold, classifier):
         with gzip.open(self.__feature_image_matching_results_file(ext='pkl.gz', suffix='{}-{}'.format(robust_matches_threshold, classifier)), 'rb') as fin:
             results = pickle.load(fin)
         return results
 
-    def load_feature_matching_results(self, image):
-        with gzip.open(self.__feature_matching_results_file(image), 'rb') as fin:
+    def load_histogram_track_classifier(self, matching_classifier):
+        inliers_histogram = np.load(self.__histogram_track_classifier_file(histogram_type='inliers', matching_classifier=matching_classifier))
+        outliers_histogram = np.load(self.__histogram_track_classifier_file(histogram_type='outliers', matching_classifier=matching_classifier))
+        return inliers_histogram, outliers_histogram
+
+    def load_feature_matching_results(self, image, lowes_ratio_threshold, classifier):
+        with gzip.open(self.__feature_matching_results_file(image, ext='pkl.gz', suffix='{}-{}'.format(lowes_ratio_threshold, classifier)), 'rb') as fin:
             results = pickle.load(fin)
         return results
 
@@ -1504,7 +1513,7 @@ class DataSet:
     def image_matching_dataset_exists(self, robust_matches_threshold):
         return os.path.isfile(self.__image_matching_dataset_file(suffix=robust_matches_threshold))
 
-    def load_image_matching_dataset(self, robust_matches_threshold, rmatches_min_threshold=0, rmatches_max_threshold=10000, spl=10000):
+    def load_image_matching_dataset(self, robust_matches_threshold, rmatches_min_threshold=0, rmatches_max_threshold=10000, spl=10000, balance=False):
         fns, data = self.load_general_dataset(self.__image_matching_dataset_file(suffix=robust_matches_threshold))
         R11s = data[:,0]
         R12s = data[:,1]
@@ -1571,6 +1580,56 @@ class DataSet:
             (num_rmatches <= rmatches_max_threshold) & \
             (shortest_path_length <= spl)
         )[0]
+
+        fns, R11s, R12s, R13s, R21s, R22s, R23s, R31s, R32s, R33s, \
+          num_rmatches, num_matches, \
+          spatial_entropy_1_8x8, spatial_entropy_2_8x8, spatial_entropy_1_16x16, spatial_entropy_2_16x16, \
+          pe_histogram, pe_polygon_area_percentage, \
+          nbvs_im1, nbvs_im2, \
+          te_histogram, \
+          ch_im1, ch_im2, \
+          vt_rank_percentage_im1_im2, vt_rank_percentage_im2_im1, \
+          sequence_scores_mean, sequence_scores_min, sequence_scores_max, sequence_distance_scores, \
+          lcc_im1_15, lcc_im2_15, min_lcc_15, max_lcc_15, \
+          lcc_im1_20, lcc_im2_20, min_lcc_20, max_lcc_20, \
+          lcc_im1_25, lcc_im2_25, min_lcc_25, max_lcc_25, \
+          lcc_im1_30, lcc_im2_30, min_lcc_30, max_lcc_30, \
+          lcc_im1_35, lcc_im2_35, min_lcc_35, max_lcc_35, \
+          lcc_im1_40, lcc_im2_40, min_lcc_40, max_lcc_40, \
+          shortest_path_length, \
+          mds_rank_percentage_im1_im2, mds_rank_percentage_im2_im1, \
+          distance_rank_percentage_im1_im2_gt, distance_rank_percentage_im2_im1_gt, \
+          gt_inliers, labels = fns[ri], R11s[ri], R12s[ri], R13s[ri], R21s[ri], R22s[ri], R23s[ri], R31s[ri], R32s[ri], R33s[ri], \
+          num_rmatches[ri], num_matches[ri], \
+          spatial_entropy_1_8x8[ri], spatial_entropy_2_8x8[ri], spatial_entropy_1_16x16[ri], spatial_entropy_2_16x16[ri], \
+          pe_histogram[ri], pe_polygon_area_percentage[ri], \
+          nbvs_im1[ri], nbvs_im2[ri], \
+          te_histogram[ri], \
+          ch_im1[ri], ch_im2[ri], \
+          vt_rank_percentage_im1_im2[ri], vt_rank_percentage_im2_im1[ri], \
+          sequence_scores_mean[ri], sequence_scores_min[ri], sequence_scores_max[ri], sequence_distance_scores[ri], \
+          lcc_im1_15[ri], lcc_im2_15[ri], min_lcc_15[ri], max_lcc_15[ri], \
+          lcc_im1_20[ri], lcc_im2_20[ri], min_lcc_20[ri], max_lcc_20[ri], \
+          lcc_im1_25[ri], lcc_im2_25[ri], min_lcc_25[ri], max_lcc_25[ri], \
+          lcc_im1_30[ri], lcc_im2_30[ri], min_lcc_30[ri], max_lcc_30[ri], \
+          lcc_im1_35[ri], lcc_im2_35[ri], min_lcc_35[ri], max_lcc_35[ri], \
+          lcc_im1_40[ri], lcc_im2_40[ri], min_lcc_40[ri], max_lcc_40[ri], \
+          shortest_path_length[ri], \
+          mds_rank_percentage_im1_im2[ri], mds_rank_percentage_im2_im1[ri], \
+          distance_rank_percentage_im1_im2_gt[ri], distance_rank_percentage_im2_im1_gt[ri], \
+          gt_inliers[ri], labels[ri]
+
+        if balance:
+            negative_ris = np.where(labels <= 0)[0]
+            positive_ris = np.where(labels >= 1)[0]
+            # ordered_negative_ris = np.argsort(-np.array(num_rmatches[negative_ris]))
+            # ordered_positive_ris = np.argsort(np.array(num_rmatches[positive_ris]))
+
+            min_ri_length = min(len(negative_ris), len(positive_ris))
+            # ri = np.concatenate((positive_ris[ordered_positive_ris][0:min_ri_length], negative_ris[ordered_negative_ris][0:min_ri_length]))
+            ri = np.concatenate((positive_ris[0:min_ri_length], negative_ris[0:min_ri_length]))
+        else:
+            ri = np.linspace(0, len(labels) - 1, len(labels)).astype(np.int)
         
         return fns[ri], [R11s[ri], R12s[ri], R13s[ri], R21s[ri], R22s[ri], R23s[ri], R31s[ri], R32s[ri], R33s[ri], \
           num_rmatches[ri], num_matches[ri], \

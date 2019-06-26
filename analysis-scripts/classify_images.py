@@ -151,7 +151,7 @@ def baseline_histogram_classifier(arg):
     # only rmatches and trained_classifier(which is the model) are significant here
     inliers_distribution, outliers_distribution = trained_classifier
     bins = trained_classifier[0][1]
-    relevant_bins = np.digitize(num_rmatches_te, bins)
+    relevant_bins = np.digitize(num_rmatches_te, bins) - 1
     inlier_percentage = (inliers_distribution[0][relevant_bins].astype(np.float) + epsilon) / (inliers_distribution[0][relevant_bins].astype(np.float) + outliers_distribution[0][relevant_bins].astype(np.float) + epsilon)
     return fns_te, num_rmatches_te, None, inlier_percentage, shortest_path_length_te, None
     

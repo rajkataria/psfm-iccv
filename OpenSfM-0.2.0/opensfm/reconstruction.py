@@ -8,6 +8,7 @@ from itertools import combinations
 import numpy as np
 import cv2
 import pyopengv
+import random
 import six
 import sys
 from timeit import default_timer as timer
@@ -771,13 +772,23 @@ def next_best_view_score_for_images(graph, reconstruction, images):
             res.append((image, nbvs))
     return sorted(res, key=lambda x: -x[1])
 
+def track_score(data, graph, track_args, trained_classifier):
+    track_cum_score, track_length = track_args
+    inliers_distribution, outliers_distribution = trained_classifier
+    bins = trained_classifier[0][1]
+    relevant_bins = np.digitize(num_rmatches_te, bins)
+    reconstruction_percentage = (inliers_distribution[0][relevant_bins].astype(np.float) + epsilon) / (inliers_distribution[0][relevant_bins].astype(np.float) + outliers_distribution[0][relevant_bins].astype(np.float) + epsilon)
+    return reconstruction_percentage
+
 def resectioning_using_classifier_weights_sum(data, graph, reconstruction, images):
     res = []
     im_matches = {}
     if data.config['use_image_matching_classifier']:
         im_matching_results = data.load_image_matching_results(robust_matches_threshold=15, classifier='CONVNET')
+        trained_classifier = data.load_histogram_track_classifier(matching_classifier='CONVNET')
     else:
         im_matching_results = data.load_image_matching_results(robust_matches_threshold=15, classifier='BASELINE')
+        trained_classifier = data.load_histogram_track_classifier(matching_classifier='BASELINE')
 
     for image in images:
         if image not in reconstruction.shots:
@@ -786,10 +797,14 @@ def resectioning_using_classifier_weights_sum(data, graph, reconstruction, image
             visible_track_weights = []
             for track in graph[image]:
                 if track in reconstruction.points:
-                    track_score = 0.0
+                    # track_score = 0.0
                     feature_id = graph[image][track]['feature_id']
                     visible_feature_coords.append(graph[image][track]['feature'])
                     visible_track_ids.append(track)
+
+                    track_match_scores = []
+                    track_match_rmatches = []
+
                     for track_image in graph[track]:
                         if track_image not in reconstruction.shots:
                             continue
@@ -799,12 +814,38 @@ def resectioning_using_classifier_weights_sum(data, graph, reconstruction, image
                         else:
                             im1 = image
                             im2 = track_image
+
+                        fid1 = graph[track][im1]['feature_id']
+                        fid2 = graph[track][im2]['feature_id']
                       
+                        if data.config['use_feature_matching_classifier']:
+                            fm_matching_results = data.load_feature_matching_results(im1, lowes_ratio_threshold=options['lowes_ratio_threshold'], classifier='BDT')
+                        else:
+                            fm_matching_results = data.load_feature_matching_results(im1, lowes_ratio_threshold=options['lowes_ratio_threshold'], classifier='BASELINE')
+
                         if im1 not in im_matching_results or im2 not in im_matching_results[im1]:
                             continue 
                         image_matching_score = im_matching_results[im1][im2]['score']
-                        track_score += image_matching_score
-                    visible_track_weights.append(track_score)
+                        image_matching_rmatches = im_matching_results[im1][im2]['num_rmatches']
+
+                        fid1_index = fm_matching_results[im2]['indices1'].index(fid1)
+                        fid2_index = fm_matching_results[im2]['indices2'].index(fid2)
+
+                        if fid1_index != fid2_index:
+                            print ('Match locations do not correspond - {} / {} : {} / {}'.format(fid1, fid2, fid1_index, fid2_index))
+                            import sys; sys.exit(1)
+
+                        feature_matching_score = fm_matching_results[im2]['scores'][fid1_index]
+
+                        # track_score += image_matching_score
+                        # track_match_score 
+                        # track_match_scores.append(image_matching_score)
+                        track_match_scores.append(image_matching_score * feature_matching_score)
+                        track_match_rmatches.append(image_matching_rmatches)
+
+                    track_args = [np.sum(np.array(track_match_scores)), len(graph[track].keys())]
+                    # visible_track_weights.append(track_score)
+                    visible_track_weights.append(track_score(data, graph, track_args, trained_classifier))
 
             if len(visible_feature_coords) > 0:
                 nbvs = classifier.next_best_view_score_weighted(np.array(visible_feature_coords), np.array(visible_track_weights).reshape((-1,1)))
@@ -1005,6 +1046,9 @@ class TrackTriangulator:
         self.origins = {}
         self.rotation_inverses = {}
         self.Rts = {}
+        # Only used during robust triangulation
+        self.max_track_id = 0
+        self.robust_graph = graph.copy()
 
     def triangulate(self, track, reproj_threshold, min_ray_angle_degrees):
         """Triangulate track and add point to reconstruction."""
@@ -1044,6 +1088,109 @@ class TrackTriangulator:
             if X is not None:
                 point = types.Point()
                 point.id = track
+                point.coordinates = X.tolist()
+                self.reconstruction.add_point(point)
+
+
+    def _calculate_reprojection_error(self, x, x_projected):
+        return np.linalg.norm(x-x_projected)
+
+    def robustly_triangulate(self, track, reproj_threshold, min_ray_angle_degrees):
+        """Triangulate track and add point to reconstruction."""
+        Rts, os, bs, shot_ids, xs = [], [], [], [], []
+        Xs = []
+        shots_verified = []
+        num_iterations = 100000
+
+        if self.max_track_id == 0:
+            tracks, images = matching.tracks_and_images(self.graph)
+            self.max_track_id = max([int(i) for i in tracks]) # used for new tracks
+
+        for shot_id in self.graph[track]:
+            if shot_id in self.reconstruction.shots:
+                shot = self.reconstruction.shots[shot_id]
+                os.append(self._shot_origin(shot))
+                Rts.append(self._shot_Rt(shot))
+                x = self.graph[track][shot_id]['feature']
+                b = shot.camera.pixel_bearing(np.array(x))
+                r = self._shot_rotation_inverse(shot)
+                bs.append(r.dot(b))
+                shot_ids.append(shot_id)
+                xs.append(x)
+
+        if len(os) >= 2:
+            Rts = np.array(Rts)
+            os = np.array(os)
+            bs = np.array(bs)
+            shot_ids = np.array(shot_ids)
+            xs = np.array(xs)
+
+            all_samples = list(combinations(shot_ids, 2))
+            random.shuffle(all_samples)
+            count = 0
+            sample_counter = 0
+            while sample_counter <= num_iterations and count < len(all_samples):
+                concensus_shots = []
+                samples = list(all_samples[count])
+                count += 1
+
+                if samples[0] in shots_verified or samples[1] in shots_verified:
+                    # the triangulated point will either be an outlier or be part of the concensus shots
+                    continue
+
+                sample_counter += 1
+                ris = np.where((shot_ids == samples[0]) | (shot_ids == samples[1]))
+                
+                s_Rts = [Rts[ris][0], Rts[ris][1]]
+                s_os = [os[ris][0], os[ris][1]]
+                s_bs = [bs[ris][0], bs[ris][1]]
+                s_shot_ids = shot_ids[ris]
+                s_xs = xs[ris]
+
+                e, X = csfm.triangulate_bearings_midpoint(
+                    s_os, s_bs, reproj_threshold, np.radians(min_ray_angle_degrees))
+    
+                if X is not None:
+                    # project point onto different shots of the same track
+                    for ii, shot_id in enumerate(shot_ids):
+                        x_projected = self.reconstruction.shots[shot_id].project(X)
+                        reproj_error = self._calculate_reprojection_error(xs[ii], x_projected)
+                        if reproj_error <= reproj_threshold:
+                            concensus_shots.append(shot_id)
+
+                    if len(concensus_shots) >= 3 or len(shot_ids) == 2:
+                        Xs.append(X)
+                        shots_verified.extend(concensus_shots)
+                    else:
+                        # Break out of the loop when size of the latest consensus set is smaller than three
+                        if sample_counter > num_iterations:
+                            break
+
+            # Remove all the edges to this track from the robust graph
+            self.robust_graph.remove_edges_from(self.robust_graph.edges(track))
+
+            for ii, X in enumerate(Xs):
+                point = types.Point()
+                if ii == 0:
+                    point.id = track
+                else:
+                    self.max_track_id += 1
+                    point.id = str(self.max_track_id)
+                
+                # Update robust graph with concensus shots only (and add new tracks if any)
+                if not self.robust_graph.has_node(point.id):
+                    self.robust_graph.add_node(point.id, bipartite=1)
+
+                # Add edges conforming to concesus shots
+                for s in shots_verified:
+                    # add edge pertaining to new track (or old track)
+                    self.robust_graph.add_edge(s,
+                        point.id,
+                        # copy new edge properties from the original graph
+                        feature=self.graph[track][s]['feature'],
+                        feature_id=self.graph[track][s]['feature_id'],
+                        feature_color=self.graph[track][s]['feature_color'])
+
                 point.coordinates = X.tolist()
                 self.reconstruction.add_point(point)
 
@@ -1098,6 +1245,34 @@ def retriangulate(graph, reconstruction, config):
     report['wall_time'] = chrono.total_time()
     return report
 
+
+def robustly_triangulate_shot_features(graph, reconstruction, shot_id, reproj_threshold,
+                              min_ray_angle):
+    """Reconstruct as many tracks seen in shot_id as possible."""
+    triangulator = TrackTriangulator(graph, reconstruction)
+
+    for track in graph[shot_id]:
+        if track not in reconstruction.points:
+            triangulator.robustly_triangulate(track, reproj_threshold, min_ray_angle)
+
+    return triangulator.robust_graph
+
+def robustly_retriangulate(graph, reconstruction, config):
+    """Retrianguate all points"""
+    chrono = Chronometer()
+    report = {}
+    report['num_points_before'] = len(reconstruction.points)
+    threshold = config['triangulation_threshold']
+    min_ray_angle = config['triangulation_min_ray_angle']
+    triangulator = TrackTriangulator(graph, reconstruction)
+    tracks, images = matching.tracks_and_images(graph)
+    s_timer = timer()
+    for ii, track in enumerate(tracks):
+        triangulator.robustly_triangulate(track, threshold, min_ray_angle)
+    report['num_points_after'] = len(reconstruction.points)
+    chrono.lap('robustly_retriangulate')
+    report['wall_time'] = chrono.total_time()
+    return report, triangulator.robust_graph
 
 def remove_outliers(graph, reconstruction, config):
     """Remove points with large reprojection error."""
@@ -1193,7 +1368,10 @@ def merge_reconstructions(reconstructions, config):
 def paint_reconstruction(data, graph, reconstruction):
     """Set the color of the points from the color of the tracks."""
     for k, point in iteritems(reconstruction.points):
-        point.color = six.next(six.itervalues(graph[k]))['feature_color']
+        try:
+            point.color = six.next(six.itervalues(graph[k]))['feature_color']
+        except:
+            point.color = [255, 0, 0]
 
 
 class ShouldBundle:
@@ -1259,8 +1437,6 @@ def grow_reconstruction(data, graph, reconstruction, images, gcp):
             common_tracks = next_best_view_score_for_images(graph, reconstruction, images)
         elif data.config.get('use_weighted_resectioning', 'sum') == 'sum':
             common_tracks = resectioning_using_classifier_weights_sum(data, graph, reconstruction, images)
-        elif data.config.get('use_weighted_resectioning', 'sum') == 'max':
-            common_tracks = resectioning_using_classifier_weights_max(data, graph, reconstruction, images)
         else:
             common_tracks = reconstructed_points_for_images(graph, reconstruction, images)
 

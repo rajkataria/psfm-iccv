@@ -233,7 +233,7 @@ declare -A run7=(
 	[train_on_val]='no'												[convnet_use_rmatches_secondary_motion_map]='no'					[experiment]='pe_unfiltered'
 	)
 
-# Run: RMM + NRMM + PEMs unfiltered + UIUCTag-BF
+# Run: RMM + NRMM + PEMs unfiltered + maxpool
 declare -A run8=(
 	[n_estimators]='50'                    							[max_depth]='6'    													[lr]='0.01'
 	[image_match_classifier_min_match]='15'                    		[image_match_classifier_max_match]='5000'  							[classifier]='CONVNET'
@@ -241,10 +241,10 @@ declare -A run8=(
 	[convnet_use_matches_map]='no'									[convnet_use_rmatches_map]='yes'									[convnet_use_photometric_error_maps]='yes'
 	[convnet_use_track_map]='no'									[convnet_use_images]='no'											[convnet_features]='RM'
 	[convnet_resnet_model]='18'										[convnet_loss]='ce'																			
-	[train_on_val]='no'												[convnet_use_rmatches_secondary_motion_map]='no'					[experiment]='pe_unfiltered+UIUCTag-BF'
+	[train_on_val]='no'												[convnet_use_rmatches_secondary_motion_map]='no'					[experiment]='pe_unfiltered+maxpool'
 	)
 
-# Run: RMM + NRMM + PEMs unfiltered + BF data
+# Run: RMM + NRMM + PEMs unfiltered
 declare -A run9=(
 	[n_estimators]='50'                    							[max_depth]='6'    													[lr]='0.01'
 	[image_match_classifier_min_match]='15'                    		[image_match_classifier_max_match]='5000'  							[classifier]='CONVNET'
@@ -252,10 +252,10 @@ declare -A run9=(
 	[convnet_use_matches_map]='no'									[convnet_use_rmatches_map]='yes'									[convnet_use_photometric_error_maps]='yes'
 	[convnet_use_track_map]='no'									[convnet_use_images]='no'											[convnet_features]='RM'
 	[convnet_resnet_model]='18'										[convnet_loss]='ce'																			
-	[train_on_val]='no'												[convnet_use_rmatches_secondary_motion_map]='no'					[experiment]='pe_unfiltered+use-BF-data'
+	[train_on_val]='no'												[convnet_use_rmatches_secondary_motion_map]='no'					[experiment]='pe_unfiltered'
 	)
 
-# Run: RMM + NRMM + PEMs unfiltered
+# Run: RMM + NRMM + PEMs unfiltered + FMM + MM
 declare -A run10=(
 	[n_estimators]='50'                    							[max_depth]='6'    													[lr]='0.01'
 	[image_match_classifier_min_match]='15'                    		[image_match_classifier_max_match]='5000'  							[classifier]='CONVNET'
@@ -266,11 +266,23 @@ declare -A run10=(
 	[train_on_val]='no'												[convnet_use_rmatches_secondary_motion_map]='no'					[experiment]='pe_unfiltered'
 	)
 
+# Run: RMM + NRMM + PEMs unfiltered + FMM + MM + BF data
+declare -A run11=(
+	[n_estimators]='50'                    							[max_depth]='6'    													[lr]='0.01'
+	[image_match_classifier_min_match]='15'                    		[image_match_classifier_max_match]='5000'  							[classifier]='CONVNET'
+	[use_all_training_data]='yes'									[convnet_use_feature_match_map]='yes'								[convnet_use_non_rmatches_map]='yes'
+	[convnet_use_matches_map]='yes'									[convnet_use_rmatches_map]='yes'									[convnet_use_photometric_error_maps]='yes'
+	[convnet_use_track_map]='no'									[convnet_use_images]='no'											[convnet_features]='RM'
+	[convnet_resnet_model]='18'										[convnet_loss]='ce'																			
+	[train_on_val]='no'												[convnet_use_rmatches_secondary_motion_map]='no'					[experiment]='pe_unfiltered+use-BF-data'
+	)
+
 # all_runs=(run2 run3 run4 run5 run6)
 
 # all_runs=(run5 run1)
 # all_runs=(run6)
-all_runs=(run10)
+# all_runs=(run11) # run10 run6)
+all_runs=(run8 run9 run10 run11)
 
 for run_name in "${all_runs[@]}"; do
 	echo "**********************************************************************************";
@@ -351,8 +363,9 @@ for run_name in "${all_runs[@]}"; do
 		train_on_val=$c_train_on_val \
 		experiment=$c_experiment";
 
-	python2.7 -u matching_classifiers.py \
+	python -u matching_classifiers.py \
 		--opensfm_path ./OpenSfM-0.2.0/ \
+		--matching image \
 		--max_depth $c_max_depth \
 		--convnet_lr $c_lr \
 		--n_estimators $c_n_estimators \
@@ -375,7 +388,7 @@ for run_name in "${all_runs[@]}"; do
 		--convnet_use_rmatches_map $c_convnet_use_rmatches_map \
 		--convnet_use_photometric_error_maps $c_convnet_use_photometric_error_maps \
 		--experiment $c_experiment \
-		2>&1 > output-$c_classifier-lr-$c_lr-use-all-training-data-$c_use_all_training_data-min-match-$c_image_match_classifier_min_match-max-match-$c_image_match_classifier_max_match-features-$c_convnet_features-model-$c_convnet_resnet_model-loss-$c_convnet_loss-ss-$triplet_sampling_strategy-use_images-$c_convnet_use_images-use_fmm-$c_convnet_use_feature_match_map-use_tm-$c_convnet_use_track_map-use_nrmm-$c_convnet_use_non_rmatches_map-use_rmsmm-$c_convnet_use_rmatches_secondary_motion_map-train_on_val-$c_train_on_val-use_rmm-$c_convnet_use_rmatches_map-use_mm-$c_convnet_use_matches_map-use_pems-$c_convnet_use_photometric_error_maps-exp-c_experiment.out
+		2>&1 > output-$c_classifier-use-all-training-data-$c_use_all_training_data-min-match-$c_image_match_classifier_min_match-max-match-$c_image_match_classifier_max_match-loss-$c_convnet_loss-ss-$triplet_sampling_strategy-use_images-$c_convnet_use_images-use_fmm-$c_convnet_use_feature_match_map-use_tm-$c_convnet_use_track_map-use_nrmm-$c_convnet_use_non_rmatches_map-use_rmsmm-$c_convnet_use_rmatches_secondary_motion_map-train_on_val-$c_train_on_val-use_rmm-$c_convnet_use_rmatches_map-use_mm-$c_convnet_use_matches_map-use_pems-$c_convnet_use_photometric_error_maps-exp-$c_experiment.out
 	
     echo "************************************************************************************************************"
 	echo "************************************************************************************************************"
