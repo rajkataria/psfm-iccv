@@ -1433,7 +1433,7 @@ def grow_reconstruction(data, graph, reconstruction, images, gcp):
                 [reconstruction], 'reconstruction.{}.json'.format(
                     datetime.datetime.now().isoformat().replace(':', '_')))
 
-        if data.config.get('use_colmap_resectioning', False):
+        if data.config.get('use_colmap_resectioning', 'sum') == 'sum':
             logger.info('Using colmap resectioning')
             common_tracks = next_best_view_score_for_images(graph, reconstruction, images)
         elif data.config.get('use_weighted_resectioning', 'sum') == 'sum':
