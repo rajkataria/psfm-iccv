@@ -1434,10 +1434,13 @@ def grow_reconstruction(data, graph, reconstruction, images, gcp):
                     datetime.datetime.now().isoformat().replace(':', '_')))
 
         if data.config.get('use_colmap_resectioning', False):
+            logger.info('Using colmap resectioning')
             common_tracks = next_best_view_score_for_images(graph, reconstruction, images)
         elif data.config.get('use_weighted_resectioning', 'sum') == 'sum':
+            logger.info('Using weighted resectioning')
             common_tracks = resectioning_using_classifier_weights_sum(data, graph, reconstruction, images)
         else:
+            logger.info('Using original resectioning')
             common_tracks = reconstructed_points_for_images(graph, reconstruction, images)
 
         resectioning_order_common_tracks.append(common_tracks)

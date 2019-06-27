@@ -978,6 +978,9 @@ class DataSet:
             results = pickle.load(fin)
         return results
 
+    def feature_matching_results_exists(self, image, lowes_ratio_threshold, classifier):
+        return os.path.isfile(self.__feature_matching_results_file(image, ext='pkl.gz', suffix='{}-{}'.format(lowes_ratio_threshold, classifier)))
+
     def save_iconic_image_list(self, image_list):
         io.mkdir_p(self.__yan_path())
         with open(self.__iconic_image_list_file('json'), 'w') as fout:

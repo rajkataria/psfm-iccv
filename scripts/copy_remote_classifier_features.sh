@@ -7,8 +7,8 @@ remote_server="ec2-13-59-182-165.us-east-2.compute.amazonaws.com" # eth3d and ta
 # remote_server="ec2-3-17-62-157.us-east-2.compute.amazonaws.com" # uiuctag
 local_root="/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce"
 # relevant_dataset="TUM_RGBD_SLAM"
-# relevant_dataset="ETH3D"
-relevant_dataset="TanksAndTemples"
+relevant_dataset="ETH3D"
+# relevant_dataset="TanksAndTemples"
 # relevant_dataset="UIUCTag"
 
 TanksAndTemples_relevant_sequences=('Barn' 'Caterpillar' 'Church' 'Courthouse' 'Ignatius' 'Meetingroom' 'Truck')
@@ -44,6 +44,7 @@ for ds in "${datasets[@]}"; do
 		mkdir -p $local_folder/all_matches/
 		mkdir -p $local_folder/matches/
 		if [ "$copy_mode" == "full" ];then
+			mkdir -p $local_folder/exif/
 			mkdir -p $local_folder/images-blurred/
 			mkdir -p $local_folder/images-resized/
 			mkdir -p $local_folder/images-resized-processed/
@@ -53,23 +54,25 @@ for ds in "${datasets[@]}"; do
 	start=$SECONDS
 	if [ "$copy_mode" == "full" ];then
 		echo -e "\t\tCopying dataset: "$ds" to $local_folder - mode: full";
-		rsync -aqz ubuntu@$remote_server:$ds/reconstruction-*.json $local_folder/
-		rsync -aqz ubuntu@$remote_server:$ds/tracks*.csv $local_folder/
-		rsync -aqz ubuntu@$remote_server:$ds/features/* $local_folder/features/
-		rsync -aqz ubuntu@$remote_server:$ds/classifier_dataset/* $local_folder/classifier_dataset/
-		rsync -aqz ubuntu@$remote_server:$ds/classifier_features/* $local_folder/classifier_features/
-		rsync -aqz ubuntu@$remote_server:$ds/images-blurred/* $local_folder/images-blurred/
-		rsync -aqz ubuntu@$remote_server:$ds/images-resized/* $local_folder/images-resized/
-		rsync -aqz ubuntu@$remote_server:$ds/images-resized-processed/* $local_folder/images-resized-processed/
-		rsync -aqz ubuntu@$remote_server:$ds/rmatches_secondary/* $local_folder/rmatches_secondary/
-		rsync -aqz ubuntu@$remote_server:$ds/all_matches/* $local_folder/all_matches/
-		rsync -aqz ubuntu@$remote_server:$ds/matches/* $local_folder/matches/
+		# rsync -aqz ubuntu@$remote_server:$ds/camera_models.json $local_folder/
+		# rsync -aqz ubuntu@$remote_server:$ds/reconstruction-*.json $local_folder/
+		# rsync -aqz ubuntu@$remote_server:$ds/tracks*.csv $local_folder/
+		rsync -aqz ubuntu@$remote_server:$ds/exif/* $local_folder/exif/
+		# rsync -aqz ubuntu@$remote_server:$ds/features/* $local_folder/features/
+		# rsync -aqz ubuntu@$remote_server:$ds/classifier_dataset/* $local_folder/classifier_dataset/
+		# rsync -aqz ubuntu@$remote_server:$ds/classifier_features/* $local_folder/classifier_features/
+		# rsync -aqz ubuntu@$remote_server:$ds/images-blurred/* $local_folder/images-blurred/
+		# rsync -aqz ubuntu@$remote_server:$ds/images-resized/* $local_folder/images-resized/
+		# rsync -aqz ubuntu@$remote_server:$ds/images-resized-processed/* $local_folder/images-resized-processed/
+		# rsync -aqz ubuntu@$remote_server:$ds/rmatches_secondary/* $local_folder/rmatches_secondary/
+		# rsync -aqz ubuntu@$remote_server:$ds/all_matches/* $local_folder/all_matches/
+		# rsync -aqz ubuntu@$remote_server:$ds/matches/* $local_folder/matches/
 	elif [ "$copy_mode" == "minimal" ]; then
 		echo -e "\t\tCopying dataset: "$ds" to $local_folder - mode: minimal";
 		# rsync -aqz ubuntu@$remote_server:$ds/reconstruction-*.json $local_folder/
 		# rsync -aqz ubuntu@$remote_server:$ds/tracks*.csv $local_folder/
-		rsync -aqz ubuntu@$remote_server:$ds/classifier_dataset/* $local_folder/classifier_dataset/
-		rsync -aqz ubuntu@$remote_server:$ds/features/* $local_folder/features/
+		# rsync -aqz ubuntu@$remote_server:$ds/classifier_dataset/* $local_folder/classifier_dataset/
+		# rsync -aqz ubuntu@$remote_server:$ds/features/* $local_folder/features/
 		# rsync -aqz ubuntu@$remote_server:$ds/classifier_features/feature_maps $local_folder/classifier_features/
 		# rsync -aqz ubuntu@$remote_server:$ds/classifier_features/match_maps $local_folder/classifier_features/
 		# rsync -aqz ubuntu@$remote_server:$ds/classifier_features/pe_maps $local_folder/classifier_features/
