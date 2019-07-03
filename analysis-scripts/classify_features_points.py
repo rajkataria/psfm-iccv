@@ -123,41 +123,79 @@ def parallelized_feature_point_classifier(arg):
     results = {}
     # classifier_args = 
     
-    fns, dsets, indices1, indices2, dists1, dists2, sizes1, sizes2, angles1, angles2 = [], [], [], [], [], [], [], [], [], []
+    # fns, dsets, indices1, indices2, dists1, dists2, sizes1, sizes2, angles1, angles2 = [], [], [], [], [], [], [], [], [], []
+    fns, dsets, indices1, indices2, dists1, dists2, sizes1, sizes2, angles1, angles2 = None, None, None, None, None, None, None, None, None, None
+    num_matches = 0
+    s_time_concatenation = timer()
     for im2 in sorted(im_unthresholded_matches.keys()):
         num_matches, _ = im_unthresholded_matches[im2].shape
+        if dsets is None:
+            # dsets.extend(np.tile(dset,(num_matches,1)).tolist())
+            # fns.extend(np.tile([im, im2], (num_matches, 1)).tolist())
+            # indices1.extend(im_unthresholded_matches[im2][:,0].tolist())
+            # indices2.extend(im_unthresholded_matches[im2][:,1].tolist())
+            # dists1.extend(im_unthresholded_matches[im2][:,2].tolist())
+            # dists2.extend(im_unthresholded_matches[im2][:,3].tolist())
 
-        dsets.extend(np.tile(dset,(num_matches,1)).tolist())
-        fns.extend(np.tile([im, im2], (num_matches, 1)).tolist())
-        indices1.extend(im_unthresholded_matches[im2][:,0].tolist())
-        indices2.extend(im_unthresholded_matches[im2][:,1].tolist())
-        dists1.extend(im_unthresholded_matches[im2][:,2].tolist())
-        dists2.extend(im_unthresholded_matches[im2][:,3].tolist())
+            # # raj: make sure size (and angle) is the correct index
+            # sizes1.extend(p_cached[im][im_unthresholded_matches[im2][:,0].astype(np.int), 2])
+            # sizes2.extend(p_cached[im2][im_unthresholded_matches[im2][:,1].astype(np.int), 2])
 
-        # raj: make sure size (and angle) is the correct index
-        sizes1.extend(p_cached[im][im_unthresholded_matches[im2][:,0].astype(np.int), 2])
-        sizes2.extend(p_cached[im2][im_unthresholded_matches[im2][:,1].astype(np.int), 2])
+            # angles1.extend(p_cached[im][im_unthresholded_matches[im2][:,0].astype(np.int), 3])
+            # angles2.extend(p_cached[im2][im_unthresholded_matches[im2][:,1].astype(np.int), 3])
+            dsets = np.tile(dset,(num_matches,1))
+            fns = np.tile([im, im2], (num_matches, 1))
+            indices1 = im_unthresholded_matches[im2][:,0]
+            indices2 = im_unthresholded_matches[im2][:,1]
+            dists1 = im_unthresholded_matches[im2][:,2]
+            dists2 = im_unthresholded_matches[im2][:,3]
 
-        angles1.extend(p_cached[im][im_unthresholded_matches[im2][:,0].astype(np.int), 3])
-        angles2.extend(p_cached[im2][im_unthresholded_matches[im2][:,1].astype(np.int), 3])
+            # raj: make sure size (and angle) is the correct index
+            sizes1 = p_cached[im][im_unthresholded_matches[im2][:,0].astype(np.int), 2]
+            sizes2 = p_cached[im2][im_unthresholded_matches[im2][:,1].astype(np.int), 2]
+
+            angles1 = p_cached[im][im_unthresholded_matches[im2][:,0].astype(np.int), 3]
+            angles2 = p_cached[im2][im_unthresholded_matches[im2][:,1].astype(np.int), 3]
+        else:
+            dsets = np.concatenate((dsets, np.tile(dset,(num_matches,1))))
+            fns = np.concatenate((fns, np.tile([im, im2], (num_matches, 1))))
+            indices1 = np.concatenate((indices1, im_unthresholded_matches[im2][:,0]))
+            indices2 = np.concatenate((indices2, im_unthresholded_matches[im2][:,1]))
+            dists1 = np.concatenate((dists1, im_unthresholded_matches[im2][:,2]))
+            dists2 = np.concatenate((dists2, im_unthresholded_matches[im2][:,3]))
+
+            # raj: make sure size (and angle) is the correct index
+            sizes1 = np.concatenate((sizes1, p_cached[im][im_unthresholded_matches[im2][:,0].astype(np.int), 2]))
+            sizes2 = np.concatenate((sizes2, p_cached[im2][im_unthresholded_matches[im2][:,1].astype(np.int), 2]))
+
+            angles1 = np.concatenate((angles1, p_cached[im][im_unthresholded_matches[im2][:,0].astype(np.int), 3]))
+            angles2 = np.concatenate((angles2, p_cached[im2][im_unthresholded_matches[im2][:,1].astype(np.int), 3]))
 
         # dsets.append(dset)
         # indices1.append()
+    if options['debug']:
+        print ('\t\t\tTime for concatenating inputs for {}: {} = {}'.format(dset, im, np.round(timer()-s_time_concatenation,2)))
+    if num_matches == 0:
+        return
 
     arg = [dsets, fns, indices1, indices2, dists1, dists2, np.zeros((len(fns),1)), sizes1, sizes2, angles1, angles2, np.zeros((len(fns),1)), np.zeros((len(fns),1)), \
         np.zeros((len(fns),1)), False, trained_classifier, options]
 
+    s_time_classification = timer()
     if options['classifier'] == 'BASELINE':
         results_fns, results_indices1, results_indices2, results_dists1, results_dists2, _, scores = baseline_histogram_classifier(arg)
         # import pdb; pdb.set_trace()
     elif options['classifier'] == 'BDTS':
         results_fns, results_indices1, results_indices2, results_dists1, results_dists2, _, scores = classifier.classify_boosted_dts_feature_match(arg)
+    if options['debug']:
+        print ('\t\t\tTime for classifying results for {}: {} = {}'.format(dset, im, np.round(timer()-s_time_classification,2)))
 
+    s_time_aggregation = timer()
     for i,(im1,im2) in enumerate(results_fns):
         # if im1 not in results:
         #     results[im1] = {}
         if im2 not in results:
-            results[im2] = []
+            results[im2] = {}
 
         # if im1 not in results[im2]:
         #     results[im2][im1] = []
@@ -165,9 +203,12 @@ def parallelized_feature_point_classifier(arg):
         #     results[im1][im2] = []
 
         score = round(scores[i], 3)
-        results[im2].append({'im1': im1, 'im2': im2, 'index1': results_indices1[i], 'index2': results_indices2[i], 'score': score, 'dist1': results_dists1[i], 'dist2': results_dists2[i]})
+        # results[im2].append({'im1': im1, 'im2': im2, 'index1': results_indices1[i], 'index2': results_indices2[i], 'score': score, 'dist1': results_dists1[i], 'dist2': results_dists2[i]})
+        results[im2][results_indices1[i]] = {results_indices2[i]: {'im1': im1, 'im2': im2, 'index1': results_indices1[i], 'index2': results_indices2[i], 'score': score, 'dist1': results_dists1[i], 'dist2': results_dists2[i]} }
         # results[im2][im1].append({'im1': im2, 'im2': im1, 'index1': results_indices2[i], 'index2': results_indices1[i], 'score': score, 'dist1': results_dists2[i], 'dist2': results_dists1[i]})
     
+    if options['debug']:
+        print ('\t\t\tTime for aggregating results for {}: {} = {}'.format(dset, im, np.round(timer()-s_time_aggregation,2)))
     data.save_feature_matching_results(im, results, lowes_ratio_threshold=options['lowes_threshold'], classifier=options['classifier'])
 
 def classify_feature_points(datasets, options={}):    
@@ -196,14 +237,14 @@ def classify_feature_points(datasets, options={}):
         outliers_distribution = matching_classifiers.load_classifier(classifier_outliers_fn)
         trained_classifier = [inliers_distribution, outliers_distribution]
     elif options['classifier'] == 'BDTS':
-        trained_classifier = matching_classifiers.load_classifier(os.path.join(options['outdir'], 'ETH3D'))
+        trained_classifier = matching_classifiers.load_classifier(os.path.join(options['classifier_location'], 'ETH3D+TUM_RGBD_SLAM+TanksAndTemples+5-40.pkl'))
 
     for i,t in enumerate(datasets):
         print ('#'*100)
         print ('\tRunning classifier for dataset: {}'.format(os.path.basename(t)))
         data = dataset.DataSet(t)
         p_cached = {}
-
+        s_time_preparation = timer()
         for im in sorted(data.all_feature_maps()):
             p, f, c = data.load_features(im)
             p_cached[im] = p
@@ -213,6 +254,8 @@ def classify_feature_points(datasets, options={}):
                 im_unthresholded_matches = data.load_unthresholded_matches(im)
                 args.append([data, t, im, im_unthresholded_matches, p_cached, options, trained_classifier])
 
+        if options['debug']:
+            print ('\t\tTime for preparing arguments for parallelization for {} = {}'.format(t, np.round(timer()-s_time_preparation,2)))
         p = Pool(options['processes'])
         if options['processes'] == 1:
             for arg in args:
@@ -284,6 +327,7 @@ def main(argv):
     # parser.add_argument('-x', '--image_match_classifier_max_match', help='')
     # parser.add_argument('--classifier_file', help='classifier checkpoint or saved classifier to use')
     parser.add_argument('--classifier', help='classifier type - BASELINE/CONVNET')
+    parser.add_argument('--lowes_threshold', help="Lowe's threshold")
     # parser.add_argument('--convnet_checkpoint', help='checkpoint file for convnet')
   
     parser_options = parser.parse_args()
@@ -295,14 +339,16 @@ def main(argv):
 
     options = {
         'classifier': parser_options.classifier.upper(), \
-        'outdir': os.path.join(os.getcwd(), 'data/feature-point-matching-baseline-classifiers'), 
+        'outdir': os.path.join(os.getcwd(), 'data/feature-point-matching-baseline-classifiers'),
+        'classifier_location': os.path.join(os.getcwd(), 'data/feature-matching-classifiers-results/5-40'),
         # 'image_match_classifier_file': parser_options.classifier_file, \
         # 'image_match_classifier_min_match': int(parser_options.image_match_classifier_min_match), \
         # 'image_match_classifier_max_match': int(parser_options.image_match_classifier_max_match), \
         # 'feature_selection': False,
         # 'classifier_file': parser_options.classifier_file,
         'processes': 12,
-        'lowes_threshold': 0.8
+        'lowes_threshold': float(parser_options.lowes_threshold),
+        'debug': False
     }
 
     training_datasets = [
@@ -349,9 +395,9 @@ def main(argv):
         '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Meetingroom',
         '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Truck',
 
-        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/exhibition_hall',
-        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/lecture_room',
-        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/living_room',
+        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/exhibition_hall',
+        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/lecture_room',
+        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/living_room',
 
         '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_cabinet',
         '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_large_cabinet',
@@ -441,7 +487,8 @@ def main(argv):
     # plot_feature_points_results(['/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/courtyard', 
     #     '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/delivery_area',
     #     '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/electro'], options)
-    plot_feature_points_results(val_datasets, options)
+    
+    # plot_feature_points_results(val_datasets, options)
 
 
 

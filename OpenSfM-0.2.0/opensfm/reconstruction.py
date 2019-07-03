@@ -772,7 +772,7 @@ def next_best_view_score_for_images(graph, reconstruction, images):
             res.append((image, nbvs))
     return sorted(res, key=lambda x: -x[1])
 
-def track_score(data, graph, track_args, trained_classifier):
+def track_classification_score(data, graph, track_args, trained_classifier):
     track_cum_score, track_length = track_args
     inliers_distribution, outliers_distribution = trained_classifier
     bins = trained_classifier[0][1]
@@ -780,7 +780,11 @@ def track_score(data, graph, track_args, trained_classifier):
     reconstruction_percentage = (inliers_distribution[0][relevant_bins].astype(np.float) + epsilon) / (inliers_distribution[0][relevant_bins].astype(np.float) + outliers_distribution[0][relevant_bins].astype(np.float) + epsilon)
     return reconstruction_percentage
 
-def resectioning_using_classifier_weights_sum(data, graph, reconstruction, images):
+def track_weighted_score(data, graph, track_args, trained_classifier):
+    track_cum_score, track_length = track_args
+    return track_cum_score
+
+def resectioning_using_classifier_weights(data, graph, reconstruction, images):
     res = []
     im_matches = {}
     if data.config['use_image_matching_classifier']:
@@ -803,7 +807,7 @@ def resectioning_using_classifier_weights_sum(data, graph, reconstruction, image
                     visible_track_ids.append(track)
 
                     track_match_scores = []
-                    track_match_rmatches = []
+                    # track_match_rmatches = []
 
                     for track_image in graph[track]:
                         if track_image not in reconstruction.shots:
@@ -841,53 +845,12 @@ def resectioning_using_classifier_weights_sum(data, graph, reconstruction, image
                         # track_match_score 
                         # track_match_scores.append(image_matching_score)
                         track_match_scores.append(image_matching_score * feature_matching_score)
-                        track_match_rmatches.append(image_matching_rmatches)
+                        # track_match_rmatches.append(image_matching_rmatches)
 
                     track_args = [np.sum(np.array(track_match_scores)), len(graph[track].keys())]
                     # visible_track_weights.append(track_score)
-                    visible_track_weights.append(track_score(data, graph, track_args, trained_classifier))
-
-            if len(visible_feature_coords) > 0:
-                nbvs = classifier.next_best_view_score_weighted(np.array(visible_feature_coords), np.array(visible_track_weights).reshape((-1,1)))
-            else:
-                nbvs = 0.0
-            res.append((image, nbvs))
-    return sorted(res, key=lambda x: -x[1])
-
-def resectioning_using_classifier_weights_max(data, graph, reconstruction, images):
-    res = []
-    im_matches = {}
-    if data.config['use_image_matching_classifier']:
-        im_matching_results = data.load_image_matching_results(robust_matches_threshold=15, classifier='CONVNET')
-    else:
-        im_matching_results = data.load_image_matching_results(robust_matches_threshold=15, classifier='BASELINE')
-
-    for image in images:
-        if image not in reconstruction.shots:
-            visible_feature_coords = []
-            visible_track_ids = []
-            visible_track_weights = []
-            for track in graph[image]:
-                if track in reconstruction.points:
-                    track_score = [0.0]
-                    feature_id = graph[image][track]['feature_id']
-                    visible_feature_coords.append(graph[image][track]['feature'])
-                    visible_track_ids.append(track)
-                    for track_image in graph[track]:
-                        if track_image not in reconstruction.shots:
-                            continue
-                        if track_image < image:
-                            im1 = track_image
-                            im2 = image
-                        else:
-                            im1 = image
-                            im2 = track_image
-                      
-                        if im1 not in im_matching_results or im2 not in im_matching_results[im1]:
-                            continue 
-                        image_matching_score = im_matching_results[im1][im2]['score']
-                        track_score.append(image_matching_score)
-                    visible_track_weights.append(np.max(np.array(track_score)))
+                    visible_track_weights.append(track_weighted_score(data, graph, track_args, trained_classifier))
+                    # visible_track_weights.append(track_classification_score(data, graph, track_args, trained_classifier))
 
             if len(visible_feature_coords) > 0:
                 nbvs = classifier.next_best_view_score_weighted(np.array(visible_feature_coords), np.array(visible_track_weights).reshape((-1,1)))
@@ -1433,12 +1396,15 @@ def grow_reconstruction(data, graph, reconstruction, images, gcp):
                 [reconstruction], 'reconstruction.{}.json'.format(
                     datetime.datetime.now().isoformat().replace(':', '_')))
 
-        if data.config.get('use_colmap_resectioning', 'sum') == 'sum':
+        if data.config.get('use_weighted_resectioning', 'colmap') == 'colmap':
             logger.info('Using colmap resectioning')
             common_tracks = next_best_view_score_for_images(graph, reconstruction, images)
-        elif data.config.get('use_weighted_resectioning', 'sum') == 'sum':
-            logger.info('Using weighted resectioning')
-            common_tracks = resectioning_using_classifier_weights_sum(data, graph, reconstruction, images)
+        elif data.config.get('use_weighted_resectioning', 'colmap') == 'tracks-classifier':
+            logger.info('Using weighted resectioning using tracks classifier')
+            common_tracks = resectioning_using_classifier_weights(data, graph, reconstruction, images)
+        elif data.config.get('use_weighted_resectioning', 'colmap') == 'tracks-weighted-score':
+            logger.info('Using weighted resectioning using tracks weighted score')
+            common_tracks = resectioning_using_classifier_weights(data, graph, reconstruction, images)
         else:
             logger.info('Using original resectioning')
             common_tracks = reconstructed_points_for_images(graph, reconstruction, images)
@@ -1510,10 +1476,9 @@ def grow_reconstruction(data, graph, reconstruction, images, gcp):
     #     data.config['closest_images_top_k'], \
     #     data.config['use_yan_disambiguation']
     #     )
-    run_name = 'imc-{}-wr-{}-colmapr-{}.json'.format(\
+    run_name = 'imc-{}-wr-{}.json'.format(\
         data.config['use_image_matching_classifier'], \
         data.config['use_weighted_resectioning'], \
-        data.config['use_colmap_resectioning'], \
         )
     data.save_resectioning_order(resectioning_order, run=run_name)
     data.save_resectioning_order_attempted(resectioning_order_attempted, run=run_name)
@@ -1534,7 +1499,7 @@ def incremental_reconstruction(data):
         data.invent_reference_lla()
 
 
-    if data.config.get('use_colmap_resectioning', False):
+    if data.config.get('use_weighted_resectioning', 'colmap') == 'colmap' or data.config.get('use_weighted_resectioning', 'colmap') == 'original':
         graph = data.load_tracks_graph('tracks.csv')
     else:
         graph = data.load_tracks_graph('tracks-all-matches.csv')
@@ -1585,7 +1550,10 @@ def incremental_reconstruction(data):
         gcp = data.load_ground_control_points()
     common_tracks = matching.all_common_tracks(graph, tracks)
     reconstructions = []
-    if data.config.get('use_colmap_resectioning', False):
+    if data.config.get('use_weighted_resectioning', 'colmap') == 'tracks-weighted-score' or \
+        data.config.get('use_weighted_resectioning', 'colmap') == 'tracks-classifier' or \
+        data.config.get('use_weighted_resectioning', 'colmap') == 'colmap':
+        
         pairs = compute_image_pairs_colmap(common_tracks, data)
     else:
         pairs = compute_image_pairs(common_tracks, data)
@@ -1624,10 +1592,9 @@ def incremental_reconstruction(data):
                 #     data.config['closest_images_top_k'], \
                 #     data.config['use_yan_disambiguation']
                 #     )
-                reconstruction_fn = 'reconstruction-imc-{}-wr-{}-colmapr-{}.json'.format(\
+                reconstruction_fn = 'reconstruction-imc-{}-wr-{}.json'.format(\
                     data.config['use_image_matching_classifier'], \
                     data.config['use_weighted_resectioning'], \
-                    data.config['use_colmap_resectioning'], \
                     )
                 data.save_reconstruction(reconstructions, filename=reconstruction_fn)
 

@@ -245,10 +245,26 @@ def next_best_view_score_weighted(image_coordinates, weights):
 
 
 def classify_boosted_dts_feature_match(arg):
-    fns, indices1, indices2, dists1, dists2, size1, size2, angle1, angle2, labels, \
+    dsets, fns, indices1, indices2, dists1, dists2, _, size1, size2, angle1, angle2, _, _, labels, \
         train, regr, options = arg
     rng = np.random.RandomState(1)
     num_matches = len(dists1)
+
+    dists1 = np.array(dists1)
+    dists2 = np.array(dists2)
+    size1 = np.array(size1)
+    size2 = np.array(size2)
+    angle1 = np.array(angle1)
+    angle2 = np.array(angle2)
+
+    # print (dists1.shape)
+    # print (dists2.shape)
+    # print (size1.shape)
+    # print (size2.shape)
+    # print (angle1.shape)
+    # print (angle2.shape)
+    # print ('#'*100)
+
     X = np.concatenate(( \
             np.maximum(dists1, dists2).reshape((num_matches,1)),
             size1.reshape((num_matches,1)),
