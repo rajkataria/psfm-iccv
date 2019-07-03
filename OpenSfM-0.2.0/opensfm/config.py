@@ -138,6 +138,7 @@ processes: 72                         # Number of threads to use
 use_gt_matches: no
 use_gt_selective_matches: no
 use_image_matching_classifier: no
+use_feature_matching_classifier: no
 use_image_matching_thresholding: no
 use_weighted_feature_matches: no
 use_weighted_resectioning: tracks-weighted-score          # colmap, tracks-classifier, tracks-weighted-score, original
