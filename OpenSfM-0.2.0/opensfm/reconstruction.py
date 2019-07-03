@@ -789,10 +789,16 @@ def resectioning_using_classifier_weights(data, graph, reconstruction, images):
     im_matches = {}
     if data.config['use_image_matching_classifier']:
         im_matching_results = data.load_image_matching_results(robust_matches_threshold=15, classifier='CONVNET')
-        trained_classifier = data.load_histogram_track_classifier(matching_classifier='CONVNET')
+        if data.config.get('use_weighted_resectioning', 'colmap') == 'tracks-classifier':
+            trained_classifier = data.load_histogram_track_classifier(matching_classifier='CONVNET')
+        else:
+            trained_classifier = None
     else:
         im_matching_results = data.load_image_matching_results(robust_matches_threshold=15, classifier='BASELINE')
-        trained_classifier = data.load_histogram_track_classifier(matching_classifier='BASELINE')
+        if data.config.get('use_weighted_resectioning', 'colmap') == 'tracks-classifier':
+            trained_classifier = data.load_histogram_track_classifier(matching_classifier='BASELINE')
+        else:
+            trained_classifier = None
 
     for image in images:
         if image not in reconstruction.shots:
@@ -849,8 +855,10 @@ def resectioning_using_classifier_weights(data, graph, reconstruction, images):
 
                     track_args = [np.sum(np.array(track_match_scores)), len(graph[track].keys())]
                     # visible_track_weights.append(track_score)
-                    visible_track_weights.append(track_weighted_score(data, graph, track_args, trained_classifier))
-                    # visible_track_weights.append(track_classification_score(data, graph, track_args, trained_classifier))
+                    if data.config.get('use_weighted_resectioning', 'colmap') == 'tracks-classifier':
+                        visible_track_weights.append(track_classification_score(data, graph, track_args, trained_classifier))
+                    else:
+                        visible_track_weights.append(track_weighted_score(data, graph, track_args, trained_classifier))
 
             if len(visible_feature_coords) > 0:
                 nbvs = classifier.next_best_view_score_weighted(np.array(visible_feature_coords), np.array(visible_track_weights).reshape((-1,1)))
@@ -1553,7 +1561,7 @@ def incremental_reconstruction(data):
     if data.config.get('use_weighted_resectioning', 'colmap') == 'tracks-weighted-score' or \
         data.config.get('use_weighted_resectioning', 'colmap') == 'tracks-classifier' or \
         data.config.get('use_weighted_resectioning', 'colmap') == 'colmap':
-        
+
         pairs = compute_image_pairs_colmap(common_tracks, data)
     else:
         pairs = compute_image_pairs(common_tracks, data)
