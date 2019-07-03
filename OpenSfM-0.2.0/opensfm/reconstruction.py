@@ -829,9 +829,9 @@ def resectioning_using_classifier_weights(data, graph, reconstruction, images):
                         fid2 = graph[track][im2]['feature_id']
                       
                         if data.config['use_feature_matching_classifier']:
-                            fm_matching_results = data.load_feature_matching_results(im1, lowes_ratio_threshold=options['lowes_ratio_threshold'], classifier='BDT')
+                            fm_matching_results = data.load_feature_matching_results(im1, lowes_ratio_threshold=0.8, classifier='BDT')
                         else:
-                            fm_matching_results = data.load_feature_matching_results(im1, lowes_ratio_threshold=options['lowes_ratio_threshold'], classifier='BASELINE')
+                            fm_matching_results = data.load_feature_matching_results(im1, lowes_ratio_threshold=0.8, classifier='BASELINE')
 
                         if im1 not in im_matching_results or im2 not in im_matching_results[im1]:
                             continue 
