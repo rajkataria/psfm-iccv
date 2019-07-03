@@ -26,18 +26,22 @@ def mkdir_p(path):
         pass
 
 def calculate_track_inliers(arg):
-    t, dataset_track_analysis_fn, dataset_track_inlier_analysis_fn, options = arg
+    t, dataset_track_raw_data_fn, dataset_track_inlier_analysis_fn, options = arg
 
     data = dataset.DataSet(t)
     if options['gt']:
         graph = data.load_tracks_graph('tracks-gt-matches.csv')
     else:
         graph = data.load_tracks_graph('tracks.csv')
+
     image_matching_results_baseline = data.load_image_matching_results(robust_matches_threshold=15, classifier='BASELINE')
     image_matching_results_classifier = data.load_image_matching_results(robust_matches_threshold=15, classifier='CONVNET')
     image_matching_results_gt = data.load_groundtruth_image_matching_results(robust_matches_threshold=15)
+    feature_matching_results_baseline = {}
+    feature_matching_results_classifier = {}
+    feature_matching_results_gt = {}
 
-    with open(dataset_track_analysis_fn, 'r') as fi:
+    with open(dataset_track_raw_data_fn, 'r') as fi:
         track_data = json.load(fi)
         all_robust_matches = {}
         track_degrees = {}
@@ -76,18 +80,31 @@ def calculate_track_inliers(arg):
 
                 total_matches_sum_baseline_max_score = -100000.0
                 total_matches_sum_baseline_min_score = 100000.0
-                total_matches_sum_baseline_max_rmatches = -100000.0
-                total_matches_sum_baseline_min_rmatches = 100000.0
+                # total_matches_sum_baseline_max_rmatches = -100000.0
+                # total_matches_sum_baseline_min_rmatches = 100000.0
                 total_matches_sum_classifier_max_score = -100000.0
                 total_matches_sum_classifier_min_score = 100000.0
 
                 for i, im1 in enumerate(sorted(graph[t].keys())):
-                    feature_matching_results_baseline = data.load_feature_matching_results(im1, lowes_ratio_threshold=options['lowes_ratio_threshold'], classifier='BASELINE')
+                    # if im1 != '000365.jpg':
+                    #     continue
+                    if not data.feature_matching_results_exists(im1, lowes_ratio_threshold=options['lowes_ratio_threshold'], classifier='BASELINE'):
+                        continue
+
+                    if im1 not in feature_matching_results_baseline:
+                        feature_matching_results_baseline[im1] = data.load_feature_matching_results(im1, lowes_ratio_threshold=options['lowes_ratio_threshold'], classifier='BASELINE')
+                        feature_matching_results_classifier = feature_matching_results_baseline
+                        feature_matching_results_gt = feature_matching_results_baseline
+                        # feature_matching_results_classifier[im1] = data.load_feature_matching_results(im1, lowes_ratio_threshold=options['lowes_ratio_threshold'], classifier='BASELINE')
+                        # feature_matching_results_gt[im1] = data.load_feature_matching_results(im1, lowes_ratio_threshold=options['lowes_ratio_threshold'], classifier='BASELINE')
+
                     fid1 = graph[t][im1]['feature_id']
                     if im1 not in all_robust_matches:
                         _, _, im1_all_robust_matches = data.load_all_matches(im1)
                         all_robust_matches[im1] = im1_all_robust_matches
                     for j, im2 in enumerate(sorted(graph[t].keys())):
+                        # if im2 != '000371.jpg':
+                        #     continue
                         if j <= i:
                             continue
                         if im2 not in all_robust_matches[im1]:
@@ -104,16 +121,23 @@ def calculate_track_inliers(arg):
                         # import pdb; pdb.set_trace()
                         if [fid1, fid2] in rmatches[:,0:2].tolist():
                             total_matches += 1
-                            total_matches_sum_baseline += image_matching_results_baseline[im1][im2]['score']
-                            total_matches_sum_classifier += image_matching_results_classifier[im1][im2]['score']
-                            total_matches_sum_gt += image_matching_results_gt[im1][im2]['score']
+                            # try:
+                            total_matches_sum_baseline += image_matching_results_baseline[im1][im2]['score'] * feature_matching_results_baseline[im1][im2][fid1][fid2]['score']
+                            # except KeyError:
+                            #     import pdb; pdb.set_trace()
+                            #     print ('{} | {} - {} : {} - {}'.format(data.data_path, im1, im2, fid1, fid2))
+                            #     print (feature_matching_results_baseline[im1].keys())
+                            #     print (len(feature_matching_results_baseline[im1][im2].keys()))
+                            #     print (feature_matching_results_baseline[im1][im2][fid1])
+                            total_matches_sum_classifier += image_matching_results_classifier[im1][im2]['score'] * feature_matching_results_classifier[im1][im2][fid1][fid2]['score']
+                            total_matches_sum_gt += image_matching_results_gt[im1][im2]['score'] * feature_matching_results_gt[im1][im2][fid1][fid2]['score']
 
-                            total_matches_sum_baseline_max_score = np.maximum(image_matching_results_baseline[im1][im2]['score'], total_matches_sum_baseline_max_score)
-                            total_matches_sum_baseline_min_score = np.minimum(image_matching_results_baseline[im1][im2]['score'], total_matches_sum_baseline_min_score)
-                            total_matches_sum_baseline_max_rmatches = np.maximum(image_matching_results_baseline[im1][im2]['num_rmatches'], total_matches_sum_baseline_max_rmatches)
-                            total_matches_sum_baseline_min_rmatches = np.minimum(image_matching_results_baseline[im1][im2]['num_rmatches'], total_matches_sum_baseline_min_rmatches)
-                            total_matches_sum_classifier_max_score = np.maximum(image_matching_results_classifier[im1][im2]['score'], total_matches_sum_classifier_max_score)
-                            total_matches_sum_classifier_min_score = np.minimum(image_matching_results_classifier[im1][im2]['score'], total_matches_sum_classifier_min_score)
+                            total_matches_sum_baseline_max_score = np.maximum(image_matching_results_baseline[im1][im2]['score'] * feature_matching_results_baseline[im1][im2][fid1][fid2]['score'], total_matches_sum_baseline_max_score)
+                            total_matches_sum_baseline_min_score = np.minimum(image_matching_results_baseline[im1][im2]['score'] * feature_matching_results_baseline[im1][im2][fid1][fid2]['score'], total_matches_sum_baseline_min_score)
+                            # total_matches_sum_baseline_max_rmatches = np.maximum(image_matching_results_baseline[im1][im2]['num_rmatches'], total_matches_sum_baseline_max_rmatches)
+                            # total_matches_sum_baseline_min_rmatches = np.minimum(image_matching_results_baseline[im1][im2]['num_rmatches'], total_matches_sum_baseline_min_rmatches)
+                            total_matches_sum_classifier_max_score = np.maximum(image_matching_results_classifier[im1][im2]['score'] * feature_matching_results_classifier[im1][im2][fid1][fid2]['score'], total_matches_sum_classifier_max_score)
+                            total_matches_sum_classifier_min_score = np.minimum(image_matching_results_classifier[im1][im2]['score'] * feature_matching_results_classifier[im1][im2][fid1][fid2]['score'], total_matches_sum_classifier_min_score)
 
                 track_degrees[str_track_length][t] = total_matches
                 track_degrees_baseline[str_track_length][t] = total_matches_sum_baseline
@@ -122,8 +146,8 @@ def calculate_track_inliers(arg):
 
                 track_degrees_baseline_max_score[str_track_length][t] = total_matches_sum_baseline_max_score
                 track_degrees_baseline_min_score[str_track_length][t] = total_matches_sum_baseline_min_score
-                track_degrees_baseline_max_rmatches[str_track_length][t] = total_matches_sum_baseline_max_rmatches
-                track_degrees_baseline_min_rmatches[str_track_length][t] = total_matches_sum_baseline_min_rmatches
+                # track_degrees_baseline_max_rmatches[str_track_length][t] = total_matches_sum_baseline_max_rmatches
+                # track_degrees_baseline_min_rmatches[str_track_length][t] = total_matches_sum_baseline_min_rmatches
                 track_degrees_classifier_max_score[str_track_length][t] = total_matches_sum_classifier_max_score
                 track_degrees_classifier_min_score[str_track_length][t] = total_matches_sum_classifier_min_score
 
@@ -135,8 +159,8 @@ def calculate_track_inliers(arg):
                 'track_degrees_gt': track_degrees_gt, 
                 'track_degrees_baseline_max_score': track_degrees_baseline_max_score,
                 'track_degrees_baseline_min_score': track_degrees_baseline_min_score,
-                'track_degrees_baseline_max_rmatches': track_degrees_baseline_max_rmatches,
-                'track_degrees_baseline_min_rmatches': track_degrees_baseline_min_rmatches,
+                # 'track_degrees_baseline_max_rmatches': track_degrees_baseline_max_rmatches,
+                # 'track_degrees_baseline_min_rmatches': track_degrees_baseline_min_rmatches,
                 'track_degrees_classifier_max_score': track_degrees_classifier_max_score,
                 'track_degrees_classifier_min_score': track_degrees_classifier_min_score
                 }, fout, sort_keys=True, indent=4, separators=(',', ': '))
@@ -150,12 +174,12 @@ def track_inlier_analysis(datasets, options):
 
     for i,t in enumerate(datasets):
         print ('Processing dataset: {}'.format(os.path.basename(t)))
-        dataset_track_analysis_fn = os.path.join(data_folder, 'track_analysis_{}_gt-{}_rmatches-threshold-{}_robust-triangulation-{}.json'.format(os.path.basename(t), options['gt'], options['rmatches_threshold'], options['robust_triangulation']))
+        dataset_track_raw_data_fn = os.path.join(data_folder, 'track_raw_data_{}_gt-{}_rmatches-threshold-{}_robust-triangulation-{}.json'.format(os.path.basename(t), options['gt'], options['rmatches_threshold'], options['robust_triangulation']))
         dataset_track_inlier_analysis_fn = os.path.join(data_folder, 'track_inlier_analysis_{}_gt-{}_rmatches-threshold-{}_robust-triangulation-{}.json'.format(os.path.basename(t), options['gt'], options['rmatches_threshold'], options['robust_triangulation']))
 
-        if os.path.isfile(dataset_track_inlier_analysis_fn):
-            continue
-        args.append([t, dataset_track_analysis_fn, dataset_track_inlier_analysis_fn, options])
+        # if os.path.isfile(dataset_track_inlier_analysis_fn):
+        #     continue
+        args.append([t, dataset_track_raw_data_fn, dataset_track_inlier_analysis_fn, options])
 
     p = Pool(processes)
     if processes == 1:
@@ -176,8 +200,8 @@ def track_inlier_analysis(datasets, options):
     inlier_track_degree_count_per_match_gt = {}
     inlier_track_degree_count_per_match_baseline_max_score = {}
     inlier_track_degree_count_per_match_baseline_min_score = {}
-    inlier_track_degree_count_per_match_baseline_max_rmatches = {}
-    inlier_track_degree_count_per_match_baseline_min_rmatches = {}
+    # inlier_track_degree_count_per_match_baseline_max_rmatches = {}
+    # inlier_track_degree_count_per_match_baseline_min_rmatches = {}
     inlier_track_degree_count_per_match_classifier_max_score = {}
     inlier_track_degree_count_per_match_classifier_min_score = {}
     inlier_tracks_baseline = {}
@@ -196,8 +220,8 @@ def track_inlier_analysis(datasets, options):
     outlier_track_degree_count_per_match_gt = {}
     outlier_track_degree_count_per_match_baseline_max_score = {}
     outlier_track_degree_count_per_match_baseline_min_score = {}
-    outlier_track_degree_count_per_match_baseline_max_rmatches = {}
-    outlier_track_degree_count_per_match_baseline_min_rmatches = {}
+    # outlier_track_degree_count_per_match_baseline_max_rmatches = {}
+    # outlier_track_degree_count_per_match_baseline_min_rmatches = {}
     outlier_track_degree_count_per_match_classifier_max_score = {}
     outlier_track_degree_count_per_match_classifier_min_score = {}
     outlier_tracks_baseline = {}
@@ -211,10 +235,10 @@ def track_inlier_analysis(datasets, options):
 
     for i,t in enumerate(datasets):
         print ('Processing dataset: {}'.format(os.path.basename(t)))
-        dataset_track_analysis_fn = os.path.join(data_folder, 'track_analysis_{}_gt-{}_rmatches-threshold-{}_robust-triangulation-{}.json'.format(os.path.basename(t), options['gt'], options['rmatches_threshold'], options['robust_triangulation']))
+        dataset_track_raw_data_fn = os.path.join(data_folder, 'track_raw_data_{}_gt-{}_rmatches-threshold-{}_robust-triangulation-{}.json'.format(os.path.basename(t), options['gt'], options['rmatches_threshold'], options['robust_triangulation']))
         dataset_track_inlier_analysis_fn = os.path.join(data_folder, 'track_inlier_analysis_{}_gt-{}_rmatches-threshold-{}_robust-triangulation-{}.json'.format(os.path.basename(t), options['gt'], options['rmatches_threshold'], options['robust_triangulation']))
 
-        with open(dataset_track_analysis_fn, 'r') as fi:
+        with open(dataset_track_raw_data_fn, 'r') as fi:
             track_data = json.load(fi)
             with open(dataset_track_inlier_analysis_fn, 'r') as fi:
                 track_inlier_analysis = json.load(fi)
@@ -225,8 +249,8 @@ def track_inlier_analysis(datasets, options):
 
                 track_degrees_baseline_max_score = track_inlier_analysis['track_degrees_baseline_max_score']
                 track_degrees_baseline_min_score = track_inlier_analysis['track_degrees_baseline_min_score']
-                track_degrees_baseline_max_rmatches = track_inlier_analysis['track_degrees_baseline_max_rmatches']
-                track_degrees_baseline_min_rmatches = track_inlier_analysis['track_degrees_baseline_min_rmatches']
+                # track_degrees_baseline_max_rmatches = track_inlier_analysis['track_degrees_baseline_max_rmatches']
+                # track_degrees_baseline_min_rmatches = track_inlier_analysis['track_degrees_baseline_min_rmatches']
                 track_degrees_classifier_max_score = track_inlier_analysis['track_degrees_classifier_max_score']
                 track_degrees_classifier_min_score = track_inlier_analysis['track_degrees_classifier_min_score']
 
@@ -241,8 +265,8 @@ def track_inlier_analysis(datasets, options):
                         
                         inlier_track_degree_count_per_match_baseline_max_score[str_track_length] = {}
                         inlier_track_degree_count_per_match_baseline_min_score[str_track_length] = {}
-                        inlier_track_degree_count_per_match_baseline_max_rmatches[str_track_length] = {}
-                        inlier_track_degree_count_per_match_baseline_min_rmatches[str_track_length] = {}
+                        # inlier_track_degree_count_per_match_baseline_max_rmatches[str_track_length] = {}
+                        # inlier_track_degree_count_per_match_baseline_min_rmatches[str_track_length] = {}
                         inlier_track_degree_count_per_match_classifier_max_score[str_track_length] = {}
                         inlier_track_degree_count_per_match_classifier_min_score[str_track_length] = {}
 
@@ -268,8 +292,8 @@ def track_inlier_analysis(datasets, options):
 
                         outlier_track_degree_count_per_match_baseline_max_score[str_track_length] = {}
                         outlier_track_degree_count_per_match_baseline_min_score[str_track_length] = {}
-                        outlier_track_degree_count_per_match_baseline_max_rmatches[str_track_length] = {}
-                        outlier_track_degree_count_per_match_baseline_min_rmatches[str_track_length] = {}
+                        # outlier_track_degree_count_per_match_baseline_max_rmatches[str_track_length] = {}
+                        # outlier_track_degree_count_per_match_baseline_min_rmatches[str_track_length] = {}
                         outlier_track_degree_count_per_match_classifier_max_score[str_track_length] = {}
                         outlier_track_degree_count_per_match_classifier_min_score[str_track_length] = {}
 
@@ -300,8 +324,8 @@ def track_inlier_analysis(datasets, options):
 
                             inlier_track_degree_count_per_match_baseline_max_score[str_track_length][np.round(track_degrees_baseline_max_score[str_track_length][t], 1)] = inlier_track_degree_count_per_match_baseline_max_score[str_track_length].get(np.round(track_degrees_baseline_max_score[str_track_length][t], 1), 0) + 1
                             inlier_track_degree_count_per_match_baseline_min_score[str_track_length][np.round(track_degrees_baseline_min_score[str_track_length][t], 1)] = inlier_track_degree_count_per_match_baseline_min_score[str_track_length].get(np.round(track_degrees_baseline_min_score[str_track_length][t], 1), 0) + 1
-                            inlier_track_degree_count_per_match_baseline_max_rmatches[str_track_length][np.round(track_degrees_baseline_max_rmatches[str_track_length][t], 1)] = inlier_track_degree_count_per_match_baseline_max_rmatches[str_track_length].get(np.round(track_degrees_baseline_max_rmatches[str_track_length][t], 1), 0) + 1
-                            inlier_track_degree_count_per_match_baseline_min_rmatches[str_track_length][np.round(track_degrees_baseline_min_rmatches[str_track_length][t], 1)] = inlier_track_degree_count_per_match_baseline_min_rmatches[str_track_length].get(np.round(track_degrees_baseline_min_rmatches[str_track_length][t], 1), 0) + 1
+                            # inlier_track_degree_count_per_match_baseline_max_rmatches[str_track_length][np.round(track_degrees_baseline_max_rmatches[str_track_length][t], 1)] = inlier_track_degree_count_per_match_baseline_max_rmatches[str_track_length].get(np.round(track_degrees_baseline_max_rmatches[str_track_length][t], 1), 0) + 1
+                            # inlier_track_degree_count_per_match_baseline_min_rmatches[str_track_length][np.round(track_degrees_baseline_min_rmatches[str_track_length][t], 1)] = inlier_track_degree_count_per_match_baseline_min_rmatches[str_track_length].get(np.round(track_degrees_baseline_min_rmatches[str_track_length][t], 1), 0) + 1
                             inlier_track_degree_count_per_match_classifier_max_score[str_track_length][np.round(track_degrees_classifier_max_score[str_track_length][t], 1)] = inlier_track_degree_count_per_match_classifier_max_score[str_track_length].get(np.round(track_degrees_classifier_max_score[str_track_length][t], 1), 0) + 1
                             inlier_track_degree_count_per_match_classifier_min_score[str_track_length][np.round(track_degrees_classifier_min_score[str_track_length][t], 1)] = inlier_track_degree_count_per_match_classifier_min_score[str_track_length].get(np.round(track_degrees_classifier_min_score[str_track_length][t], 1), 0) + 1
 
@@ -327,8 +351,8 @@ def track_inlier_analysis(datasets, options):
 
                             outlier_track_degree_count_per_match_baseline_max_score[str_track_length][np.round(track_degrees_baseline_max_score[str_track_length][t], 1)] = outlier_track_degree_count_per_match_baseline_max_score[str_track_length].get(np.round(track_degrees_baseline_max_score[str_track_length][t], 1), 0) + 1
                             outlier_track_degree_count_per_match_baseline_min_score[str_track_length][np.round(track_degrees_baseline_min_score[str_track_length][t], 1)] = outlier_track_degree_count_per_match_baseline_min_score[str_track_length].get(np.round(track_degrees_baseline_min_score[str_track_length][t], 1), 0) + 1
-                            outlier_track_degree_count_per_match_baseline_max_rmatches[str_track_length][np.round(track_degrees_baseline_max_rmatches[str_track_length][t], 1)] = outlier_track_degree_count_per_match_baseline_max_rmatches[str_track_length].get(np.round(track_degrees_baseline_max_rmatches[str_track_length][t], 1), 0) + 1
-                            outlier_track_degree_count_per_match_baseline_min_rmatches[str_track_length][np.round(track_degrees_baseline_min_rmatches[str_track_length][t], 1)] = outlier_track_degree_count_per_match_baseline_min_rmatches[str_track_length].get(np.round(track_degrees_baseline_min_rmatches[str_track_length][t], 1), 0) + 1
+                            # outlier_track_degree_count_per_match_baseline_max_rmatches[str_track_length][np.round(track_degrees_baseline_max_rmatches[str_track_length][t], 1)] = outlier_track_degree_count_per_match_baseline_max_rmatches[str_track_length].get(np.round(track_degrees_baseline_max_rmatches[str_track_length][t], 1), 0) + 1
+                            # outlier_track_degree_count_per_match_baseline_min_rmatches[str_track_length][np.round(track_degrees_baseline_min_rmatches[str_track_length][t], 1)] = outlier_track_degree_count_per_match_baseline_min_rmatches[str_track_length].get(np.round(track_degrees_baseline_min_rmatches[str_track_length][t], 1), 0) + 1
                             outlier_track_degree_count_per_match_classifier_max_score[str_track_length][np.round(track_degrees_classifier_max_score[str_track_length][t], 1)] = outlier_track_degree_count_per_match_classifier_max_score[str_track_length].get(np.round(track_degrees_classifier_max_score[str_track_length][t], 1), 0) + 1
                             outlier_track_degree_count_per_match_classifier_min_score[str_track_length][np.round(track_degrees_classifier_min_score[str_track_length][t], 1)] = outlier_track_degree_count_per_match_classifier_min_score[str_track_length].get(np.round(track_degrees_classifier_min_score[str_track_length][t], 1), 0) + 1
 
@@ -734,7 +758,7 @@ def triangulate_gt_reconstruction(data, graph, recon_fn, options):
     return recon
 
 def calculate_triangulated_tracks(arg):
-    t, dataset_track_analysis_fn, options = arg
+    t, dataset_track_raw_data_fn, options = arg
 
     # gt = options['gt']
     total_track_count = {}
@@ -770,7 +794,7 @@ def calculate_triangulated_tracks(arg):
                 triangulated_tracks[track_length] = []
             triangulated_tracks[track_length].append(t)
 
-    with open(dataset_track_analysis_fn, 'w') as fout:
+    with open(dataset_track_raw_data_fn, 'w') as fout:
         json.dump({'total_track_count': total_track_count, 'triangulated_track_count': triangulated_track_count, 'total_tracks': total_tracks, 'triangulated_tracks': triangulated_tracks}, fout, sort_keys=True, indent=4, separators=(',', ': '))
 
 def track_length_analysis(datasets, options={}):
@@ -782,13 +806,13 @@ def track_length_analysis(datasets, options={}):
     for i,t in enumerate(datasets):
         print ('Processing dataset: {}'.format(os.path.basename(t)))
         # if options['gt']:
-        dataset_track_analysis_fn = os.path.join(data_folder, 'track_analysis_{}_gt-{}_rmatches-threshold-{}_robust-triangulation-{}.json'.format(os.path.basename(t), options['gt'], options['rmatches_threshold'], options['robust_triangulation']))
+        dataset_track_raw_data_fn = os.path.join(data_folder, 'track_raw_data_{}_gt-{}_rmatches-threshold-{}_robust-triangulation-{}.json'.format(os.path.basename(t), options['gt'], options['rmatches_threshold'], options['robust_triangulation']))
         # else:
             # dataset_track_analysis_fn = os.path.join(data_folder, 'track_analysis_gt-{}_{}_robust-triangulation-{}.json'.format(os.path.basename(t), options['rmatches_threshold'], options['robust_triangulation']))
 
-        if os.path.isfile(dataset_track_analysis_fn):
+        if os.path.isfile(dataset_track_raw_data_fn):
             continue
-        args.append([t, dataset_track_analysis_fn, options])
+        args.append([t, dataset_track_raw_data_fn, options])
 
     p = Pool(processes)
     if processes == 1:
@@ -805,12 +829,12 @@ def track_length_analysis(datasets, options={}):
     for i,t in enumerate(datasets):
         print ('Aggregating results - dataset: {}'.format(os.path.basename(t)))
         # if options['gt']:
-        #     dataset_track_analysis_fn = os.path.join(data_folder, 'track_analysis_gt_{}_{}.json'.format(os.path.basename(t), options['rmatches_threshold']))
+        #     dataset_track_raw_data_fn = os.path.join(data_folder, 'track_analysis_gt_{}_{}.json'.format(os.path.basename(t), options['rmatches_threshold']))
         # else:
-        #     dataset_track_analysis_fn = os.path.join(data_folder, 'track_analysis_{}_{}.json'.format(os.path.basename(t), options['rmatches_threshold']))
-        dataset_track_analysis_fn = os.path.join(data_folder, 'track_analysis_{}_gt-{}_rmatches-threshold-{}_robust-triangulation-{}.json'.format(os.path.basename(t), options['gt'], options['rmatches_threshold'], options['robust_triangulation']))
+        #     dataset_track_raw_data_fn = os.path.join(data_folder, 'track_analysis_{}_{}.json'.format(os.path.basename(t), options['rmatches_threshold']))
+        dataset_track_raw_data_fn = os.path.join(data_folder, 'track_raw_data_{}_gt-{}_rmatches-threshold-{}_robust-triangulation-{}.json'.format(os.path.basename(t), options['gt'], options['rmatches_threshold'], options['robust_triangulation']))
 
-        with open(dataset_track_analysis_fn, 'r') as fin:
+        with open(dataset_track_raw_data_fn, 'r') as fin:
             datum = json.load(fin)
             for k in datum['total_track_count'].keys():
                 total_track_count[int(k)] = total_track_count.get(int(k),0) + int(datum['total_track_count'].get(k,0))
@@ -894,7 +918,7 @@ def calculate_marginal_distributions(datasets, options):
         # else:
         #     dataset_track_analysis_fn = os.path.join(data_folder, 'track_analysis_{}_{}.json'.format(os.path.basename(t), options['rmatches_threshold'])) # used for reading only
         #     dataset_track_inlier_analysis_fn = os.path.join(data_folder, 'track_inlier_analysis_{}_{}.json'.format(os.path.basename(t), options['rmatches_threshold']))
-        dataset_track_analysis_fn = os.path.join(data_folder, 'track_analysis_{}_gt-{}_rmatches-threshold-{}_robust-triangulation-{}.json'.format(os.path.basename(t), options['gt'], options['rmatches_threshold'], options['robust_triangulation']))
+        dataset_track_raw_data_fn = os.path.join(data_folder, 'track_raw_data_{}_gt-{}_rmatches-threshold-{}_robust-triangulation-{}.json'.format(os.path.basename(t), options['gt'], options['rmatches_threshold'], options['robust_triangulation']))
         dataset_track_inlier_analysis_fn = os.path.join(data_folder, 'track_inlier_analysis_{}_gt-{}_rmatches-threshold-{}_robust-triangulation-{}.json'.format(os.path.basename(t), options['gt'], options['rmatches_threshold'], options['robust_triangulation']))
 
         if options['gt']:
@@ -905,7 +929,7 @@ def calculate_marginal_distributions(datasets, options):
         image_matching_results_classifier = data.load_image_matching_results(robust_matches_threshold=15, classifier='CONVNET')
         image_matching_results_gt = data.load_groundtruth_image_matching_results(robust_matches_threshold=15)
 
-        with open(dataset_track_analysis_fn, 'r') as fi:
+        with open(dataset_track_raw_data_fn, 'r') as fi:
             track_data = json.load(fi)
             triangulated_tracks = track_data['triangulated_tracks']
             total_tracks = track_data['total_tracks']
@@ -1086,7 +1110,11 @@ def main(argv):
     ]
 
     val_datasets = [
-        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Meetingroom',
+        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/exhibition_hall',
+        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/lecture_room',
+        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/living_room',
+
+        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Meetingroom',
         '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Truck',
 
         '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_cabinet',
