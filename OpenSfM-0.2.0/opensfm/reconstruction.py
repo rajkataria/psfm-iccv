@@ -838,14 +838,14 @@ def resectioning_using_classifier_weights(data, graph, reconstruction, images):
                         image_matching_score = im_matching_results[im1][im2]['score']
                         image_matching_rmatches = im_matching_results[im1][im2]['num_rmatches']
 
-                        fid1_index = fm_matching_results[im2]['indices1'].index(fid1)
-                        fid2_index = fm_matching_results[im2]['indices2'].index(fid2)
+                        # fid1_index = fm_matching_results[im2]['indices1'].index(fid1)
+                        # fid2_index = fm_matching_results[im2]['indices2'].index(fid2)
 
-                        if fid1_index != fid2_index:
-                            print ('Match locations do not correspond - {} / {} : {} / {}'.format(fid1, fid2, fid1_index, fid2_index))
-                            import sys; sys.exit(1)
+                        # if fid1_index != fid2_index:
+                        #     print ('Match locations do not correspond - {} / {} : {} / {}'.format(fid1, fid2, fid1_index, fid2_index))
+                        #     import sys; sys.exit(1)
 
-                        feature_matching_score = fm_matching_results[im2]['scores'][fid1_index]
+                        feature_matching_score = fm_matching_results[im2][fid1][fid2]['score']
 
                         # track_score += image_matching_score
                         # track_match_score 
