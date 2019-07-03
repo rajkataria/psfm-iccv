@@ -41,7 +41,7 @@ hahog_normalize_to_uchar: no
 lowes_ratio: 0.8                # Ratio test for matches
 preemptive_lowes_ratio: 0.6     # Ratio test for preemptive matches
 matcher_type: FLANN             # FLANN or BRUTEFORCE
-image_matcher_type: VOCAB_TREE  # VOCAB_TREE OR METADATA
+image_matcher_type: BRUTEFORCE  # VOCAB_TREE OR METADATA
 
 # Params for FLANN matching
 flann_branching: 16           # See OpenCV doc
@@ -131,7 +131,7 @@ depthmap_min_consistent_views: 3      # Min number of views that should reconstr
 depthmap_save_debug_files: no         # Save debug files with partial reconstruction results
 
 # Other params
-processes: 1                          # Number of threads to use
+processes: 72                         # Number of threads to use
 
 # Classifier/new params
 # relative_pose_method: fivept_stewenius           # ransac, eightpt, sevenpt, fivept_kneip, fivept_nister, fivept_stewenius
@@ -140,8 +140,7 @@ use_gt_selective_matches: no
 use_image_matching_classifier: no
 use_image_matching_thresholding: no
 use_weighted_feature_matches: no
-use_weighted_resectioning: sum
-use_colmap_resectioning: yes
+use_weighted_resectioning: tracks-weighted-score          # colmap, tracks-classifier, tracks-weighted-score, original
 use_shortest_path_pruning: no
 use_gt_closest_images_pruning: no
 use_closest_images_pruning: no

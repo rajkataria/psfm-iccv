@@ -1,5 +1,5 @@
-copy_mode="minimal"
-# copy_mode="matching_results"
+# copy_mode="minimal"
+copy_mode="matching_results"
 # copy_mode="reconstructions"
 
 # remote_server="ec2-18-218-17-167.us-east-2.compute.amazonaws.com" # tum_rgbd_slam
@@ -86,6 +86,7 @@ for ds in "${datasets[@]}"; do
 	elif [ "$copy_mode" == "matching_results" ]; then
 		echo -e "\t\tCopying dataset: "$ds" to $local_folder - mode: matching_results";
 		rsync -aqz $local_folder/classifier_features/image_matching_results_* ubuntu@$remote_server:$ds/classifier_features/
+		rsync -aqz $local_folder/classifier_features/feature_matching_results ubuntu@$remote_server:$ds/classifier_features/
 	else
 	   	echo -e "\tNeed to specify copy mode as either 'full', 'minimal' or 'matching_results'"
 	   	break;
