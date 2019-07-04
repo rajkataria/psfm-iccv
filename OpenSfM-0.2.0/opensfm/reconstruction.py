@@ -844,8 +844,10 @@ def resectioning_using_classifier_weights(data, graph, reconstruction, images):
                         # if fid1_index != fid2_index:
                         #     print ('Match locations do not correspond - {} / {} : {} / {}'.format(fid1, fid2, fid1_index, fid2_index))
                         #     import sys; sys.exit(1)
-
-                        feature_matching_score = fm_matching_results[im2][fid1][fid2]['score']
+                        if fid1 not in fm_matching_results[im2] or fid2 not in fm_matching_results[im2][fid1]:
+                            feature_matching_score = 0.0
+                        else:
+                            feature_matching_score = fm_matching_results[im2][fid1][fid2]['score']
 
                         # track_score += image_matching_score
                         # track_match_score 
