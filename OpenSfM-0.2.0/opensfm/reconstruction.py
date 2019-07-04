@@ -784,7 +784,7 @@ def track_weighted_score(data, graph, track_args, trained_classifier):
     track_cum_score, track_length = track_args
     return track_cum_score
 
-def resectioning_using_classifier_weights(data, graph, reconstruction, images):
+def resectioning_using_classifier_weights(data, graph, reconstruction, images, fm_cache):
     res = []
     im_matches = {}
     if data.config['use_image_matching_classifier']:
@@ -829,9 +829,13 @@ def resectioning_using_classifier_weights(data, graph, reconstruction, images):
                         fid2 = graph[track][im2]['feature_id']
                       
                         if data.config['use_feature_matching_classifier']:
-                            fm_matching_results = data.load_feature_matching_results(im1, lowes_ratio_threshold=0.8, classifier='BDT')
+                            if im1 not in fm_cache:
+                                fm_cache[im1] = data.load_feature_matching_results(im1, lowes_ratio_threshold=0.8, classifier='BDT')
+                            fm_matching_results = fm_cache[im1]
                         else:
-                            fm_matching_results = data.load_feature_matching_results(im1, lowes_ratio_threshold=0.8, classifier='BASELINE')
+                            if im1 not in fm_cache:
+                                fm_cache[im1] = data.load_feature_matching_results(im1, lowes_ratio_threshold=0.8, classifier='BASELINE')
+                            fm_matching_results = fm_cache[im1]
 
                         if im1 not in im_matching_results or im2 not in im_matching_results[im1]:
                             continue 
@@ -1399,6 +1403,8 @@ def grow_reconstruction(data, graph, reconstruction, images, gcp):
     report = {
         'steps': [],
     }
+    fm_cache = {}
+
     while True:
         if data.config['save_partial_reconstructions']:
             paint_reconstruction(data, graph, reconstruction)
@@ -1411,10 +1417,10 @@ def grow_reconstruction(data, graph, reconstruction, images, gcp):
             common_tracks = next_best_view_score_for_images(graph, reconstruction, images)
         elif data.config.get('use_weighted_resectioning', 'colmap') == 'tracks-classifier':
             logger.info('Using weighted resectioning using tracks classifier')
-            common_tracks = resectioning_using_classifier_weights(data, graph, reconstruction, images)
+            common_tracks = resectioning_using_classifier_weights(data, graph, reconstruction, images, fm_cache)
         elif data.config.get('use_weighted_resectioning', 'colmap') == 'tracks-weighted-score':
             logger.info('Using weighted resectioning using tracks weighted score')
-            common_tracks = resectioning_using_classifier_weights(data, graph, reconstruction, images)
+            common_tracks = resectioning_using_classifier_weights(data, graph, reconstruction, images, fm_cache)
         else:
             logger.info('Using original resectioning')
             common_tracks = reconstructed_points_for_images(graph, reconstruction, images)
