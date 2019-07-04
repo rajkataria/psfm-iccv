@@ -1,18 +1,22 @@
+# copy_mode="full"
 # copy_mode="minimal"
 copy_mode="matching_results"
 # copy_mode="reconstructions"
 
-# remote_server="ec2-18-218-17-167.us-east-2.compute.amazonaws.com" # tum_rgbd_slam
-remote_server="ec2-13-59-182-165.us-east-2.compute.amazonaws.com" # eth3d and tanksandtemples
+remote_server="ec2-18-218-17-167.us-east-2.compute.amazonaws.com" # tum_rgbd_slam
+# remote_server="ec2-13-59-182-165.us-east-2.compute.amazonaws.com" # eth3d and tanksandtemples
 # remote_server="ec2-3-17-62-157.us-east-2.compute.amazonaws.com" # uiuctag
 local_root="/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce"
-# relevant_dataset="TUM_RGBD_SLAM"
-relevant_dataset="ETH3D"
+relevant_dataset="TUM_RGBD_SLAM"
+# relevant_dataset="ETH3D"
 # relevant_dataset="TanksAndTemples"
 # relevant_dataset="UIUCTag"
 
-TanksAndTemples_relevant_sequences=('Barn' 'Caterpillar' 'Church' 'Courthouse' 'Ignatius' 'Meetingroom' 'Truck')
+# TanksAndTemples_relevant_sequences=('Barn' 'Caterpillar' 'Church' 'Courthouse' 'Ignatius' 'Meetingroom' 'Truck')
 # TanksAndTemples_relevant_sequences=('Auditorium' 'Ballroom' 'Courtroom' 'Family' 'Francis' 'Horse' 'Lighthouse' 'M60' 'Museum' 'Palace' 'Panther' 'Playground' 'Temple' 'Train')
+
+# TanksAndTemples_relevant_sequences=('Auditorium' 'Courtroom' 'Francis' 'Horse' 'Lighthouse' 'M60' 'Train')
+TanksAndTemples_relevant_sequences=('Ballroom' 'Family' 'Museum' 'Palace' 'Panther' 'Playground' 'Temple')
 
 datasets=($(ssh ubuntu@$remote_server ls -d /home/ubuntu/Results/completed-classifier-datasets-bruteforce/*/*/))
 echo "*********************************************************************************************************************************************************************************************"
@@ -57,9 +61,9 @@ for ds in "${datasets[@]}"; do
 		# rsync -aqz ubuntu@$remote_server:$ds/camera_models.json $local_folder/
 		# rsync -aqz ubuntu@$remote_server:$ds/reconstruction-*.json $local_folder/
 		# rsync -aqz ubuntu@$remote_server:$ds/tracks*.csv $local_folder/
-		rsync -aqz ubuntu@$remote_server:$ds/exif/* $local_folder/exif/
+		# rsync -aqz ubuntu@$remote_server:$ds/exif/* $local_folder/exif/
 		# rsync -aqz ubuntu@$remote_server:$ds/features/* $local_folder/features/
-		# rsync -aqz ubuntu@$remote_server:$ds/classifier_dataset/* $local_folder/classifier_dataset/
+		rsync -aqz ubuntu@$remote_server:$ds/classifier_dataset/* $local_folder/classifier_dataset/
 		# rsync -aqz ubuntu@$remote_server:$ds/classifier_features/* $local_folder/classifier_features/
 		# rsync -aqz ubuntu@$remote_server:$ds/images-blurred/* $local_folder/images-blurred/
 		# rsync -aqz ubuntu@$remote_server:$ds/images-resized/* $local_folder/images-resized/

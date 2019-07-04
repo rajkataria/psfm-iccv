@@ -178,7 +178,8 @@ def parallelized_feature_point_classifier(arg):
         # indices1.append()
     if options['debug']:
         print ('\t\t\tTime for concatenating inputs for {}: {} = {}'.format(dset, im, np.round(timer()-s_time_concatenation,2)))
-    if num_matches == 0:
+    
+    if dsets is None or len(dsets) == 0:
         return
 
     arg = [dsets, fns, indices1, indices2, dists1, dists2, np.zeros((len(fns),1)), sizes1, sizes2, angles1, angles2, np.zeros((len(fns),1)), np.zeros((len(fns),1)), \
@@ -207,19 +208,22 @@ def parallelized_feature_point_classifier(arg):
 
         score = round(scores[i], 3)
         # results[im2].append({'im1': im1, 'im2': im2, 'index1': results_indices1[i], 'index2': results_indices2[i], 'score': score, 'dist1': results_dists1[i], 'dist2': results_dists2[i]})
-        results[im2][results_indices1[i]] = {results_indices2[i]: {'im1': im1, 'im2': im2, 'index1': results_indices1[i], 'index2': results_indices2[i], 'score': score, 'dist1': results_dists1[i], 'dist2': results_dists2[i]} }
+        # results[im2][results_indices1[i]] = {results_indices2[i]: {'im1': im1, 'im2': im2, 'index1': results_indices1[i], 'index2': results_indices2[i], 'score': score, 'dist1': results_dists1[i], 'dist2': results_dists2[i]} }
+        results[im2][results_indices1[i]] = {results_indices2[i]: {'score': score}}
         # results[im2][im1].append({'im1': im2, 'im2': im1, 'index1': results_indices2[i], 'index2': results_indices1[i], 'score': score, 'dist1': results_dists2[i], 'dist2': results_dists1[i]})
     
     if options['debug']:
         print ('\t\t\tTime for aggregating results for {}: {} = {}'.format(dset, im, np.round(timer()-s_time_aggregation,2)))
+
+    s_time_save = timer()
     data.save_feature_matching_results(im, results, lowes_ratio_threshold=options['lowes_threshold'], classifier=options['classifier'])
+    if options['debug']:
+        print ('\t\t\tTime to save results for {}: {} = {}'.format(dset, im, np.round(timer()-s_time_save,2)))
 
 def classify_feature_points(datasets, options={}):    
     print ('-'*100)
     print ('Classifier: {}'.format(options['classifier']))
     
-    
-    args = []
     outdir = options['outdir']
 
     # if options['classifier'] == 'BASELINE':
@@ -243,8 +247,10 @@ def classify_feature_points(datasets, options={}):
         trained_classifier = matching_classifiers.load_classifier(os.path.join(options['classifier_location'], 'ETH3D+TUM_RGBD_SLAM+TanksAndTemples+5-40.pkl'))
 
     for i,t in enumerate(datasets):
+        args = []
         print ('#'*100)
         print ('\tRunning classifier for dataset: {}'.format(os.path.basename(t)))
+        s_time = timer()
         data = dataset.DataSet(t)
         p_cached = {}
         s_time_preparation = timer()
@@ -273,7 +279,7 @@ def classify_feature_points(datasets, options={}):
             p.map(parallelized_feature_point_classifier, args)
             p.close()
 
-        print ("\tFinished classifying data for {} using {}".format(t.split('/')[-1], options['classifier']))  
+        print ("\tFinished classifying data for {} using {}: {}".format(t.split('/')[-1], options['classifier'], timer() - s_time))
 
 def parallelized_feature_point_plotter(arg):
     data, options = arg
@@ -355,116 +361,115 @@ def main(argv):
         # 'image_match_classifier_max_match': int(parser_options.image_match_classifier_max_match), \
         # 'feature_selection': False,
         # 'classifier_file': parser_options.classifier_file,
-        'processes': 1,
+        'processes': 12,
         'lowes_threshold': float(parser_options.lowes_threshold),
         'debug': False
     }
 
     training_datasets = [
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Barn',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Caterpillar',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Church',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Courthouse',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Ignatius',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Barn',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Caterpillar',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Church',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Courthouse',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Ignatius',
     
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/courtyard',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/delivery_area',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/electro',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/facade',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/kicker',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/meadow',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/courtyard',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/delivery_area',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/electro',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/facade',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/kicker',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/meadow',
     
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_360',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_desk',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_desk2',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_floor',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_plant',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_room',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_teddy',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_360_hemisphere',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_coke',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_desk',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_desk_with_person',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_dishes',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_flowerbouquet',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_flowerbouquet_brownbackground',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_large_no_loop',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_large_with_loop',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_metallic_sphere',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_metallic_sphere2',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_pioneer_360',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_pioneer_slam',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_pioneer_slam2',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_pioneer_slam3',
-            
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_360',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_desk',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_desk2',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_floor',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_plant',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_room',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg1_teddy',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_360_hemisphere',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_coke',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_desk',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_desk_with_person',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_dishes',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_flowerbouquet',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_flowerbouquet_brownbackground',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_large_no_loop',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_large_with_loop',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_metallic_sphere',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_metallic_sphere2',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_pioneer_360',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_pioneer_slam',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_pioneer_slam2',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg2_pioneer_slam3',
     ]
 
     val_datasets = [
         # Validation set
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Meetingroom',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Truck',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Meetingroom',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Truck',
 
         '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/exhibition_hall',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/lecture_room',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/living_room',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/lecture_room',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/living_room',
 
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_cabinet',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_large_cabinet',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_long_office_household',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_nostructure_notexture_far',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_nostructure_notexture_near_withloop',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_nostructure_texture_far',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_nostructure_texture_near_withloop',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_sitting_halfsphere',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_sitting_rpy',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_sitting_static',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_sitting_xyz',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_structure_notexture_far',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_structure_notexture_near',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_structure_texture_far',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_structure_texture_near',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_teddy',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_walking_halfsphere',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_walking_rpy',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_walking_static',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_walking_xyz',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_cabinet',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_large_cabinet',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_long_office_household',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_nostructure_notexture_far',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_nostructure_notexture_near_withloop',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_nostructure_texture_far',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_nostructure_texture_near_withloop',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_sitting_halfsphere',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_sitting_rpy',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_sitting_static',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_sitting_xyz',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_structure_notexture_far',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_structure_notexture_near',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_structure_texture_far',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_structure_texture_near',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_teddy',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_walking_halfsphere',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_walking_rpy',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_walking_static',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_walking_xyz',
         ]
 
     test_datasets = [
         # Test set
-        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/botanical_garden',
-        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/boulders',
-        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/bridge',
-        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/door',
-        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/lounge',
-        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/observatory',
-        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/office',
-        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/old_computer',
-        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/pipes',
-        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/playground',
-        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/relief',
-        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/relief_2',
-        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/statue',
-        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/terrace',
-        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/terrace_2',
-        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/terrains',
+        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/botanical_garden',
+        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/boulders',
+        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/bridge',
+        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/door',
+        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/lounge',
+        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/observatory',
+        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/office',
+        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/old_computer',
+        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/pipes',
+        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/playground',
+        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/relief',
+        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/relief_2',
+        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/statue',
+        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/terrace',
+        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/terrace_2',
+        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/terrains',
 
-        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/ece_floor2_hall',
-        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/ece_floor3_loop',
-        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/ece_floor3_loop_ccw',
-        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/ece_floor3_loop_cw',
-        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/ece_floor5',
-        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/ece_floor5_stairs',
+        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/ece_floor2_hall',
+        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/ece_floor3_loop',
+        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/ece_floor3_loop_ccw',
+        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/ece_floor3_loop_cw',
+        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/ece_floor5',
+        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/ece_floor5_stairs',
         # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/ece_floor5_wall',
-        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/ece_stairs',
-        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/yeh_day_all',
-        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/yeh_day_atrium',
-        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/yeh_day_backward',
-        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/yeh_day_forward',
-        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/yeh_night_all',
-        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/yeh_night_atrium',
-        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/yeh_night_backward',
-        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/yeh_night_forward',
+        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/ece_stairs',
+        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/yeh_day_all',
+        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/yeh_day_atrium',
+        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/yeh_day_backward',
+        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/yeh_day_forward',
+        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/yeh_night_all',
+        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/yeh_night_atrium',
+        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/yeh_night_backward',
+        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/yeh_night_forward',
 
         '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Auditorium',
         '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Ballroom',
@@ -491,7 +496,12 @@ def main(argv):
     # classify_feature_points(['/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/courtyard', 
     #     '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/delivery_area',
     #     '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/electro'], options)
-    classify_feature_points(val_datasets, options)
+    # all_datasets = np.concatenate((np.array(training_datasets), np.array(val_datasets), np.array(test_datasets)))
+    # print (all_datasets)
+    # import sys; sys.exit(1)
+    # classify_feature_points(all_datasets, options)
+    # classify_feature_points(val_datasets, options)
+    classify_feature_points(test_datasets, options)
 
     # plot_feature_points_results(['/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/courtyard', 
     #     '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/delivery_area',
