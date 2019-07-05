@@ -1361,4 +1361,706 @@ class DataSet:
                     #     pe_histogram = np.array(photometric_errors[im1][im2]['histogram-cumsum'])
                     pe_histogram = np.zeros((51,))
                     # mu, sigma = scipy.stats.norm.fit(pe_histogram)
-                    # pe_histogram = np.ze
+                    # pe_histogram = np.zeros((len(pe_histogram),))
+                    # pe_histogram[0] = mu
+                    # pe_histogram[1] = sigma
+
+                    R = np.around(np.array(im_transformations[im2]['rotation']), decimals=2)
+                    se = im_spatial_entropies[im2]
+                    # pe_histogram = ','.join(map(str, np.around(np.array(photometric_errors[im1][im2]['histogram-cumsum']), decimals=2)))
+                    pe_histogram = ','.join(map(str, np.around(pe_histogram, decimals=2)))
+
+                    if False:
+                        pe_polygon_area_percentage = photometric_errors[im1][im2]['polygon_area_percentage']
+                    pe_polygon_area_percentage = 0.0
+                    
+                    nbvs_im1 = im_nbvs[im2]['nbvs_im1']
+                    nbvs_im2 = im_nbvs[im2]['nbvs_im2']
+                    te_histogram = ','.join(map(str, np.around(te_histogram, decimals=2)))
+                    # if False:
+                    ch_im1 = ','.join(map(str, np.around(np.array(color_histogram_im1['histogram']), decimals=2)))
+                    ch_im2 = ','.join(map(str, np.around(np.array(color_histogram_im2['histogram']), decimals=2)))
+                    # ch_im1 = ','.join(map(str, np.around(np.zeros((384,)), decimals=2)))
+                    # ch_im2 = ','.join(map(str, np.around(np.zeros((384,)), decimals=2)))
+
+                    vt_rank_percentage_im1_im2 = 100.0 * vt_ranks[im1][im2] / len(self.images())
+                    vt_rank_percentage_im2_im1 = 100.0 * vt_ranks[im2][im1] / len(self.images())
+                    
+                    if im2 not in im1_closest_images:
+                        mds_rank_percentage_im1_im2 = 99.99
+                    else:
+                        mds_rank_percentage_im1_im2 = 100.0 * im1_closest_images.index(im2) / len(self.images())
+                        
+                    if im1 not in im2_closest_images:
+                        mds_rank_percentage_im2_im1 = 99.99
+                    else:
+                        mds_rank_percentage_im2_im1 = 100.0 * im2_closest_images.index(im1) / len(self.images())
+
+                    if im2 not in im1_closest_images_gt:
+                        distance_rank_percentage_im1_im2_gt = 99.99
+                    else:
+                        distance_rank_percentage_im1_im2_gt = 100.0 * im1_closest_images_gt.index(im2) / len(self.images())
+
+                    if im1 not in im2_closest_images_gt:
+                        distance_rank_percentage_im2_im1_gt = 99.99
+                    else:
+                        distance_rank_percentage_im2_im1_gt = 100.0 * im2_closest_images_gt.index(im1) / len(self.images())
+
+
+                    if im2 not in im_unthresholded_inliers or \
+                        im_unthresholded_inliers[im2] is None:
+                        label = -1
+                        num_rmatches = 0
+                        num_matches = 0
+                        num_thresholded_gt_inliers = 0
+                    else:
+                        max_lowes_thresholds = np.maximum(im_unthresholded_inliers[im2][:,2], im_unthresholded_inliers[im2][:,3])
+
+                        if self.config['matcher_type'] == 'FLANN':
+                            num_thresholded_gt_inliers = len(np.where(max_lowes_thresholds <= lowes_threshold**2)[0])
+                        else:
+                            num_thresholded_gt_inliers = len(np.where(max_lowes_thresholds <= lowes_threshold)[0])
+
+                        if num_thresholded_gt_inliers < robust_matches_threshold:
+                            label = -1
+                            num_rmatches = len(im_all_rmatches[im2])
+                            num_matches = len(im_all_matches[im2])
+                        else:
+                            label = 1
+                            num_rmatches = len(im_all_rmatches[im2])
+                            num_matches = len(im_all_matches[im2])
+
+                    # print ('*'*100)
+                    # print ('num_matches: {} / num_rmatches: {} / num_thresholded_gt_inliers: {} / num_unthresholded_gt_inliers: {}'.format(num_matches, num_rmatches, num_thresholded_gt_inliers, len(im_unthresholded_inliers[im2])))
+                    # print (max_lowes_thresholds)
+                    # print ('*'*100)
+                    # counter = counter + 1
+                    # if counter > 10:
+                    #     import sys; sys.exit(1)
+                    if write_header:
+                        fout.write('image 1, image 2,\
+                            R11, R12, R13, R21, R22, R23, R31, R32, R33,\
+                            # of rmatches, # of matches,\
+                            spatial entropy 1 8x8, spatial entropy 2 8x8, spatial entropy 1 16x16, spatial entropy 2 16x16,\
+                            photometric error histogram {} photometric error area percentage,\
+                            colmap score im1, colmap score im2,\
+                            triplet error histogram {}\
+                            color histogram im1 {} color histogram im2 {}\
+                            vt rank percentage im1-im2, vt rank percentage im2-im1,\
+                            sq mean, sq min, sq max, sq distance score, \
+                            lcc im1 15, lcc im2 15, min lcc 15, max lcc 15, \
+                            lcc im1 20, lcc im2 20, min lcc 20, max lcc 20, \
+                            lcc im1 25, lcc im2 25, min lcc 25, max lcc 25, \
+                            lcc im1 30, lcc im2 30, min lcc 30, max lcc 30, \
+                            lcc im1 35, lcc im2 35, min lcc 35, max lcc 35, \
+                            lcc im1 40, lcc im2 40, min lcc 40, max lcc 40, \
+                            path length, \
+                            mds rank percentage im1-im2, mds rank percentage im2-im1,\
+                            distance rank percentage im1-im2 gt, distance rank percentage im2-im1 gt,\
+                            # of gt inliers, label\n'.format(\
+                                ','*len(pe_histogram.split(',')), \
+                                ','*len(te_histogram.split(',')), \
+                                ','*len(ch_im1.split(',')), \
+                                ','*len(ch_im2.split(','))
+                                )
+                            )
+                        write_header = False
+
+                    # import sys; sys.exit(1)
+                    # 2 +
+                    # 9 +
+                    # 2 + 
+                    # 4 +
+                    # 51 + 1 +
+                    # 2 + 
+                    # 80 + 
+                    # 384 + 
+                    # 384 + 
+                    # 2 + 
+                    # 1 
+                    # = 922
+                    fout.write(
+                        '{}, {}, \
+                        {}, {}, {}, {}, {}, {}, {}, {}, {}, \
+                        {}, {}, \
+                        {}, {}, {}, {}, \
+                        {}, {}, \
+                        {}, {}, \
+                        {}, \
+                        {}, {}, \
+                        {}, {}, \
+                        {}, {}, {}, \
+                        {}, \
+                        {}, {}, {}, {}, \
+                        {}, {}, {}, {}, \
+                        {}, {}, {}, {}, \
+                        {}, {}, {}, {}, \
+                        {}, {}, {}, {}, \
+                        {}, {}, {}, {}, \
+                        {}, \
+                        {}, {}, \
+                        {}, {}, \
+                        {}, {}\n'.format( \
+                        im1, im2, \
+                        R[0,0], R[0,1], R[0,2], R[1,0], R[1,1], R[1,2], R[2,0], R[2,1], R[2,2], \
+                        num_rmatches, num_matches, \
+                        se['entropy_im1_8'], se['entropy_im2_8'], se['entropy_im1_16'], se['entropy_im2_16'], \
+                        pe_histogram, pe_polygon_area_percentage, \
+                        nbvs_im1, nbvs_im2, \
+                        te_histogram, \
+                        ch_im1, ch_im2, \
+                        vt_rank_percentage_im1_im2, vt_rank_percentage_im2_im1, \
+                        sequence_scores_mean[im1][im2], sequence_scores_min[im1][im2], sequence_scores_max[im1][im2], \
+                        sequence_distance_scores[im1][im2], \
+                        lccs_im1[15], lccs_im2[15], min(lccs_im1[15],lccs_im2[15]), max(lccs_im1[15],lccs_im2[15]), \
+                        lccs_im1[20], lccs_im2[20], min(lccs_im1[20],lccs_im2[20]), max(lccs_im1[20],lccs_im2[20]), \
+                        lccs_im1[25], lccs_im2[25], min(lccs_im1[25],lccs_im2[25]), max(lccs_im1[25],lccs_im2[25]), \
+                        lccs_im1[30], lccs_im2[30], min(lccs_im1[30],lccs_im2[30]), max(lccs_im1[30],lccs_im2[30]), \
+                        lccs_im1[35], lccs_im2[35], min(lccs_im1[35],lccs_im2[35]), max(lccs_im1[35],lccs_im2[35]), \
+                        lccs_im1[40], lccs_im2[40], min(lccs_im1[40],lccs_im2[40]), max(lccs_im1[40],lccs_im2[40]), \
+                        len(im_shortest_paths[im2]["shortest_path"]), \
+                        mds_rank_percentage_im1_im2, mds_rank_percentage_im2_im1, \
+                        distance_rank_percentage_im1_im2_gt, distance_rank_percentage_im2_im1_gt, \
+                        num_thresholded_gt_inliers, label))
+
+    def image_matching_dataset_exists(self, robust_matches_threshold):
+        return os.path.isfile(self.__image_matching_dataset_file(suffix=robust_matches_threshold))
+
+    def load_image_matching_dataset(self, robust_matches_threshold, rmatches_min_threshold=0, rmatches_max_threshold=10000, spl=10000, balance=False):
+        fns, data = self.load_general_dataset(self.__image_matching_dataset_file(suffix=robust_matches_threshold))
+        R11s = data[:,0]
+        R12s = data[:,1]
+        R13s = data[:,2]
+        R21s = data[:,3]
+        R22s = data[:,4]
+        R23s = data[:,5]
+        R31s = data[:,6]
+        R32s = data[:,7]
+        R33s = data[:,8]
+        num_rmatches = data[:,9]
+        num_matches = data[:,10]
+        spatial_entropy_1_8x8 = data[:,11]
+        spatial_entropy_2_8x8 = data[:,12]
+        spatial_entropy_1_16x16 = data[:,13]
+        spatial_entropy_2_16x16 = data[:,14]
+        pe_histogram = data[:,15:66] # 51 dimensional vector
+        pe_polygon_area_percentage = data[:,66]
+        nbvs_im1 = data[:,67]
+        nbvs_im2 = data[:,68]
+        te_histogram = data[:,69:149] # 81 dimensional vector
+        ch_im1 = data[:,149:533] # 384 dimensional vector
+        ch_im2 = data[:,533:917] # 384 dimensional vector
+        vt_rank_percentage_im1_im2 = data[:,917]
+        vt_rank_percentage_im2_im1 = data[:,918]
+        sequence_scores_mean = data[:,919]
+        sequence_scores_min = data[:,920]
+        sequence_scores_max = data[:,921]
+        sequence_distance_scores = data[:,922]
+        lcc_im1_15 = data[:,923]
+        lcc_im2_15 = data[:,924]
+        min_lcc_15 = data[:,925]
+        max_lcc_15 = data[:,926]
+        lcc_im1_20 = data[:,927]
+        lcc_im2_20 = data[:,928]
+        min_lcc_20 = data[:,929]
+        max_lcc_20 = data[:,930]
+        lcc_im1_25 = data[:,931]
+        lcc_im2_25 = data[:,932]
+        min_lcc_25 = data[:,933]
+        max_lcc_25 = data[:,934]
+        lcc_im1_30 = data[:,935]
+        lcc_im2_30 = data[:,936]
+        min_lcc_30 = data[:,937]
+        max_lcc_30 = data[:,938]
+        lcc_im1_35 = data[:,939]
+        lcc_im2_35 = data[:,940]
+        min_lcc_35 = data[:,941]
+        max_lcc_35 = data[:,942]
+        lcc_im1_40 = data[:,943]
+        lcc_im2_40 = data[:,944]
+        min_lcc_40 = data[:,945]
+        max_lcc_40 = data[:,946]
+        shortest_path_length = data[:,947]
+        mds_rank_percentage_im1_im2 = data[:,948]
+        mds_rank_percentage_im2_im1 = data[:,949]
+        distance_rank_percentage_im1_im2_gt = data[:,950]
+        distance_rank_percentage_im2_im1_gt = data[:,951]
+        gt_inliers = data[:,952]
+        labels = data[:,953]
+
+        ri = np.where( \
+            (num_rmatches >= rmatches_min_threshold) & \
+            (num_rmatches <= rmatches_max_threshold) & \
+            (shortest_path_length <= spl)
+        )[0]
+
+        fns, R11s, R12s, R13s, R21s, R22s, R23s, R31s, R32s, R33s, \
+          num_rmatches, num_matches, \
+          spatial_entropy_1_8x8, spatial_entropy_2_8x8, spatial_entropy_1_16x16, spatial_entropy_2_16x16, \
+          pe_histogram, pe_polygon_area_percentage, \
+          nbvs_im1, nbvs_im2, \
+          te_histogram, \
+          ch_im1, ch_im2, \
+          vt_rank_percentage_im1_im2, vt_rank_percentage_im2_im1, \
+          sequence_scores_mean, sequence_scores_min, sequence_scores_max, sequence_distance_scores, \
+          lcc_im1_15, lcc_im2_15, min_lcc_15, max_lcc_15, \
+          lcc_im1_20, lcc_im2_20, min_lcc_20, max_lcc_20, \
+          lcc_im1_25, lcc_im2_25, min_lcc_25, max_lcc_25, \
+          lcc_im1_30, lcc_im2_30, min_lcc_30, max_lcc_30, \
+          lcc_im1_35, lcc_im2_35, min_lcc_35, max_lcc_35, \
+          lcc_im1_40, lcc_im2_40, min_lcc_40, max_lcc_40, \
+          shortest_path_length, \
+          mds_rank_percentage_im1_im2, mds_rank_percentage_im2_im1, \
+          distance_rank_percentage_im1_im2_gt, distance_rank_percentage_im2_im1_gt, \
+          gt_inliers, labels = fns[ri], R11s[ri], R12s[ri], R13s[ri], R21s[ri], R22s[ri], R23s[ri], R31s[ri], R32s[ri], R33s[ri], \
+          num_rmatches[ri], num_matches[ri], \
+          spatial_entropy_1_8x8[ri], spatial_entropy_2_8x8[ri], spatial_entropy_1_16x16[ri], spatial_entropy_2_16x16[ri], \
+          pe_histogram[ri], pe_polygon_area_percentage[ri], \
+          nbvs_im1[ri], nbvs_im2[ri], \
+          te_histogram[ri], \
+          ch_im1[ri], ch_im2[ri], \
+          vt_rank_percentage_im1_im2[ri], vt_rank_percentage_im2_im1[ri], \
+          sequence_scores_mean[ri], sequence_scores_min[ri], sequence_scores_max[ri], sequence_distance_scores[ri], \
+          lcc_im1_15[ri], lcc_im2_15[ri], min_lcc_15[ri], max_lcc_15[ri], \
+          lcc_im1_20[ri], lcc_im2_20[ri], min_lcc_20[ri], max_lcc_20[ri], \
+          lcc_im1_25[ri], lcc_im2_25[ri], min_lcc_25[ri], max_lcc_25[ri], \
+          lcc_im1_30[ri], lcc_im2_30[ri], min_lcc_30[ri], max_lcc_30[ri], \
+          lcc_im1_35[ri], lcc_im2_35[ri], min_lcc_35[ri], max_lcc_35[ri], \
+          lcc_im1_40[ri], lcc_im2_40[ri], min_lcc_40[ri], max_lcc_40[ri], \
+          shortest_path_length[ri], \
+          mds_rank_percentage_im1_im2[ri], mds_rank_percentage_im2_im1[ri], \
+          distance_rank_percentage_im1_im2_gt[ri], distance_rank_percentage_im2_im1_gt[ri], \
+          gt_inliers[ri], labels[ri]
+
+        if balance:
+            negative_ris = np.where(labels <= 0)[0]
+            positive_ris = np.where(labels >= 1)[0]
+            # ordered_negative_ris = np.argsort(-np.array(num_rmatches[negative_ris]))
+            # ordered_positive_ris = np.argsort(np.array(num_rmatches[positive_ris]))
+
+            min_ri_length = min(len(negative_ris), len(positive_ris))
+            # ri = np.concatenate((positive_ris[ordered_positive_ris][0:min_ri_length], negative_ris[ordered_negative_ris][0:min_ri_length]))
+            ri = np.concatenate((positive_ris[0:min_ri_length], negative_ris[0:min_ri_length]))
+        else:
+            ri = np.linspace(0, len(labels) - 1, len(labels)).astype(np.int)
+        
+        return fns[ri], [R11s[ri], R12s[ri], R13s[ri], R21s[ri], R22s[ri], R23s[ri], R31s[ri], R32s[ri], R33s[ri], \
+          num_rmatches[ri], num_matches[ri], \
+          spatial_entropy_1_8x8[ri], spatial_entropy_2_8x8[ri], spatial_entropy_1_16x16[ri], spatial_entropy_2_16x16[ri], \
+          pe_histogram[ri], pe_polygon_area_percentage[ri], \
+          nbvs_im1[ri], nbvs_im2[ri], \
+          te_histogram[ri], \
+          ch_im1[ri], ch_im2[ri], \
+          vt_rank_percentage_im1_im2[ri], vt_rank_percentage_im2_im1[ri], \
+          sequence_scores_mean[ri], sequence_scores_min[ri], sequence_scores_max[ri], sequence_distance_scores[ri], \
+          lcc_im1_15[ri], lcc_im2_15[ri], min_lcc_15[ri], max_lcc_15[ri], \
+          lcc_im1_20[ri], lcc_im2_20[ri], min_lcc_20[ri], max_lcc_20[ri], \
+          lcc_im1_25[ri], lcc_im2_25[ri], min_lcc_25[ri], max_lcc_25[ri], \
+          lcc_im1_30[ri], lcc_im2_30[ri], min_lcc_30[ri], max_lcc_30[ri], \
+          lcc_im1_35[ri], lcc_im2_35[ri], min_lcc_35[ri], max_lcc_35[ri], \
+          lcc_im1_40[ri], lcc_im2_40[ri], min_lcc_40[ri], max_lcc_40[ri], \
+          shortest_path_length[ri], \
+          mds_rank_percentage_im1_im2[ri], mds_rank_percentage_im2_im1[ri], \
+          distance_rank_percentage_im1_im2_gt[ri], distance_rank_percentage_im2_im1_gt[ri], \
+          gt_inliers[ri], labels[ri]]
+
+    def save_tum_format(self, reconstruction, suffix):
+        io.mkdir_p(self.__results_path())
+        for i, r in enumerate(reconstruction):
+            with open(self.__reconstruction_tum_file('reconstruction-{}-{}.txt'.format(i, suffix)), 'w') as f:
+                f.write('# ground truth trajectory\n')
+                f.write('# file: \'\'\n')
+                f.write('# timestamp tx ty tz qx qy qz qw\n')
+
+                for timestamp, s in enumerate(sorted(r.shots.keys())):
+                    # print ('{} / {}'.format(timestamp, s))
+                    q = Quaternion(matrix=r.shots[s].pose.get_rotation_matrix().T)
+                    qw,qx,qy,qz = q
+                    tx, ty, tz = r.shots[s].pose.get_origin()
+                    # if suffix == 'gt':
+                    #     f.write('{} {} {} {} {} {} {} {}\n'.format(timestamp, round(tx,4), round(tz,4), round(ty,4), \
+                    #         round(qx,4), round(qz,4), round(qy,4), round(qw,4)))
+                    # else:
+                    f.write('{} {} {} {} {} {} {} {}\n'.format(timestamp, round(tx,4), round(ty,4), round(tz,4), \
+                        round(qx,4), round(qy,4), round(qz,4), round(qw,4)))
+                    
+
+    def save_ate_results(self, results):
+        io.mkdir_p(self.__results_path())
+        with gzip.open(self.__ate_results_file('pkl.gz'), 'wb') as fout:
+            pickle.dump(results, fout)
+        with open(self.__ate_results_file('json'), 'w') as fout:
+            json.dump(results, fout, sort_keys=True, indent=4, separators=(',', ': '))
+
+    def load_ate_results(self):
+        with gzip.open(self.__ate_results_file('pkl.gz'), 'rb') as fin:
+            results = pickle.load(fin)
+        return results
+
+    def save_rpe_results(self, results):
+        io.mkdir_p(self.__results_path())
+        with gzip.open(self.__rpe_results_file('pkl.gz'), 'wb') as fout:
+            pickle.dump(results, fout)
+        with open(self.__rpe_results_file('json'), 'w') as fout:
+            json.dump(results, fout, sort_keys=True, indent=4, separators=(',', ': '))
+
+    def load_rpe_results(self):
+        with gzip.open(self.__rpe_results_file('pkl.gz'), 'rb') as fin:
+            results = pickle.load(fin)
+        return results
+
+    def save_match_graph_results(self, results):
+        io.mkdir_p(self.__results_path())
+        with gzip.open(self.__match_graph_results_file('pkl.gz'), 'wb') as fout:
+            pickle.dump(results, fout)
+        with open(self.__match_graph_results_file('json'), 'w') as fout:
+            json.dump(results, fout, sort_keys=True, indent=4, separators=(',', ': '))
+
+    def save_resectioning_order(self, resectioning_order, run):
+        io.mkdir_p(self.__results_path())
+        with open(self.__resectioning_order_file(run), 'w') as fout:
+            json.dump(resectioning_order, fout, sort_keys=True, indent=4, separators=(',', ': '))
+
+    def save_resectioning_order_attempted(self, resectioning_order_attempted, run):
+        io.mkdir_p(self.__results_path())
+        with open(self.__resectioning_order_attempted_file(run), 'w') as fout:
+            json.dump(resectioning_order_attempted, fout, sort_keys=True, indent=4, separators=(',', ': '))
+
+    def save_resectioning_order_common_tracks(self, resectioning_order_common_tracks, run):
+        io.mkdir_p(self.__results_path())
+        with open(self.__resectioning_order_common_tracks_file(run), 'w') as fout:
+            json.dump(resectioning_order_common_tracks, fout, sort_keys=True, indent=4, separators=(',', ': '))
+
+    def save_reconstruction_results(self, results):
+        io.mkdir_p(self.__results_path())
+        with gzip.open(self.__reconstruction_results_file('pkl.gz'), 'wb') as fout:
+            pickle.dump(results, fout)
+        with open(self.__reconstruction_results_file('json'), 'w') as fout:
+            json.dump(results, fout, sort_keys=True, indent=4, separators=(',', ': '))
+
+    def find_matches(self, im1, im2):
+        if self.matches_exists(im1):
+            im1_matches = self.load_matches(im1)
+            if im2 in im1_matches:
+                return im1_matches[im2]
+        if self.matches_exists(im2):
+            im2_matches = self.load_matches(im2)
+            if im1 in im2_matches:
+                if len(im2_matches[im1]):
+                    return im2_matches[im1][:, [1, 0]]
+        return []
+
+    def __tracks_graph_file(self, filename=None):
+        """Return path of tracks file"""
+        return os.path.join(self.data_path, filename or 'tracks.csv')
+
+    def tracks_graph_exists(self, filename=None):
+        return os.path.isfile(self.__tracks_graph_file(filename))
+
+    def load_tracks_graph(self, filename=None):
+        """Return graph (networkx data structure) of tracks"""
+        with open(self.__tracks_graph_file(filename)) as fin:
+            return load_tracks_graph(fin)
+
+    def save_tracks_graph(self, graph, filename=None):
+        with io.open_wt(self.__tracks_graph_file(filename)) as fout:
+            save_tracks_graph(fout, graph)
+
+    def load_undistorted_tracks_graph(self):
+        return self.load_tracks_graph('undistorted_tracks.csv')
+
+    def save_undistorted_tracks_graph(self, graph):
+        return self.save_tracks_graph(graph, 'undistorted_tracks.csv')
+
+    def __reconstruction_file(self, filename):
+        """Return path of reconstruction file"""
+        return os.path.join(self.data_path, filename or 'reconstruction.json')
+
+    def __reconstruction_tum_file(self, filename):
+        """Return path of reconstruction file"""
+        return os.path.join(self.__results_path(), filename)
+
+    def reconstruction_exists(self, filename=None):
+        return os.path.isfile(self.__reconstruction_file(filename))
+
+    def load_reconstruction(self, filename=None):
+        with open(self.__reconstruction_file(filename)) as fin:
+            reconstructions = io.reconstructions_from_json(json.load(fin))
+        return reconstructions
+
+    def save_reconstruction(self, reconstruction, filename=None, minify=False):
+        with io.open_wt(self.__reconstruction_file(filename)) as fout:
+            io.json_dump(io.reconstructions_to_json(reconstruction), fout, minify)
+
+    def load_undistorted_reconstruction(self):
+        return self.load_reconstruction(
+            filename='undistorted_reconstruction.json')
+
+    def save_undistorted_reconstruction(self, reconstruction):
+        return self.save_reconstruction(
+            reconstruction, filename='undistorted_reconstruction.json')
+
+    def load_vocab_ranks_and_scores(self):
+        im_scores = {}
+        im_ranks = {}
+        images = self.images()
+        with open(os.path.join(self.data_path, 'vocab_out','match.out'),'r') as f:
+            i1_prev = None
+            for r, datum in enumerate(f.readlines()):
+                i1, i2, score = datum.split(' ')
+                i1 = int(i1)
+                i2 = int(i2)
+                score = float(score)
+                if r == 0 or i1 != i1_prev:
+                    rank = 1
+                if images[i1] not in im_scores:
+                    im_scores[images[i1]] = {images[i2]: 0.0}
+                    im_ranks[images[i1]] = {images[i2]: 0}
+
+                im_scores[images[int(i1)]][images[int(i2)]] = score
+                im_ranks[images[int(i1)]][images[int(i2)]] = rank
+
+                rank = rank + 1
+                i1_prev = i1
+        return im_ranks, im_scores
+
+    def __reference_lla_path(self):
+        return os.path.join(self.data_path, 'reference_lla.json')
+
+    def invent_reference_lla(self, images=None):
+        lat, lon, alt = 0.0, 0.0, 0.0
+        wlat, wlon, walt = 0.0, 0.0, 0.0
+        if images is None: images = self.images()
+        for image in images:
+            d = self.load_exif(image)
+            if 'gps' in d and 'latitude' in d['gps'] and 'longitude' in d['gps']:
+                w = 1.0 / d['gps'].get('dop', 15)
+                lat += w * d['gps']['latitude']
+                lon += w * d['gps']['longitude']
+                wlat += w
+                wlon += w
+                if 'altitude' in d['gps']:
+                    alt += w * d['gps']['altitude']
+                    walt += w
+        if wlat: lat /= wlat
+        if wlon: lon /= wlon
+        if walt: alt /= walt
+        reference = {'latitude': lat, 'longitude': lon, 'altitude': 0}  # Set altitude manually.
+        self.save_reference_lla(reference)
+        return reference
+
+    def save_reference_lla(self, reference):
+        with io.open_wt(self.__reference_lla_path()) as fout:
+            io.json_dump(reference, fout)
+
+    def load_reference_lla(self):
+        with io.open_rt(self.__reference_lla_path()) as fin:
+            return io.json_load(fin)
+
+    def reference_lla_exists(self):
+        return os.path.isfile(self.__reference_lla_path())
+
+    def __camera_models_file(self):
+        """Return path of camera model file"""
+        return os.path.join(self.data_path, 'camera_models.json')
+
+    def load_camera_models(self):
+        """Return camera models data"""
+        with io.open_rt(self.__camera_models_file()) as fin:
+            obj = json.load(fin)
+            return io.cameras_from_json(obj)
+
+    def save_camera_models(self, camera_models):
+        """Save camera models data"""
+        with io.open_wt(self.__camera_models_file()) as fout:
+            obj = io.cameras_to_json(camera_models)
+            io.json_dump(obj, fout)
+
+    def __camera_models_overrides_file(self):
+        """Path to the camera model overrides file."""
+        return os.path.join(self.data_path, 'camera_models_overrides.json')
+
+    def camera_models_overrides_exists(self):
+        """Check if camera overrides file exists."""
+        return os.path.isfile(self.__camera_models_overrides_file())
+
+    def load_camera_models_overrides(self):
+        """Load camera models overrides data."""
+        with io.open_rt(self.__camera_models_overrides_file()) as fin:
+            obj = json.load(fin)
+            return io.cameras_from_json(obj)
+
+    def __exif_overrides_file(self):
+        """Path to the EXIF overrides file."""
+        return os.path.join(self.data_path, 'exif_overrides.json')
+
+    def exif_overrides_exists(self):
+        """Check if EXIF overrides file exists."""
+        return os.path.isfile(self.__exif_overrides_file())
+
+    def load_exif_overrides(self):
+        """Load EXIF overrides data."""
+        with io.open_rt(self.__exif_overrides_file()) as fin:
+            return json.load(fin)
+
+    def profile_log(self):
+        "Filename where to write timings."
+        return os.path.join(self.data_path, 'profile.log')
+
+    def _report_path(self):
+        return os.path.join(self.data_path, 'reports')
+
+    def load_report(self, path):
+        """Load a report file as a string."""
+        with open(os.path.join(self._report_path(), path)) as fin:
+            return fin.read()
+
+    def save_report(self, report_str, path):
+        """Save report string to a file."""
+        filepath = os.path.join(self._report_path(), path)
+        io.mkdir_p(os.path.dirname(filepath))
+        with io.open_wt(filepath) as fout:
+            return fout.write(report_str)
+
+    def __navigation_graph_file(self):
+        "Return the path of the navigation graph."
+        return os.path.join(self.data_path, 'navigation_graph.json')
+
+    def save_navigation_graph(self, navigation_graphs):
+        with io.open_wt(self.__navigation_graph_file()) as fout:
+            io.json_dump(navigation_graphs, fout)
+
+    def __ply_file(self, filename):
+        return os.path.join(self.data_path, filename or 'reconstruction.ply')
+
+    def save_ply(self, reconstruction, filename=None,
+                 no_cameras=False, no_points=False):
+        """Save a reconstruction in PLY format."""
+        ply = io.reconstruction_to_ply(reconstruction, no_cameras, no_points)
+        with io.open_wt(self.__ply_file(filename)) as fout:
+            fout.write(ply)
+
+    def __ground_control_points_file(self):
+        return os.path.join(self.data_path, 'gcp_list.txt')
+
+    def ground_control_points_exist(self):
+        return os.path.isfile(self.__ground_control_points_file())
+
+    def load_ground_control_points(self):
+        """Load ground control points.
+
+        It uses reference_lla to convert the coordinates
+        to topocentric reference frame.
+        """
+        exif = {image: self.load_exif(image) for image in self.images()}
+
+        with open(self.__ground_control_points_file()) as fin:
+            return io.read_ground_control_points_list(
+                fin, self.load_reference_lla(), exif)
+
+    def save_processed_image(self, im1_fn, im2_fn, image, grid_size=None):
+        io.mkdir_p(self.__processed_image_path())
+        if grid_size is None:
+            cv2.imwrite(self.__processed_image_file(im1_fn, min(im1_fn, im2_fn), max(im1_fn, im2_fn)), image)
+        else:
+            cv2.imwrite(self.__processed_image_file(im1_fn, min(im1_fn, im2_fn), max(im1_fn, im2_fn)), cv2.resize(image, (grid_size, grid_size)))
+
+        return self.__processed_image_file(im1_fn, min(im1_fn, im2_fn), max(im1_fn, im2_fn))
+
+    def load_processed_image(self, im1_fn, im2_fn):
+        image = cv2.imread(self.__processed_image_file(im1_fn, min(im1_fn, im2_fn), max(im1_fn, im2_fn)), cv2.IMREAD_COLOR)
+        with open(os.path.join(self.__resized_image_file(im1_fn) + '.json'), 'r') as fin:
+            metadata = json.load(fin)
+            
+        return self.__processed_image_file(im1_fn, min(im1_fn, im2_fn), max(im1_fn, im2_fn)), image, metadata
+
+    def processed_image_exists(self, im1_fn, im2_fn):
+        return os.path.isfile(self.__processed_image_file(im1_fn, min(im1_fn, im2_fn), max(im1_fn, im2_fn)))
+
+    def save_resized_image(self, im_fn, image, grid_size=None):
+        io.mkdir_p(self.__resized_image_path())
+        if grid_size is None:
+            cv2.imwrite(self.__resized_image_file(im_fn), image)
+        else:
+            cv2.imwrite(self.__resized_image_file(im_fn), cv2.resize(image, (grid_size, grid_size)))
+        
+        # Save metadata of the original file along with the resized file
+        with open(os.path.join(self.__resized_image_file(im_fn) + '.json'), 'w') as fout:
+            metadata = {'height': image.shape[0], 'width': image.shape[1]}
+            json.dump(metadata, fout, sort_keys=True, indent=4, separators=(',', ': '))
+
+        return metadata
+
+    def save_blurred_image(self, im_fn, image, grid_size=None, kernel_size=None):
+        io.mkdir_p(self.__blurred_image_path())
+        if grid_size is None:
+            cv2.imwrite(self.__blurred_image_file(im_fn, kernel_size=kernel_size), image)
+        else:
+            cv2.imwrite(self.__blurred_image_file(im_fn, kernel_size=kernel_size), cv2.resize(image, (grid_size, grid_size)))
+
+    def load_resized_image(self, im_fn):
+        image = cv2.imread(self.__resized_image_file(im_fn), cv2.IMREAD_COLOR)
+        with open(os.path.join(self.__resized_image_file(im_fn) + '.json'), 'r') as fin:
+            metadata = json.load(fin)
+        return image, self.__resized_image_file(im_fn), metadata
+
+    def load_blurred_image(self, im_fn, kernel_size=3):
+        image = cv2.imread(self.__blurred_image_file(im_fn, kernel_size=kernel_size), cv2.IMREAD_COLOR)
+        # still load metadata from the resized image
+        with open(os.path.join(self.__resized_image_file(im_fn) + '.json'), 'r') as fin:
+            metadata = json.load(fin)
+        return image, self.__blurred_image_file(im_fn, kernel_size=kernel_size), metadata
+
+    def resized_image_exists(self, im_fn):
+        return os.path.isfile(self.__resized_image_file(im_fn))
+
+    def blurred_image_exists(self, im_fn, kernel_size=3):
+        return os.path.isfile(self.__blurred_image_file(im_fn, kernel_size=kernel_size))
+
+    # def photometric_error_triangle_transformations_exists(self, im1, im2):
+    #     return os.path.isfile(self.__photometric_error_triangle_transformations_file(im1, im2) + '.json')
+
+    # def load_photometric_error_triangle_transformations(self, im1, im2):
+    #     with open(self.__photometric_error_triangle_transformations_file(im1, im2) + '.json', 'r') as fin:
+    #         result = json.load(fin)
+
+    #     result['Ms'] = np.array(result['Ms'])
+    #     result['triangle_pts_img1'] = np.array(result['triangle_pts_img1'])
+    #     result['triangle_pts_img2'] = np.array(result['triangle_pts_img2'])
+    #     return result
+
+    # def save_photometric_error_triangle_transformations(self, im1, im2, triangles_data):
+    #     io.mkdir_p(self.__classifier_features_photometric_errors_triangle_transformations_path())
+        
+    #     triangles_data['Ms'] = triangles_data['Ms'].tolist()
+    #     triangles_data['triangle_pts_img1'] = triangles_data['triangle_pts_img1'].tolist()
+    #     triangles_data['triangle_pts_img2'] = triangles_data['triangle_pts_img2'].tolist()
+
+    #     with open(os.path.join(self.__photometric_error_triangle_transformations_file(im1, im2) + '.json'), 'w') as fout:
+    #         json.dump(triangles_data, fout, sort_keys=True, indent=4, separators=(',', ': '))
+
+
+def load_tracks_graph(fileobj):
+    g = nx.Graph()
+    for line in fileobj:
+        image, track, observation, x, y, R, G, B = line.split('\t')
+        g.add_node(image, bipartite=0)
+        g.add_node(track, bipartite=1)
+        g.add_edge(
+            image, track,
+            feature=(float(x), float(y)),
+            feature_id=int(observation),
+            feature_color=(float(R), float(G), float(B)))
+    return g
+
+
+def save_tracks_graph(fileobj, graph):
+    for node, data in graph.nodes(data=True):
+        if data['bipartite'] == 0:
+            image = node
+            for track, data in graph[image].items():
+                x, y = data['feature']
+                fid = data['feature_id']
+                r, g, b = data['feature_color']
+                fileobj.write(u'%s\t%s\t%d\t%g\t%g\t%g\t%g\t%g\n' % (
+                    str(image), str(track), fid, x, y, r, g, b))
