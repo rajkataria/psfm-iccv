@@ -1,7 +1,7 @@
 declare -a datasets=("ETH3D/boulders" "ETH3D/courtyard" "ETH3D/exhibition_hall" "UIUCTag/ece_floor5_wall" "UIUCTag/ece_floor3_loop_ccw" "TanksAndTemples/Meetingroom")
 
 for i in "${datasets[@]}"; do
-  for j in `seq 1 3`; do
+  for j in `seq 0 4`; do
     dset=(${i//// });
     root=${dset[0]};
     sequence=${dset[1]};
