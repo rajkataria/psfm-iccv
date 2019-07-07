@@ -855,8 +855,18 @@ def resectioning_using_classifier_weights(data, graph, reconstruction, images, f
 
                         # track_score += image_matching_score
                         # track_match_score 
+                        if 'th' in data.config['resectioning_config']:
+                            track_match_scores.append(1.0)
+                        elif 'im' in data.config['resectioning_config'] and 'fm' in data.config['resectioning_config']:
+                            track_match_scores.append(image_matching_score * feature_matching_score)
+                        elif 'im' in data.config['resectioning_config']:
+                            track_match_scores.append(image_matching_score)
+                        elif 'fm' in data.config['resectioning_config']:
+                            track_match_scores.append(feature_matching_score)
+                        elif 'depth' in data.config['resectioning_config']:
+                            track_match_scores.append(image_matching_score * feature_matching_score)
                         # track_match_scores.append(image_matching_score)
-                        track_match_scores.append(image_matching_score * feature_matching_score)
+                        
                         # track_match_rmatches.append(image_matching_rmatches)
 
                     track_args = [np.sum(np.array(track_match_scores)), len(graph[track].keys())]
@@ -1492,9 +1502,12 @@ def grow_reconstruction(data, graph, reconstruction, images, gcp):
     #     data.config['closest_images_top_k'], \
     #     data.config['use_yan_disambiguation']
     #     )
-    run_name = 'imc-{}-wr-{}.json'.format(\
+    run_name = 'imc-{}-fm-{}-wr-{}-resc-{}-recc-{}.json'.format(\
         data.config['use_image_matching_classifier'], \
+        data.config['use_feature_matching_classifier'], \
         data.config['use_weighted_resectioning'], \
+        data.config['resectioning_config'], \
+        data.config['reconstruction_counter'], \
         )
     data.save_resectioning_order(resectioning_order, run=run_name)
     data.save_resectioning_order_attempted(resectioning_order_attempted, run=run_name)
@@ -1515,10 +1528,12 @@ def incremental_reconstruction(data):
         data.invent_reference_lla()
 
 
-    if data.config.get('use_weighted_resectioning', 'colmap') == 'colmap' or data.config.get('use_weighted_resectioning', 'colmap') == 'original':
-        graph = data.load_tracks_graph('tracks.csv')
-    else:
-        graph = data.load_tracks_graph('tracks-all-matches.csv')
+    # if data.config.get('use_weighted_resectioning', 'colmap') == 'colmap' or data.config.get('use_weighted_resectioning', 'colmap') == 'original':
+    #     graph = data.load_tracks_graph('tracks.csv')
+    # else:
+    #     graph = data.load_tracks_graph('tracks-all-matches.csv')
+    graph = data.load_tracks_graph('tracks.csv')
+
     # if data.config.get('use_yan_disambiguation', False):
     #     graph = data.load_tracks_graph('tracks-yan.csv')    
     # elif data.config.get('use_gt_matches', False):
@@ -1608,9 +1623,12 @@ def incremental_reconstruction(data):
                 #     data.config['closest_images_top_k'], \
                 #     data.config['use_yan_disambiguation']
                 #     )
-                reconstruction_fn = 'reconstruction-imc-{}-wr-{}.json'.format(\
+                reconstruction_fn = 'reconstruction-imc-{}-fm-{}-wr-{}-resc-{}-recc-{}.json'.format(\
                     data.config['use_image_matching_classifier'], \
+                    data.config['use_feature_matching_classifier'], \
                     data.config['use_weighted_resectioning'], \
+                    data.config['resectioning_config'], \
+                    data.config['reconstruction_counter'], \
                     )
                 data.save_reconstruction(reconstructions, filename=reconstruction_fn)
 
