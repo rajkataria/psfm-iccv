@@ -121,14 +121,15 @@ def calculate_track_inliers(arg):
                         # import pdb; pdb.set_trace()
                         if [fid1, fid2] in rmatches[:,0:2].tolist():
                             total_matches += 1
-                            # try:
-                            total_matches_sum_baseline += image_matching_results_baseline[im1][im2]['score'] * feature_matching_results_baseline[im1][im2][fid1][fid2]['score']
-                            # except KeyError:
-                            #     import pdb; pdb.set_trace()
-                            #     print ('{} | {} - {} : {} - {}'.format(data.data_path, im1, im2, fid1, fid2))
-                            #     print (feature_matching_results_baseline[im1].keys())
-                            #     print (len(feature_matching_results_baseline[im1][im2].keys()))
-                            #     print (feature_matching_results_baseline[im1][im2][fid1])
+                            try:
+                                total_matches_sum_baseline += image_matching_results_baseline[im1][im2]['score'] * feature_matching_results_baseline[im1][im2][fid1][fid2]['score']
+                            except KeyError:
+                               continue 
+                                # print ('{} | {} - {} : {} - {}'.format(data.data_path, im1, im2, fid1, fid2))
+                                # print (feature_matching_results_baseline[im1].keys())
+                                # print (len(feature_matching_results_baseline[im1][im2].keys()))
+                                # print (feature_matching_results_baseline[im1][im2][fid1])
+                                # import pdb; pdb.set_trace()
                             total_matches_sum_classifier += image_matching_results_classifier[im1][im2]['score'] * feature_matching_results_classifier[im1][im2][fid1][fid2]['score']
                             total_matches_sum_gt += image_matching_results_gt[im1][im2]['score'] * feature_matching_results_gt[im1][im2][fid1][fid2]['score']
 
@@ -1033,7 +1034,7 @@ def main(argv):
     global dataset, matching, reconstruction
 
     options = {
-        'processes': 1,
+        'processes': 12,
         'gt': False,
         'rmatches_threshold': 15,
         'robust_triangulation': True,
@@ -1114,7 +1115,7 @@ def main(argv):
         # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/lecture_room',
         # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/living_room',
 
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Meetingroom',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Meetingroom',
         '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Truck',
 
         '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_cabinet',
@@ -1159,7 +1160,7 @@ def main(argv):
     #     # calculate_marginal_distributions(val_datasets, options)
     #     track_inlier_analysis(val_datasets, options) # track length analysis needs to run before this to create a list of inliers
 
-    track_length_analysis(val_datasets, options)
+    # track_length_analysis(val_datasets, options)
     track_inlier_analysis(val_datasets, options)
 
 if __name__ == '__main__':
