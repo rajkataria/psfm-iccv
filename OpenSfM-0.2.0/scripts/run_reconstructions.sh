@@ -1,5 +1,5 @@
 dataset=$1
-c_reconstruction_counter==${2:-0}
+c_reconstruction_counter=${2:-0}
 
 mode="reconstruction"
 
