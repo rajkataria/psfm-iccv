@@ -1512,11 +1512,13 @@ def grow_reconstruction(data, graph, reconstruction, images, gcp):
     #     data.config['closest_images_top_k'], \
     #     data.config['use_yan_disambiguation']
     #     )
-    run_name = 'imc-{}-fm-{}-wr-{}-resc-{}-recc-{}.json'.format(\
+    run_name = 'imc-{}-fm-{}-wr-{}-resc-{}-udt-{}-dt-{}-recc-{}.json'.format(\
         data.config['use_image_matching_classifier'], \
         data.config['use_feature_matching_classifier'], \
         data.config['use_weighted_resectioning'], \
         data.config['resectioning_config'], \
+        data.config['use_distance_threshold'], \
+        data.config['distance_threshold_value'], \
         data.config['reconstruction_counter'], \
         )
     data.save_resectioning_order(resectioning_order, run=run_name)
@@ -1542,7 +1544,11 @@ def incremental_reconstruction(data):
     #     graph = data.load_tracks_graph('tracks.csv')
     # else:
     #     graph = data.load_tracks_graph('tracks-all-matches.csv')
-    graph = data.load_tracks_graph('tracks.csv')
+    
+    if data.config.get('use_distance_threshold', False):
+        graph = data.load_tracks_graph('tracks-distance-thresholded-matches-{}.csv'.format(data.config['distance_threshold_value']))
+    else:
+        graph = data.load_tracks_graph('tracks.csv')
 
     # if data.config.get('use_yan_disambiguation', False):
     #     graph = data.load_tracks_graph('tracks-yan.csv')    
@@ -1633,11 +1639,13 @@ def incremental_reconstruction(data):
                 #     data.config['closest_images_top_k'], \
                 #     data.config['use_yan_disambiguation']
                 #     )
-                reconstruction_fn = 'reconstruction-imc-{}-fm-{}-wr-{}-resc-{}-recc-{}.json'.format(\
+                reconstruction_fn = 'reconstruction-imc-{}-fm-{}-wr-{}-resc-{}-udt-{}-dt-{}-recc-{}.json'.format(\
                     data.config['use_image_matching_classifier'], \
                     data.config['use_feature_matching_classifier'], \
                     data.config['use_weighted_resectioning'], \
                     data.config['resectioning_config'], \
+                    data.config['use_distance_threshold'], \
+                    data.config['distance_threshold_value'], \
                     data.config['reconstruction_counter'], \
                     )
                 data.save_reconstruction(reconstructions, filename=reconstruction_fn)

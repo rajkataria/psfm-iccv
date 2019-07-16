@@ -31,30 +31,23 @@ def mkdir_p(path):
     except os.error as exc:
         pass
 
-def distance_based_filter(dsets, fns):
-    options = {
-        'distance_threshold': 0.7,
-        'sp_label': 'rm-cost',
-        'PCA-n_components': 2,
-        'MDS-n_components': 2,
-        'edge_threshold': 1.0/20.0,
-        'lmds': False
-    }
-
+def distance_based_filter(dsets, fns, options):
     current_dset = None
     ris = []
+    all_distances = []
     for i, dset in enumerate(dsets):
         if current_dset != dset:
             data = dataset.DataSet(dset)
             images = sorted(data.images())
             current_dset = dset
-            mds_positions = data.load_mds_positions(label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}'.format(options['sp_label'], options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds']))
+            mds_positions = data.load_mds_positions(label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}'.format(options['shortest_path_label'], options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds']))
 
         distance_matrix = euclidean_distances([mds_positions[fns[i][0]], mds_positions[fns[i][1]]])
+        all_distances.append(distance_matrix[0,1])
         if distance_matrix[0,1] <= options['distance_threshold']:
             ris.append(i)
         
-    return np.array(ris)
+    return np.array(ris), np.array(all_distances)
 
 def distance_thresholded_matching_results(datasets, options):
     mds_data_folder = options['mds_data_folder']
@@ -176,12 +169,12 @@ def distance_thresholded_matching_results(datasets, options):
 
     labels_tr[labels_tr < 0] = 0
 
-    ris = distance_based_filter(dsets_tr, fns_tr)
+    ris, all_distances = distance_based_filter(dsets_tr, fns_tr, options)
     # import pdb; pdb.set_trace()
-    f1 = plt.figure(1)
-    plt.ylabel('Precision')
-    plt.xlabel('Recall')
-    plt.title('Inlier/Outlier Precision-Recall Curve', fontsize=18)
+    # f1 = plt.figure(1)
+    # plt.ylabel('Precision')
+    # plt.xlabel('Recall')
+    # plt.title('Inlier/Outlier Precision-Recall Curve (distance threshold: {}: tuples: {}/{})'.format(options['distance_threshold'], len(ris), len(labels_tr)), fontsize=18)
 
     # auc_s_t = timer()
     auc_pr_baseline, auc_roc_baseline, pr_baseline, roc_baseline = matching_classifiers.calculate_dataset_auc(num_rmatches_tr, labels_tr)#, color='green', ls='dashed', markers=[15, 16, 20])
@@ -202,11 +195,12 @@ def distance_thresholded_matching_results(datasets, options):
     #     ))
 
     fig_prs, _ = matching_classifiers.plot_prs(pr_distance_thresholded, pr_baseline, auc_pr_distance_thresholded, auc_pr_baseline, markers=[15, 16, 20], markers_baseline=[15, 16, 20])
-    fig_prs.savefig(os.path.join(mds_data_folder, 'distance-thresholded-image-matching-PR-{}.png'.format(\
-        # training_postfix, options['max_depth'], options['n_estimators']
-        'temp'
-        ))
-    )
+    fig_prs.savefig(os.path.join(mds_data_folder, 'distance-thresholded-image-matching-PR-distance-threshold-{}-tuples-{}-{}.png'.format(options['distance_threshold'], len(ris), len(labels_tr))))
+
+    auc_pr_distances, auc_roc_distances, pr_distances, roc_distances = matching_classifiers.calculate_dataset_auc(-1.0 * all_distances + 2.0, labels_tr)#, color='green', ls='dashed', markers=[15, 16, 20])
+    fig_prs_distances, _ = matching_classifiers.plot_prs(pr_distances, pr_baseline, auc_pr_distances, auc_pr_baseline, markers=[1.0, 1.1, 1.2], markers_baseline=[15, 16, 20])
+    fig_prs_distances.savefig(os.path.join(mds_data_folder, 'distance-thresholded-image-matching-PR-distances.png'))
+
 
 def path_results(data, options):
     ctx = Context()
@@ -345,25 +339,15 @@ def main():
     global ransac_based_ate_evaluation, features, matching, classifier, dataset, types
 
     eth3d_datasets = [
-        '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/botanical_garden/',
-        '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/boulders/',
-        '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/bridge/', 
-        '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/door/', 
-        '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/exhibition_hall/',
-        '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/lecture_room/',
-        '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/living_room/', 
-        '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/lounge/', 
-        '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/observatory/', 
-        '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/office/', 
-        '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/old_computer/', 
-        '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/pipes/', 
-        '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/playground/', 
-        '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/relief/', 
-        '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/relief_2/', 
-        '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/statue/', 
-        '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/terrace/', 
-        '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/terrace_2/', 
-        '/hdd/Research/psfm-iccv/data/iccv-results/ETH3D/terrains/'
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/courtyard',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/delivery_area',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/electro',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/facade',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/kicker',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/meadow',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/exhibition_hall',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/lecture_room',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/living_room',
     ]
 
     uiuctag_datasets = [
@@ -386,8 +370,13 @@ def main():
     ]
 
     tanks_and_temples_datasets = [
-        '/hdd/Research/psfm-iccv/data/iccv-results/TanksAndTemples/Meetingroom/', 
-        '/hdd/Research/psfm-iccv/data/iccv-results/TanksAndTemples/Truck/', 
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Barn',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Caterpillar',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Church',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Courthouse',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Ignatius',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Meetingroom',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Truck',
     ]
 
     tum_rgbd_datasets = [
@@ -418,12 +407,13 @@ def main():
         'image_matching_gt_threshold': 15,
         'balance': False,
         'mds_data_folder': 'data/mds-path-analysis',
+        'distance_thresholds': [0.5, 0.75, 1.0, 1.25, 1.5],
+        'shortest_path_label': 'rm-cost',
+        'PCA-n_components': 2,
+        'MDS-n_components': 2,
+        'edge_threshold': 1.0/10.0,
+        'lmds': False,
         'aggregate': True if parser_options.dataset is None else False,
-        'shortest_path_label': 'rm-cost', 
-        'lmds': False, 
-        'PCA-n_components': 2, 
-        'MDS-n_components': 3,
-        'edge_threshold': 1.0/20.0, 
         'debug': True
     }
 
@@ -432,16 +422,19 @@ def main():
     else:
         options['fontsize'] = 20
 
-    datasets = [
-        '/hdd/Research/psfm-iccv/data/temp-recons/boulders',
-        '/hdd/Research/psfm-iccv/data/temp-recons/exhibition_hall',
-        '/hdd/Research/psfm-iccv/data/temp-recons/ece_floor3_loop_cw',
-        '/hdd/Research/psfm-iccv/data/temp-recons/ece_floor3_loop_ccw',
-    ]
+    # datasets = [
+    #     '/hdd/Research/psfm-iccv/data/temp-recons/boulders',
+    #     '/hdd/Research/psfm-iccv/data/temp-recons/exhibition_hall',
+    #     '/hdd/Research/psfm-iccv/data/temp-recons/ece_floor3_loop_cw',
+    #     '/hdd/Research/psfm-iccv/data/temp-recons/ece_floor3_loop_ccw',
+    # ]
+    datasets = eth3d_datasets + tanks_and_temples_datasets
 
     if options['plot'] == 'distance-based-thresholding' and options['aggregate']:
         mkdir_p(options['mds_data_folder'])
-        distance_thresholded_matching_results(datasets, options)
+        for d in options['distance_thresholds']:
+            options['distance_threshold'] = d
+            distance_thresholded_matching_results(datasets, options)
     elif options['plot'] == 'distance-based-thresholding':
         mkdir_p(options['mds_data_folder'])
         distance_thresholded_matching_results([parser_options.dataset], options)
