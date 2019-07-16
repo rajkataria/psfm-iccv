@@ -232,8 +232,12 @@ def formulate_graph(args):
             if j <= i:
                 continue
             if img1 in scores and img2 in scores[img1]:
-                if scores[img1][img2] > edge_threshold:
-                    G.add_edge(img1, img2, weight=scores[img1][img2])
+                if 'cost' in criteria:
+                    if scores[img1][img2] <= edge_threshold:
+                        G.add_edge(img1, img2, weight=scores[img1][img2])
+                else:
+                    if scores[img1][img2] >= edge_threshold:
+                        G.add_edge(img1, img2, weight=scores[img1][img2])
 
     try:
         pagerank = nx.pagerank(G, alpha=0.9)

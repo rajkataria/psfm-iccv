@@ -105,15 +105,15 @@ def output_csv(metadata, experiments, results):
                 'ATE (cm) - {}'.format(key), \
                 'ATE (dm) - {}'.format(key), \
                 'ATE (m) - {}'.format(key), \
-                'RPE < 0.5 deg - {}'.format(key), \
-                'RPE < 1.0 deg - {}'.format(key), \
-                'RPE < 2.0 deg - {}'.format(key), \
-                'RPE < 5.0 deg - {}'.format(key), \
-                'RPE < 10.0 deg - {}'.format(key), \
-                'RPE >= 10.0 deg - {}'.format(key), \
+                # 'RPE < 0.5 deg - {}'.format(key), \
+                # 'RPE < 1.0 deg - {}'.format(key), \
+                # 'RPE < 2.0 deg - {}'.format(key), \
+                # 'RPE < 5.0 deg - {}'.format(key), \
+                # 'RPE < 10.0 deg - {}'.format(key), \
+                # 'RPE >= 10.0 deg - {}'.format(key), \
                 'Mean RPE (deg) - {}'.format(key), \
-                'Time - {}'.format(key), \
-                'Visual Inspection - {}'.format(key)
+                # 'Time - {}'.format(key), \
+                # 'Visual Inspection - {}'.format(key)
             ])
 
         writer = csv.DictWriter(csv_file, fieldnames=fieldnames, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
@@ -133,15 +133,15 @@ def output_csv(metadata, experiments, results):
                     'ATE (cm) - {}'.format(experiments[exp]['key']): str(results[r_key][exp]['ATE cm']) if 'ATE cm' in results[r_key][exp] else 'X',
                     'ATE (dm) - {}'.format(experiments[exp]['key']): str(results[r_key][exp]['ATE dm']) if 'ATE dm' in results[r_key][exp] else 'X',
                     'ATE (m) - {}'.format(experiments[exp]['key']): str(results[r_key][exp]['ATE m']) if 'ATE m' in results[r_key][exp] else 'X',
-                    'RPE < 0.5 deg - {}'.format(experiments[exp]['key']): str(results[r_key][exp]['RPE < 0.5 deg']) if 'RPE < 0.5 deg' in results[r_key][exp] else 'X',
-                    'RPE < 1.0 deg - {}'.format(experiments[exp]['key']): str(results[r_key][exp]['RPE < 1.0 deg']) if 'RPE < 1.0 deg' in results[r_key][exp] else 'X',
-                    'RPE < 2.0 deg - {}'.format(experiments[exp]['key']): str(results[r_key][exp]['RPE < 2.0 deg']) if 'RPE < 2.0 deg' in results[r_key][exp] else 'X',
-                    'RPE < 5.0 deg - {}'.format(experiments[exp]['key']): str(results[r_key][exp]['RPE < 5.0 deg']) if 'RPE < 5.0 deg' in results[r_key][exp] else 'X',
-                    'RPE < 10.0 deg - {}'.format(experiments[exp]['key']): str(results[r_key][exp]['RPE < 10.0 deg']) if 'RPE < 10.0 deg' in results[r_key][exp] else 'X',
-                    'RPE >= 10.0 deg - {}'.format(experiments[exp]['key']): str(results[r_key][exp]['RPE >= 10.0 deg']) if 'RPE >= 10.0 deg' in results[r_key][exp] else 'X',
+                    # 'RPE < 0.5 deg - {}'.format(experiments[exp]['key']): str(results[r_key][exp]['RPE < 0.5 deg']) if 'RPE < 0.5 deg' in results[r_key][exp] else 'X',
+                    # 'RPE < 1.0 deg - {}'.format(experiments[exp]['key']): str(results[r_key][exp]['RPE < 1.0 deg']) if 'RPE < 1.0 deg' in results[r_key][exp] else 'X',
+                    # 'RPE < 2.0 deg - {}'.format(experiments[exp]['key']): str(results[r_key][exp]['RPE < 2.0 deg']) if 'RPE < 2.0 deg' in results[r_key][exp] else 'X',
+                    # 'RPE < 5.0 deg - {}'.format(experiments[exp]['key']): str(results[r_key][exp]['RPE < 5.0 deg']) if 'RPE < 5.0 deg' in results[r_key][exp] else 'X',
+                    # 'RPE < 10.0 deg - {}'.format(experiments[exp]['key']): str(results[r_key][exp]['RPE < 10.0 deg']) if 'RPE < 10.0 deg' in results[r_key][exp] else 'X',
+                    # 'RPE >= 10.0 deg - {}'.format(experiments[exp]['key']): str(results[r_key][exp]['RPE >= 10.0 deg']) if 'RPE >= 10.0 deg' in results[r_key][exp] else 'X',
                     'Mean RPE (deg) - {}'.format(experiments[exp]['key']): str(results[r_key][exp]['rotational error mean (deg)']) if 'rotational error mean (deg)' in results[r_key][exp] else 'X',
-                    'Time - {}'.format(experiments[exp]['key']): str(results[r_key][exp]['time']),
-                    'Visual Inspection - {}'.format(experiments[exp]['key']): str("-")
+                    # 'Time - {}'.format(experiments[exp]['key']): str(results[r_key][exp]['time']),
+                    # 'Visual Inspection - {}'.format(experiments[exp]['key']): str("-")
                 })
             writer.writerow(row)
 
@@ -157,22 +157,72 @@ def main(argv):
     parser_options = parser.parse_args()
 
     experiments = {
-        'colmap': \
-            {'key': 1, 'desc': 'Colmap baseline'},
-        'imc-False-wr-False-colmapr-True': \
-            {'key': 2, 'desc': 'Baseline with colmap resectioning'},
-        'imc-False-wr-True-colmapr-False': \
-            {'key': 3, 'desc': 'Baseline with weighted resectioning'},
-        'imc-True-wr-True-colmapr-False': \
-            {'key': 4, 'desc': 'Image matching classifier with weighted resectioning'},
-        'imc-True-wr-sum-colmapr-False': \
-            {'key': 4, 'desc': 'Image matching classifier with weighted resectioning'},
-        'imc-True-wr-sum-colmapr-False': \
-            {'key': 4, 'desc': 'Image matching classifier with weighted resectioning'},
-        'imc-True-wr-max-colmapr-False': \
-            {'key': 4, 'desc': 'Image matching classifier with weighted resectioning'},
-        'imc-True-wr-max-colmapr-False': \
-            {'key': 4, 'desc': 'Image matching classifier with weighted resectioning'}
+        'imc-False-fm-False-wr-original-resc-NA-recc-0': \
+            {'key': 1, 'desc': 'Baseline'},
+        'imc-False-fm-False-wr-colmap-resc-NA-recc-0': \
+            {'key': 2, 'desc': 'colmap'},
+        'imc-False-fm-False-wr-tws-resc-im+fm-recc-0': \
+            {'key': 3, 'desc': 'im+fm'},
+        'imc-False-fm-False-wr-tws-resc-fm-recc-0': \
+            {'key': 4, 'desc': 'fm'},
+        'imc-False-fm-False-wr-tws-resc-im-recc-0': \
+            {'key': 5, 'desc': 'im'},
+        'imc-False-fm-False-wr-tws-resc-th-recc-0': \
+            {'key': 6, 'desc': 'th'},
+        'imc-False-fm-False-wr-original-resc-NA-recc-1': \
+            {'key': 7, 'desc': 'Baseline'},
+        'imc-False-fm-False-wr-colmap-resc-NA-recc-1': \
+            {'key': 8, 'desc': 'colmap'},
+        'imc-False-fm-False-wr-tws-resc-im+fm-recc-1': \
+            {'key': 9, 'desc': 'im+fm'},
+        'imc-False-fm-False-wr-tws-resc-fm-recc-1': \
+            {'key': 10, 'desc': 'fm'},
+        'imc-False-fm-False-wr-tws-resc-im-recc-1': \
+            {'key': 11, 'desc': 'im'},
+        'imc-False-fm-False-wr-tws-resc-th-recc-1': \
+            {'key': 12, 'desc': 'th'},
+        'imc-False-fm-False-wr-original-resc-NA-recc-2': \
+            {'key': 13, 'desc': 'Baseline'},
+        'imc-False-fm-False-wr-colmap-resc-NA-recc-2': \
+            {'key': 14, 'desc': 'colmap'},
+        'imc-False-fm-False-wr-tws-resc-im+fm-recc-2': \
+            {'key': 15, 'desc': 'im+fm'},
+        'imc-False-fm-False-wr-tws-resc-fm-recc-2': \
+            {'key': 16, 'desc': 'fm'},
+        'imc-False-fm-False-wr-tws-resc-im-recc-2': \
+            {'key': 17, 'desc': 'im'},
+        'imc-False-fm-False-wr-tws-resc-th-recc-2': \
+            {'key': 18, 'desc': 'th'},
+        'imc-False-fm-False-wr-original-resc-NA-recc-3': \
+            {'key': 19, 'desc': 'Baseline'},
+        'imc-False-fm-False-wr-colmap-resc-NA-recc-3': \
+            {'key': 20, 'desc': 'colmap'},
+        'imc-False-fm-False-wr-tws-resc-im+fm-recc-3': \
+            {'key': 21, 'desc': 'im+fm'},
+        'imc-False-fm-False-wr-tws-resc-fm-recc-3': \
+            {'key': 22, 'desc': 'fm'},
+        'imc-False-fm-False-wr-tws-resc-im-recc-3': \
+            {'key': 23, 'desc': 'im'},
+        'imc-False-fm-False-wr-tws-resc-th-recc-3': \
+            {'key': 24, 'desc': 'th'},
+        'imc-False-fm-False-wr-original-resc-NA-recc-4': \
+            {'key': 25, 'desc': 'Baseline'},
+        'imc-False-fm-False-wr-colmap-resc-NA-recc-4': \
+            {'key': 26, 'desc': 'colmap'},
+        'imc-False-fm-False-wr-tws-resc-im+fm-recc-4': \
+            {'key': 27, 'desc': 'im+fm'},
+        'imc-False-fm-False-wr-tws-resc-fm-recc-4': \
+            {'key': 28, 'desc': 'fm'},
+        'imc-False-fm-False-wr-tws-resc-im-recc-4': \
+            {'key': 29, 'desc': 'im'},
+        'imc-False-fm-False-wr-tws-resc-th-recc-4': \
+            {'key': 30, 'desc': 'th'},
+        # 'imc-True-wr-sum-colmapr-False': \
+        #     {'key': 4, 'desc': 'Image matching classifier with weighted resectioning'},
+        # 'imc-True-wr-max-colmapr-False': \
+        #     {'key': 4, 'desc': 'Image matching classifier with weighted resectioning'},
+        # 'imc-True-wr-max-colmapr-False': \
+        #     {'key': 4, 'desc': 'Image matching classifier with weighted resectioning'}
     }
     metadata, results = get_results(parser_options.root_directory, experiments)
     output_csv(metadata, experiments, results)

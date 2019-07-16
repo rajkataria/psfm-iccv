@@ -110,19 +110,20 @@ def get_reconstruction_results(data):
 
     for r in glob.glob(data.data_path + '/reconstruction-*.json'):
         stats_label= os.path.basename(r).split('reconstruction-')[1].split('.json')[0]
-        imc, wr, colmapr = [v for v in stats_label.split('-')[1::2]]
-        imc, colmapr = bool(strtobool(imc)), bool(strtobool(colmapr))
+        imc, fm, wr, resc, recc = [v for v in stats_label.split('-')[1::2]]
+        imc, fm = bool(strtobool(imc)), bool(strtobool(fm))
         reconstruction_fn = 'reconstruction-{}.json'.format(stats_label)
         if data.reconstruction_exists(reconstruction_fn):
             logger.info('Computing reconstruction results - {}'.format(reconstruction_fn))
             reconstruction_ = data.load_reconstruction(reconstruction_fn)[0]
 
-            if imc is False and wr != 'sum' and wr != 'max' and colmapr is True:
-                graph = tracks_graph
-            elif imc is False and (wr == 'sum' or wr == 'max') and colmapr is False:
-                graph = tracks_graph_all
-            elif imc is True and (wr == 'sum' or wr == 'max') and colmapr is False:
-                graph = tracks_graph_all
+            # if imc is False and wr != 'sum' and wr != 'max' and colmapr is True:
+            #     graph = tracks_graph
+            # elif imc is False and (wr == 'sum' or wr == 'max') and colmapr is False:
+            #     graph = tracks_graph_all
+            # elif imc is True and (wr == 'sum' or wr == 'max') and colmapr is False:
+            #     graph = tracks_graph_all
+            graph = tracks_graph
             
             relevant_reconstructions.append([graph, reconstruction_, classifier_command_keys, stats_label])
 
@@ -202,8 +203,10 @@ def get_gt_results(data, options):
     #                                     for cip in [False]:
     for r in glob.glob(data.data_path + '/reconstruction-*.json'):
         stats_label= os.path.basename(r).split('reconstruction-')[1].split('.json')[0]
-        imc, wr, colmapr = [v for v in stats_label.split('-')[1::2]]
-        imc, colmapr = bool(strtobool(imc)), bool(strtobool(colmapr))
+        # imc, wr, colmapr = [v for v in stats_label.split('-')[1::2]]
+        # imc, colmapr = bool(strtobool(imc)), bool(strtobool(colmapr))
+        imc, fm, wr, resc, recc = [v for v in stats_label.split('-')[1::2]]
+        imc, fm = bool(strtobool(imc)), bool(strtobool(fm))
         reconstruction_fn = 'reconstruction-{}.json'.format(stats_label)
         if data.reconstruction_exists('reconstruction_gt.json'):
             logger.info('Computing ground-truth evaluation results - {}'.format(reconstruction_fn))

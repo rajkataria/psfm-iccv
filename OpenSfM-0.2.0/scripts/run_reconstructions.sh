@@ -27,40 +27,40 @@ declare -A run100=(
 	[resectioning_config]='NA'
 	)
 
-# Baseline + weighted colmap resectioning (tracks-weighted-score: im+fm) 
+# Baseline + weighted colmap resectioning (tws: im+fm) 
 declare -A run101=(
 	[use_gt_matches]='false'                    [use_gt_selective_matches]='false'        	[use_image_matching_classifier]='false'
-	[use_weighted_resectioning]='tracks-weighted-score'         							[use_weighted_feature_matches]='false'
+	[use_weighted_resectioning]='tws'         							                    [use_weighted_feature_matches]='false'
 	[use_image_matching_thresholding]='false'   [use_shortest_path_pruning]='false'       	[image_matching_classifier_threshold]='0.5'
 	[use_closest_images_pruning]='false'		[closest_images_top_k]='H'					[use_gt_closest_images_pruning]='false'
 	[resectioning_config]='im+fm'
 	)
 
-# Baseline + weighted colmap resectioning (tracks-weighted-score: im) 
+# Baseline + weighted colmap resectioning (tws: im) 
 declare -A run102=(
 	[use_gt_matches]='false'                    [use_gt_selective_matches]='false'        	[use_image_matching_classifier]='false'
-	[use_weighted_resectioning]='tracks-weighted-score'         							[use_weighted_feature_matches]='false'
+	[use_weighted_resectioning]='tws'         							                    [use_weighted_feature_matches]='false'
 	[use_image_matching_thresholding]='false'   [use_shortest_path_pruning]='false'       	[image_matching_classifier_threshold]='0.5'
 	[use_closest_images_pruning]='false'		[closest_images_top_k]='H'					[use_gt_closest_images_pruning]='false'
 	[resectioning_config]='im'
 	)
 
-# Baseline + weighted colmap resectioning (tracks-weighted-score: fm) 
+# Baseline + weighted colmap resectioning (tws: fm) 
 declare -A run103=(
 	[use_gt_matches]='false'                    [use_gt_selective_matches]='false'        	[use_image_matching_classifier]='false'
-	[use_weighted_resectioning]='tracks-weighted-score'         							[use_weighted_feature_matches]='false'
+	[use_weighted_resectioning]='tws'         							                    [use_weighted_feature_matches]='false'
 	[use_image_matching_thresholding]='false'   [use_shortest_path_pruning]='false'       	[image_matching_classifier_threshold]='0.5'
 	[use_closest_images_pruning]='false'		[closest_images_top_k]='H'					[use_gt_closest_images_pruning]='false'
 	[resectioning_config]='fm'
 	)
 
-# Baseline + weighted colmap resectioning (tracks-weighted-score: th) 
+# Baseline + weighted colmap resectioning (tws: th) 
 declare -A run104=(
 	[use_gt_matches]='false'                    [use_gt_selective_matches]='false'        	[use_image_matching_classifier]='false'
-	[use_weighted_resectioning]='tracks-weighted-score'         							[use_weighted_feature_matches]='false'
+	[use_weighted_resectioning]='tws'         							                    [use_weighted_feature_matches]='false'
 	[use_image_matching_thresholding]='false'   [use_shortest_path_pruning]='false'       	[image_matching_classifier_threshold]='0.5'
 	[use_closest_images_pruning]='false'		[closest_images_top_k]='H'					[use_gt_closest_images_pruning]='false'
-	[resectioning_config]='th'
+	[resectioning_config]='threshold'
 	)
 
 all_runs=(run99 run100 run101 run102 run103 run104)

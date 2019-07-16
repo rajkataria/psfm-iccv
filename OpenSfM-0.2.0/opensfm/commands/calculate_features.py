@@ -50,7 +50,14 @@ class Command:
         # classifier.create_image_matching_dataset(ctx)
 
         # classifier.calculate_multiple_motion_maps(ctx)
-        # import sys; sys.exit(1)
+
+        classifier.calculate_sequence_ranks(ctx)
+        classifier.calculate_shortest_paths(ctx)
+        classifier.infer_positions(ctx)
+        # classifier.infer_cleaner_positions(ctx)
+
+        classifier.mds_errors(ctx)
+        import sys; sys.exit(1)
 
         
         # grid_size = 224
@@ -97,6 +104,14 @@ class Command:
         classifier.calculate_image_keypoints(ctx)
         e_keypoint_maps = timer()
 
+        s_shortest_paths = timer()
+        classifier.calculate_shortest_paths(ctx)
+        e_shortest_paths = timer()
+
+        s_infer_positions = timer()
+        classifier.infer_positions(ctx)
+        e_infer_positions = timer()
+
         if data.reconstruction_exists('reconstruction_gt.json'):
             s_sequence_ranks = timer()
             # classifier.calculate_sequence_ranks(ctx)
@@ -110,17 +125,9 @@ class Command:
             # classifier.calculate_nbvs(ctx)
             e_nbvs = timer()
 
-            s_shortest_paths = timer()
-            # classifier.calculate_shortest_paths(ctx)
-            e_shortest_paths = timer()
-
-            s_infer_positions = timer()
-            # classifier.infer_positions(ctx)
-            e_infer_positions = timer()
-
-            s_infer_positions_mds = timer()
+            # s_infer_positions_mds = timer()
             # classifier.infer_cleaner_positions(ctx)
-            e_infer_positions_mds = timer()
+            # e_infer_positions_mds = timer()
 
             s_color_histograms = timer()
             # classifier.calculate_color_histograms(ctx)
@@ -133,10 +140,12 @@ class Command:
             s_image_matching_dataset = timer()
             classifier.create_image_matching_dataset(ctx)
             e_image_matching_dataset = timer()
+
+            classifier.mds_errors(ctx)
         else:
-            s_sequence_ranks, e_sequence_ranks, s_consistency, e_consistency, s_nbvs, e_nbvs, s_shortest_paths, e_shortest_paths, s_infer_positions, e_infer_positions, \
+            s_sequence_ranks, e_sequence_ranks, s_consistency, e_consistency, s_nbvs, e_nbvs, \
                 s_infer_positions_mds, e_infer_positions_mds, s_color_histograms, e_color_histograms, s_lccs, e_lccs, s_image_matching_dataset, e_image_matching_dataset = \
-                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
 
 
         end = timer()

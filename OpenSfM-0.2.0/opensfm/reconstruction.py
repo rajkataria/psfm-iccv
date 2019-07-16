@@ -773,7 +773,7 @@ def next_best_view_score_for_images(graph, reconstruction, images):
     return sorted(res, key=lambda x: -x[1])
 
 def track_classification_score(data, graph, track_args, trained_classifier):
-    track_cum_score, track_length = track_args
+    track_match_scores, track_cum_score, track_length = track_args
     inliers_distribution, outliers_distribution = trained_classifier
     bins = trained_classifier[0][1]
     relevant_bins = np.digitize(num_rmatches_te, bins)
@@ -781,21 +781,26 @@ def track_classification_score(data, graph, track_args, trained_classifier):
     return reconstruction_percentage
 
 def track_weighted_score(data, graph, track_args, trained_classifier):
-    track_cum_score, track_length = track_args
+    track_match_scores, track_cum_score, track_length = track_args
     return track_cum_score
+
+def calculate_track_depth_confidence(data, track, track_image, reconstruction):
+    track_position = reconstruction.points[track].coordinates
+    track_image_position = reconstruction.shots[track_image].pose.get_origin()
+    return 1.0 / np.absolute(track_position[2] - track_image_position[2])
 
 def resectioning_using_classifier_weights(data, graph, reconstruction, images, fm_cache):
     res = []
     im_matches = {}
     if data.config['use_image_matching_classifier']:
         im_matching_results = data.load_image_matching_results(robust_matches_threshold=15, classifier='CONVNET')
-        if data.config.get('use_weighted_resectioning', 'colmap') == 'tracks-classifier':
+        if data.config.get('use_weighted_resectioning', 'colmap') == 'tc':
             trained_classifier = data.load_histogram_track_classifier(matching_classifier='CONVNET')
         else:
             trained_classifier = None
     else:
         im_matching_results = data.load_image_matching_results(robust_matches_threshold=15, classifier='BASELINE')
-        if data.config.get('use_weighted_resectioning', 'colmap') == 'tracks-classifier':
+        if data.config.get('use_weighted_resectioning', 'colmap') == 'tc':
             trained_classifier = data.load_histogram_track_classifier(matching_classifier='BASELINE')
         else:
             trained_classifier = None
@@ -855,7 +860,7 @@ def resectioning_using_classifier_weights(data, graph, reconstruction, images, f
 
                         # track_score += image_matching_score
                         # track_match_score 
-                        if 'th' in data.config['resectioning_config']:
+                        if 'threshold' in data.config['resectioning_config']:
                             track_match_scores.append(1.0)
                         elif 'im' in data.config['resectioning_config'] and 'fm' in data.config['resectioning_config']:
                             track_match_scores.append(image_matching_score * feature_matching_score)
@@ -864,15 +869,20 @@ def resectioning_using_classifier_weights(data, graph, reconstruction, images, f
                         elif 'fm' in data.config['resectioning_config']:
                             track_match_scores.append(feature_matching_score)
                         elif 'depth' in data.config['resectioning_config']:
-                            track_match_scores.append(image_matching_score * feature_matching_score)
+                            track_match_scores.append(calculate_track_depth_confidence(data, track, track_image, reconstruction))
                         # track_match_scores.append(image_matching_score)
                         
                         # track_match_rmatches.append(image_matching_rmatches)
 
-                    track_args = [np.sum(np.array(track_match_scores)), len(graph[track].keys())]
+                    track_args = [track_match_scores, np.sum(np.array(track_match_scores)), len(graph[track].keys())]
                     # visible_track_weights.append(track_score)
-                    if data.config.get('use_weighted_resectioning', 'colmap') == 'tracks-classifier':
+                    if data.config.get('use_weighted_resectioning', 'colmap') == 'tc':
                         visible_track_weights.append(track_classification_score(data, graph, track_args, trained_classifier))
+                    elif data.config.get('use_weighted_resectioning', 'colmap') == 'tws' and 'depth' in data.config['resectioning_config']:
+                        try:
+                            visible_track_weights.append(min(track_args[0]))
+                        except:
+                            visible_track_weights.append(0.0)
                     else:
                         visible_track_weights.append(track_weighted_score(data, graph, track_args, trained_classifier))
 
@@ -1425,10 +1435,10 @@ def grow_reconstruction(data, graph, reconstruction, images, gcp):
         if data.config.get('use_weighted_resectioning', 'colmap') == 'colmap':
             logger.info('Using colmap resectioning')
             common_tracks = next_best_view_score_for_images(graph, reconstruction, images)
-        elif data.config.get('use_weighted_resectioning', 'colmap') == 'tracks-classifier':
+        elif data.config.get('use_weighted_resectioning', 'colmap') == 'tc':
             logger.info('Using weighted resectioning using tracks classifier')
             common_tracks = resectioning_using_classifier_weights(data, graph, reconstruction, images, fm_cache)
-        elif data.config.get('use_weighted_resectioning', 'colmap') == 'tracks-weighted-score':
+        elif data.config.get('use_weighted_resectioning', 'colmap') == 'tws':
             logger.info('Using weighted resectioning using tracks weighted score')
             common_tracks = resectioning_using_classifier_weights(data, graph, reconstruction, images, fm_cache)
         else:
@@ -1581,8 +1591,8 @@ def incremental_reconstruction(data):
         gcp = data.load_ground_control_points()
     common_tracks = matching.all_common_tracks(graph, tracks)
     reconstructions = []
-    if data.config.get('use_weighted_resectioning', 'colmap') == 'tracks-weighted-score' or \
-        data.config.get('use_weighted_resectioning', 'colmap') == 'tracks-classifier' or \
+    if data.config.get('use_weighted_resectioning', 'colmap') == 'tws' or \
+        data.config.get('use_weighted_resectioning', 'colmap') == 'tc' or \
         data.config.get('use_weighted_resectioning', 'colmap') == 'colmap':
 
         pairs = compute_image_pairs_colmap(common_tracks, data)
