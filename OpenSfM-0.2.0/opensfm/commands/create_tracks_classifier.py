@@ -6,6 +6,7 @@ from networkx.algorithms import bipartite
 from opensfm import dataset
 from opensfm import io
 from opensfm import matching
+from sklearn.metrics import euclidean_distances
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +25,12 @@ class Command:
         features, colors = self.load_features(data)
         features_end = timer()
         options = {
-            'robust_matches_threshold': 15
+            'robust_matches_threshold': 15,
+            'shortest_path_label': 'rm-cost',
+            'PCA-n_components': 2,
+            'MDS-n_components': 2,
+            'edge_threshold': 1.0/10.0,
+            'lmds': False,
         }
         
         # matches_pruned = self.load_pruned_matches(data, spl=2, options=options)
@@ -33,7 +39,7 @@ class Command:
         matches_all = self.load_all_matches(data, options=options)
         # matches_thresholded = self.load_thresholded_matches(data, options=options)
         # matches_pruned_thresholded = self.load_pruned_thresholded_matches(data, spl=2, options=options)
-        # matches_distance_pruned_thresholded = self.load_distance_pruned_thresholded_matches(data, options=options)
+        matches_distance_thresholded = self.load_distance_thresholded_matches(data, options=options)
         # matches_distance_w_seq_pruned_thresholded = self.load_distance_w_seq_pruned_thresholded_matches(data, options=options)
         # matches_all_weighted = self.load_all_weighted_matches(data, options=options)
         # matches_thresholded_weighted = self.load_thresholded_weighted_matches(data, options=options)
@@ -69,9 +75,9 @@ class Command:
         # logger.info('Creating tracks graph using pruned thresholded matches')
         # tracks_graph_pruned_thresholded = matching.create_tracks_graph(features, colors, matches_pruned_thresholded,
         #                                             data.config)
-        # logger.info('Creating tracks graph using distance pruned thresholded matches')
-        # tracks_graph_distance_pruned_thresholded = matching.create_tracks_graph(features, colors, matches_distance_pruned_thresholded,
-        #                                             data.config)
+        logger.info('Creating tracks graph using distance thresholded matches')
+        tracks_graph_distance_thresholded = matching.create_tracks_graph(features, colors, matches_distance_thresholded,
+                                                    data.config)
         # logger.info('Creating tracks graph using distance with sequences pruned thresholded matches')
         # tracks_graph_distance_w_seq_pruned_thresholded = matching.create_tracks_graph(features, colors, matches_distance_w_seq_pruned_thresholded,
         #                                             data.config)
@@ -117,7 +123,7 @@ class Command:
         data.save_tracks_graph(tracks_graph_all, 'tracks-all-matches.csv')
         # data.save_tracks_graph(tracks_graph_thresholded, 'tracks-thresholded-matches.csv')
         # data.save_tracks_graph(tracks_graph_pruned_thresholded, 'tracks-pruned-thresholded-matches.csv')
-        # data.save_tracks_graph(tracks_graph_distance_pruned_thresholded, 'tracks-distance-pruned-thresholded-matches.csv')
+        data.save_tracks_graph(tracks_graph_distance_thresholded, 'tracks-distance-thresholded-matches-{}.csv'.format(data.config['distance_threshold_value']))
         # data.save_tracks_graph(tracks_graph_distance_w_seq_pruned_thresholded, 'tracks-distance-w-seq-pruned-thresholded-matches.csv')
         # data.save_tracks_graph(tracks_graph_all_weighted, 'tracks-all-weighted-matches.csv')
         # data.save_tracks_graph(tracks_graph_thresholded_weighted, 'tracks-thresholded-weighted-matches.csv')
@@ -320,31 +326,18 @@ class Command:
                     matches[im1, im2] = im1_matches[im2]
         return matches    
 
-    def load_distance_pruned_thresholded_matches(self, data, options):
+    def load_distance_thresholded_matches(self, data, options):
         matches = {}
-        image_matching_classifier_threshold = data.config.get('image_matching_classifier_threshold')
-        closest_images_top_k = self.get_top_k(data, data.config['closest_images_top_k'])
-        im_matching_results = data.load_image_matching_results(options['robust_matches_threshold'])
-        im_closest_images = data.load_closest_images('rm-cost')
+        robust_matching_min_match = data.config['robust_matching_min_match']
+        mds_positions = data.load_mds_positions(label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}'.format(options['shortest_path_label'], options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds']))
         for im1 in data.images():
             try:
-                _, _, im1_matches = data.load_all_matches(im1)
+                im1_matches = data.load_matches(im1)
             except IOError:
                 continue
             for im2 in im1_matches:
-                if im1 in im_matching_results and im2 in im_matching_results[im1] \
-                    and im_matching_results[im1][im2]['score'] >= image_matching_classifier_threshold \
-                    and im1 in im_closest_images and im2 in im_closest_images[im1] \
-                    and im_closest_images[im1].index(im2) <= closest_images_top_k:
-                    #and (im_matching_results[im1][im2]['shortest_path_length'] == spl or \
-                    #    im_matching_results[im1][im2]['num_rmatches'] >= shortest_path_rmatches_threshold):
-                    matches[im1, im2] = im1_matches[im2]
-                elif im2 in im_matching_results and im1 in im_matching_results[im2] \
-                    and im_matching_results[im2][im1]['score'] >= image_matching_classifier_threshold \
-                    and im2 in im_closest_images and im1 in im_closest_images[im2] \
-                    and im_closest_images[im2].index(im1) <= closest_images_top_k:
-                    #and (im_matching_results[im2][im1]['shortest_path_length'] == spl or \
-                    #    im_matching_results[im2][im1]['num_rmatches'] >= shortest_path_rmatches_threshold):
+                distance_matrix = euclidean_distances([mds_positions[im1], mds_positions[im2]])
+                if len(im1_matches[im2]) >= robust_matching_min_match and distance_matrix[0,1] <= data.config['distance_threshold_value']:
                     matches[im1, im2] = im1_matches[im2]
         return matches
 
