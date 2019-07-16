@@ -141,8 +141,8 @@ use_image_matching_classifier: no
 use_feature_matching_classifier: no
 use_image_matching_thresholding: no
 use_weighted_feature_matches: no
-use_weighted_resectioning: original          # colmap, tracks-classifier, tracks-weighted-score, original
-resectioning_config: NA                      # NA, im, fm, th
+use_weighted_resectioning: tracks-weighted-score          # colmap, tc, tws, original
+resectioning_config: depth                      # NA, im, fm, th, depth
 reconstruction_counter: 0
 use_shortest_path_pruning: no
 use_gt_closest_images_pruning: no

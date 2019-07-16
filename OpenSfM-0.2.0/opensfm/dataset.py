@@ -554,6 +554,9 @@ class DataSet:
             return os.path.join(self.__classifier_features_closest_images_path(), '{}_closest_images-{}.{}'.format(im, label, ext))
         return os.path.join(self.__classifier_features_closest_images_path(), '{}_closest_images.{}'.format(im, ext))
 
+    def __feature_mds_positions(self, label=None, ext='json'):
+        return os.path.join(self.__classifier_features_path(), 'mds_positions-{}.{}'.format(label, ext))
+
     def __feature_image_matching_results_file(self, ext='pkl.gz', suffix='None'):
         """File for flags indicating whether calibrated robust matching occured"""
         return os.path.join(self.__classifier_features_path(), 'image_matching_results_{}.{}'.format(suffix, ext))
@@ -629,15 +632,15 @@ class DataSet:
         io.mkdir_p(self.__classifier_features_graph_path())
         nx.write_gpickle(G, self.__graph_file(graph_label, edge_threshold))
 
-    def save_shortest_paths(self, im, shortest_paths, label):
+    def save_shortest_paths(self, im, shortest_paths, label, edge_threshold):
         io.mkdir_p(self.__classifier_features_shortest_paths_path())
-        with gzip.open(self.__feature_shortest_paths_file(im, label=label, ext='pkl.gz'), 'wb') as fout:
+        with gzip.open(self.__feature_shortest_paths_file(im, label='{}-edge_threshold-{}'.format(label, edge_threshold), ext='pkl.gz'), 'wb') as fout:
             pickle.dump(shortest_paths, fout)
         with open(self.__feature_shortest_paths_file(im, label=label, ext='json'), 'w') as fout:
             json.dump(shortest_paths, fout, sort_keys=True, indent=4, separators=(',', ': '))
 
-    def load_shortest_paths(self, im, label):
-        with gzip.open(self.__feature_shortest_paths_file(im, label=label), 'rb') as fin:
+    def load_shortest_paths(self, im, label, edge_threshold):
+        with gzip.open(self.__feature_shortest_paths_file(im, label='{}-edge_threshold-{}'.format(label, edge_threshold)), 'rb') as fin:
             shortest_paths = pickle.load(fin)
         return shortest_paths
     
@@ -948,7 +951,16 @@ class DataSet:
         return closest_images
 
     def closest_images_exists(self, im, label=None):
-        return os.path.isfile(self.__feature_closest_images(im, label=label, ext='pkl.gz'))        
+        return os.path.isfile(self.__feature_closest_images(im, label=label, ext='pkl.gz'))
+
+    def save_mds_positions(self, im_mds_positions, label=None):
+        with open(self.__feature_mds_positions(label=label, ext='json'), 'w') as fout:
+            json.dump(im_mds_positions, fout, sort_keys=True, indent=4, separators=(',', ': '))
+
+    def load_mds_positions(self, label=None):
+        with open(self.__feature_mds_positions(label=label, ext='json'), 'r') as fin:
+            im_mds_positions = json.load(fin)
+        return im_mds_positions
 
     def save_image_matching_results(self, results, robust_matches_threshold, classifier):
         io.mkdir_p(self.__classifier_features_path())

@@ -1,7 +1,7 @@
 # copy_mode="full"
 # copy_mode="minimal"
-copy_mode="matching_results"
-# copy_mode="reconstructions"
+# copy_mode="matching_results"
+copy_mode="reconstructions"
 
 # remote_server="ec2-18-218-17-167.us-east-2.compute.amazonaws.com" # tum_rgbd_slam
 remote_server="ec2-13-59-182-165.us-east-2.compute.amazonaws.com" # eth3d and tanksandtemples
@@ -16,8 +16,9 @@ relevant_dataset="ETH3D"
 # TanksAndTemples_relevant_sequences=('Auditorium' 'Ballroom' 'Courtroom' 'Family' 'Francis' 'Horse' 'Lighthouse' 'M60' 'Museum' 'Palace' 'Panther' 'Playground' 'Temple' 'Train')
 
 # TanksAndTemples_relevant_sequences=('Auditorium' 'Courtroom' 'Francis' 'Horse' 'Lighthouse' 'M60' 'Train')
-TanksAndTemples_relevant_sequences=('Ballroom' 'Family' 'Museum' 'Palace' 'Panther' 'Playground' 'Temple')
+# TanksAndTemples_relevant_sequences=('Ballroom' 'Family' 'Museum' 'Palace' 'Panther' 'Playground' 'Temple')
 
+# TanksAndTemples_relevant_sequences=('Meetingroom')
 UIUCTag_relevant_sequences=('ece_floor5_wall' 'ece_floor3_loop_ccw')
 
 datasets=($(ssh ubuntu@$remote_server ls -d /home/ubuntu/Results/completed-classifier-datasets-bruteforce/*/*/))
@@ -45,7 +46,7 @@ for ds in "${datasets[@]}"; do
 	echo "*********************************************************************************************************************************************************************************************"
 	echo -e "\t\tProcessing dataset - $dataset_name : $sequence_name"
 
-	if [ "$copy_mode" == "full" ] || [ "$copy_mode" == "minimal" ];then
+	if [ "$copy_mode" == "full" ] || [ "$copy_mode" == "minimal" ] || [ "$copy_mode" == "reconstructions" ];then
 		echo -e "\t\tCreating necessary folders under $local_folder"
 		mkdir -p $local_folder
 		mkdir -p $local_folder/features/
@@ -54,6 +55,7 @@ for ds in "${datasets[@]}"; do
 		mkdir -p $local_folder/rmatches_secondary/
 		mkdir -p $local_folder/all_matches/
 		mkdir -p $local_folder/matches/
+		mkdir -p $local_folder/results/
 		if [ "$copy_mode" == "full" ];then
 			mkdir -p $local_folder/exif/
 			mkdir -p $local_folder/images-blurred/
@@ -92,8 +94,9 @@ for ds in "${datasets[@]}"; do
 		rsync -aqz ubuntu@$remote_server:$ds/matches/* $local_folder/matches/
 	elif [ "$copy_mode" == "reconstructions" ]; then
 		echo -e "\t\tCopying dataset: "$ds" to $local_folder - mode: reconstructions";
-		rsync -aqz ubuntu@$remote_server:$ds/tracks*.csv $local_folder/
-		rsync -aqz ubuntu@$remote_server:$ds/reconstruction-*.json $local_folder/
+		# rsync -aqz ubuntu@$remote_server:$ds/tracks*.csv $local_folder/
+		# rsync -aqz ubuntu@$remote_server:$ds/reconstruction-*.json $local_folder/
+		rsync -aqz ubuntu@$remote_server:$ds/results/*.json $local_folder/results/
 	elif [ "$copy_mode" == "matching_results" ]; then
 		echo -e "\t\tCopying dataset: "$ds" to $local_folder - mode: matching_results";
 		rsync -aqz $local_folder/classifier_features/image_matching_results_* ubuntu@$remote_server:$ds/classifier_features/

@@ -1769,7 +1769,7 @@ def get_rmatches_and_edge_costs(G, im1, im2, num_rmatches):
 
 def shortest_path_per_image(arg):
     shortest_paths = {}
-    data, i, im1, images, G, num_rmatches, label = arg
+    data, i, im1, images, G, num_rmatches, label, edge_threshold = arg
     
     for j,im2 in enumerate(images):
         if j <= i:
@@ -1785,7 +1785,7 @@ def shortest_path_per_image(arg):
 
         shortest_paths[im2] = {'rmatches': rmatches, 'path': path, 'shortest_path': shortest_path, 'cost': edge_cost}
 
-    data.save_shortest_paths(im1, shortest_paths, label=label)
+    data.save_shortest_paths(im1, shortest_paths, label=label, edge_threshold=np.round(edge_threshold,2))
     # return im1, shortest_paths
 
 def calculate_shortest_paths(ctx):
@@ -1793,28 +1793,35 @@ def calculate_shortest_paths(ctx):
     processes = ctx.data.config['processes']
     images = sorted(data.images())
     shortest_paths = {}
-    edge_threshold = 0
+    edge_threshold = 1.0/1.0
+    # edge_threshold = 1.0/10.0
+    # edge_threshold = 1.0/20.0
     graph_label = 'rm-cost'
     seq_cost_factor = ctx.sequence_cost_factor
     debug = False
     graph_label_with_sequences = 'rm-seq-cost-{}'.format(seq_cost_factor)
-    
-    num_rmatches, num_rmatches_cost, im_num_rmatches_cost_with_sequences = rmatches_adapter(data, {'apply_sequence_ranks': True, 'sequence_cost_factor': seq_cost_factor}, debug=debug)
+    options = {'apply_sequence_ranks': True, 'sequence_cost_factor': seq_cost_factor}
+
+    num_rmatches, num_rmatches_cost, im_num_rmatches_cost_with_sequences = rmatches_adapter(data, options, debug=debug)
 
     # if data.graph_exists(graph_label, edge_threshold) and data.graph_exists(graph_label_with_sequences, edge_threshold):
     #     G = data.load_graph(graph_label, edge_threshold)
     #     G_ = data.load_graph(graph_label_with_sequences, edge_threshold)
     # else:
     G = opensfm.commands.formulate_graphs.formulate_graph([data, images, num_rmatches_cost, graph_label, edge_threshold])
-    G_ = opensfm.commands.formulate_graphs.formulate_graph([data, images, im_num_rmatches_cost_with_sequences, graph_label_with_sequences, edge_threshold])
     data.save_graph(G, graph_label, edge_threshold)
-    data.save_graph(G_, graph_label_with_sequences, edge_threshold)
+    configurations = [[G, graph_label]]
+    if options['apply_sequence_ranks']:
+        G_ = opensfm.commands.formulate_graphs.formulate_graph([data, images, im_num_rmatches_cost_with_sequences, graph_label_with_sequences, edge_threshold])
+        data.save_graph(G_, graph_label_with_sequences, edge_threshold)
+        configurations.append([G_, graph_label_with_sequences])
 
-    for datum in [[G, graph_label], [G_, graph_label_with_sequences]]:
+    # for datum in [[G, graph_label], [G_, graph_label_with_sequences]]:
+    for datum in configurations:
         args = []
         graph, label = datum
         for i,im1 in enumerate(images):
-            args.append([data, i, im1, images, graph, num_rmatches, label])
+            args.append([data, i, im1, images, graph, num_rmatches, label, edge_threshold])
         
         p = Pool(processes)
         p_results = []
@@ -2444,7 +2451,7 @@ def plot_mds(data, pos_gt, pos, iteration, opts):
                         label='True Position')
         results_folder = os.path.join(data.data_path, 'results')
         mkdir_p(results_folder)
-        plt.savefig(os.path.join(data.data_path, 'results', 'path-gt-lmds-{}-i-{}.png'.format(opts['lmds'], iteration)),dpi=90)
+        plt.savefig(os.path.join(data.data_path, 'results', 'path-gt-lmds-{}-i-{}-PCA-n_components-{}-MDS-n_components-{}.png'.format(opts['lmds'], iteration, opts['PCA-n_components'], opts['MDS-n_components'])),dpi=90)
     
     if pos_gt is None and (iteration + 1) % opts['solve_mds_plot_freq'] == 0:
         for i in range(0,len(pos)):
@@ -2460,7 +2467,7 @@ def plot_mds(data, pos_gt, pos, iteration, opts):
         #     plt.scatter(pos[:, 0], pos[:, 1], c='r', s=s, lw=0, label='MDS - Iteration {}'.format(iteration))
         results_folder = os.path.join(data.data_path, 'results')
         mkdir_p(results_folder)
-        plt.savefig(os.path.join(results_folder, 'path-inferred-{}-lmds-{}.png'.format(opts['shortest_path_label'], opts['lmds'])),dpi=90)
+        plt.savefig(os.path.join(results_folder, 'path-inferred-{}-lmds-{}-PCA-n_components-{}-MDS-n_components-{}.png'.format(opts['shortest_path_label'], opts['lmds'], opts['PCA-n_components'], opts['MDS-n_components'])),dpi=90)
         
 
     if False:
@@ -2489,24 +2496,24 @@ def solve_mds(data, distances_gt, distances, num_fns, opts, debug):
         logger.info('#'*40 + ' Solving MDS problem... ' + '#'*40)
         logger.info('#'*100)
     seed = np.random.RandomState(seed=3)
-    mds = manifold.MDS(n_components=3, max_iter=3000, eps=1e-9, random_state=seed,
+    mds = manifold.MDS(n_components=opts['MDS-n_components'], max_iter=3000, eps=1e-9, random_state=seed,
                    dissimilarity="precomputed", n_jobs=1)
     if distances_gt is not None:
         seed_gt = np.random.RandomState(seed=3)
-        mds_gt = manifold.MDS(n_components=3, max_iter=3000, eps=1e-9, random_state=seed_gt,
+        mds_gt = manifold.MDS(n_components=opts['MDS-n_components'], max_iter=3000, eps=1e-9, random_state=seed_gt,
                    dissimilarity="precomputed", n_jobs=1)
         mds_embedding_pos_gt = mds_gt.fit(distances_gt).embedding_
     
     mds_embedding_pos = mds.fit(distances).embedding_
 
     # Rotate the data
-    clf = PCA(n_components=2)
-    nmds = manifold.MDS(n_components=3, metric=False, max_iter=3000, eps=1e-9,
+    clf = PCA(n_components=opts['PCA-n_components'])
+    nmds = manifold.MDS(n_components=opts['MDS-n_components'], metric=False, max_iter=3000, eps=1e-9,
                     dissimilarity="precomputed", random_state=seed, n_jobs=1,
                     n_init=1)
     if distances_gt is not None:
-        clf_gt = PCA(n_components=2)
-        nmds_gt = manifold.MDS(n_components=3, metric=False, max_iter=3000, eps=1e-9,
+        clf_gt = PCA(n_components=opts['PCA-n_components'])
+        nmds_gt = manifold.MDS(n_components=opts['MDS-n_components'], metric=False, max_iter=3000, eps=1e-9,
                         dissimilarity="precomputed", random_state=seed_gt, n_jobs=1,
                         n_init=1)
         pos_gt = nmds_gt.fit_transform(distances_gt, init=mds_embedding_pos_gt)
@@ -2515,11 +2522,13 @@ def solve_mds(data, distances_gt, distances, num_fns, opts, debug):
         scale_gt = np.max(np.abs(pos_gt))
         pos_gt = pos_gt / scale_gt
     
-    # pos = nmds.fit_transform(distances, init=mds_embedding_pos)
-    pos = mds_embedding_pos
+    pos = nmds.fit_transform(distances, init=mds_embedding_pos)
+    # pos = mds_embedding_pos
     pos = clf.fit_transform(pos)
     scale = np.max(np.abs(pos))
     inferred_positions = pos / scale
+
+    # inferred_positions = np.random.random(inferred_positions.shape)    
 
     if debug:
         if distances_gt is not None:
@@ -2616,7 +2625,7 @@ def distance_based_triangulation(data, landmark_positions, delta_a):
     return x
 
 def infer_cleaner_positions(ctx):
-    debug = False
+    debug = True
     if debug:
         logger.info('#'*100)
         logger.info('#'*25 + ' Inferring cleaner camera positions using shortest paths... ' + '#'*25)
@@ -2638,8 +2647,17 @@ def infer_cleaner_positions(ctx):
 
         distances_gt = euclidean_distances(positions_gt)
 
-    for sp_label in ['rm-cost']:#, 'rm-seq-cost-{}'.format(seq_cost_factor)]:
-        distances_baseline = -1 * np.ones((len(images), len(images)))
+    # for sp_label in ['rm-cost']:#, 'rm-seq-cost-{}'.format(seq_cost_factor)]:
+    for run_config in [
+        # {'sp_label': 'rm-cost', 'pca_n_components': 2, 'mds_n_components': 2},
+        {'sp_label': 'rm-cost', 'pca_n_components': 2, 'mds_n_components': 3},
+        # {'sp_label': 'rm-cost', 'pca_n_components': 2, 'mds_n_components': 5},
+        # {'sp_label': 'rm-cost', 'pca_n_components': 2, 'mds_n_components': len(np_images)},
+        # {'sp_label': 'rm-cost', 'n_components': int(len(np_images)/2)},
+        ]:
+        sp_label, pca_n_components, mds_n_components = run_config['sp_label'], run_config['pca_n_components'], run_config['mds_n_components']
+
+        distances_baseline = 0.0 * np.ones((len(images), len(images)))
         cached_features = {}
         image_mapping = {}
         reverse_image_mapping = {}
@@ -2655,6 +2673,8 @@ def infer_cleaner_positions(ctx):
             for j,im2 in enumerate(images):
                 if i == j:
                     distances_baseline[i,j] = 0.0
+                elif j < i:
+                    continue
                 else:
                     if im2 in im_shortest_paths:
                         path = im_shortest_paths[im2]['path']
@@ -2714,12 +2734,14 @@ def infer_cleaner_positions(ctx):
         if debug:
             logger.info('Total images: {}'.format(len(mds_images)))
         # for i in range(0, int(math.floor(0.5*len(images)))): # remove maximum 50% of images
-        # for i in range(0, int(math.floor(0.2*len(images)))): # remove maximum 20% of images
-        # for i in range(0, int(math.floor(0.1*len(images)))): # remove maximum 20% of images
-        for i in range(0, 0): # remove maximum 50% of images
+        for i in range(0, int(math.floor(0.2*len(images)))): # remove maximum 20% of images
+        # for i in range(0, int(math.floor(0.1*len(images)))): # remove maximum 10% of images
+        # for i in range(0, 0): # remove maximum 50% of images
             # r, c = np.where(distances_baseline_pruned > 100.0/1.0)
-            r, c = np.where(distances_baseline_pruned > 1.0/15.0)
-            # r, c = np.where(distances_baseline_pruned > 1.0/100.0)
+            # r, c = np.where(distances_baseline_pruned > 1.0/15.0)
+            # import pdb; pdb.set_trace()
+            # r, c = np.where(distances_baseline_pruned > 1.0/150.0)
+            r, c = np.where(distances_baseline_pruned > 1.0/250.0)
             if len(r) == 0:
                 logger.info('\tRemoved all "noisy" images. Images left to perform MDS: {}'.format(distances_baseline_pruned.shape[0]))
                 break
@@ -2749,13 +2771,13 @@ def infer_cleaner_positions(ctx):
                 landmark_indices.append(i)
         landmark_indices = np.array(landmark_indices)
         
-        options = {'solve_mds_plot_freq': 1, 'max_iterations': 20, 'shortest_path_label': sp_label, 'lmds': True}
+        options = {'solve_mds_plot_freq': 1, 'max_iterations': 20, 'shortest_path_label': sp_label, 'lmds': True, 'PCA-n_components': pca_n_components, 'MDS-n_components': mds_n_components ,'debug': True}
         if data.reconstruction_exists('reconstruction_gt.json'):
             # distances_gt_pruned_sq = np.multiply(distances_gt_pruned, distances_gt_pruned)
             # distances_baseline_pruned_sq = np.multiply(distances_baseline_pruned, distances_baseline_pruned)
-            mds_embedding_positions, mds_embedding_positions_gt, positions_inferred, positions_inferred_gt, _ = solve_mds(data=data, distances_gt=distances_gt_pruned, distances=distances_baseline_pruned, num_fns=len(mds_images), opts=options, debug=False)
+            mds_embedding_positions, mds_embedding_positions_gt, positions_inferred, positions_inferred_gt, _ = solve_mds(data=data, distances_gt=distances_gt_pruned, distances=distances_baseline_pruned, num_fns=len(mds_images), opts=options, debug=options['debug'])
         else:
-            mds_embedding_positions, positions_inferred, _ = solve_mds(data=data, distances_gt=None, distances=distances_baseline_pruned, num_fns=len(mds_images), opts=options, debug=False)
+            mds_embedding_positions, positions_inferred, _ = solve_mds(data=data, distances_gt=None, distances=distances_baseline_pruned, num_fns=len(mds_images), opts=options, debug=options['debug'])
 
         # print (mds_embedding_positions)
         # import sys; sys.exit(1)
@@ -2790,22 +2812,22 @@ def infer_cleaner_positions(ctx):
 
         options['triangulated-indices'] = triangulated_indices
 
-        if False and use_embedding_positions:
+        if use_embedding_positions:
             seed = np.random.RandomState(seed=3)
-            nmds = manifold.MDS(n_components=3, metric=False, max_iter=3000, eps=1e-9,
+            nmds = manifold.MDS(n_components=options['MDS-n_components'], metric=False, max_iter=3000, eps=1e-9,
                         dissimilarity="precomputed", random_state=seed, n_jobs=1,
                         n_init=1)
-            clf = PCA(n_components=2)
+            clf = PCA(n_components=options['PCA-n_components'])
             all_positions_inferred = nmds.fit_transform(distances_baseline, init=all_positions_inferred)
             all_positions_inferred = clf.fit_transform(all_positions_inferred)
             scale = np.max(np.abs(all_positions_inferred))
             all_positions_inferred = all_positions_inferred / scale
             if data.reconstruction_exists('reconstruction_gt.json'):
                 seed_gt = np.random.RandomState(seed=3)
-                nmds_gt = manifold.MDS(n_components=3, metric=False, max_iter=3000, eps=1e-9,
+                nmds_gt = manifold.MDS(n_components=options['MDS-n_components'], metric=False, max_iter=3000, eps=1e-9,
                             dissimilarity="precomputed", random_state=seed_gt, n_jobs=1,
                             n_init=1)
-                clf_gt = PCA(n_components=2)
+                clf_gt = PCA(n_components=options['PCA-n_components'])
                 all_positions_inferred_gt = nmds_gt.fit_transform(distances_gt, init=all_positions_inferred_gt)
                 all_positions_inferred_gt = clf_gt.fit_transform(all_positions_inferred_gt)
                 scale_gt = np.max(np.abs(all_positions_inferred_gt))
@@ -2827,7 +2849,18 @@ def infer_cleaner_positions(ctx):
             im_closest_images[reverse_image_mapping[i]] = np_images[order].tolist()
 
         for im in im_closest_images:
-            data.save_closest_images(im, im_closest_images[im], label='{}-lmds-{}'.format(sp_label, options['lmds']))
+            data.save_closest_images(im, im_closest_images[im], label='{}-PCA_n_components-{}-MDS_n_components-{}-lmds-{}'.format(sp_label, options['PCA-n_components'], options['MDS-n_components'], options['lmds']))
+
+        im_mds_position = {}
+        for i in range(0, len(all_positions_inferred)):
+            im_mds_position[reverse_image_mapping[i]] = all_positions_inferred[i].tolist()
+        data.save_mds_positions(im_mds_position, label='{}-PCA_n_components-{}-MDS_n_components-{}-lmds-{}'.format(sp_label, options['PCA-n_components'], options['MDS-n_components'], options['lmds']))
+
+        if data.reconstruction_exists('reconstruction_gt.json'):
+            im_mds_position_gt = {}
+            for i in range(0, len(all_positions_inferred_gt)):
+                im_mds_position_gt[reverse_image_mapping_gt[i]] = all_positions_inferred_gt[i].tolist()
+            data.save_mds_positions(im_mds_position_gt, label='gt-{}-PCA_n_components-{}-MDS_n_components-{}-lmds-{}'.format(sp_label, options['PCA-n_components'], options['MDS-n_components'], options['lmds']))
 
     # import sys; sys.exit(1)
     if data.reconstruction_exists('reconstruction_gt.json'):
@@ -2838,11 +2871,67 @@ def infer_cleaner_positions(ctx):
             im_closest_images_gt[reverse_image_mapping_gt[i]] = np_images_gt[order_gt].tolist()
         
         for im in im_closest_images_gt:
-            data.save_closest_images(im, im_closest_images_gt[im], label='gt-lmds-{}'.format(options['lmds']))
+            data.save_closest_images(im, im_closest_images_gt[im], label='gt-PCA_n_components-{}-MDS_n_components-{}-lmds-{}'.format(options['PCA-n_components'], options['MDS-n_components'], options['lmds']))
 
         # recon_inferred = create_inferred_reconstruction(positions_inferred, reverse_image_mapping)
         # relevant_reconstructions = [[recon_gt, recon_inferred, 'path']]
         # opensfm.commands.validate_results.ransac_based_ate_evaluation(data, relevant_reconstructions)
+
+def mds_errors(ctx):
+    logger.info('Calculating MDS errors using ground-truth reconstruction!')
+    data = ctx.data
+    images = sorted(data.images())
+    np_images = np.array(images)
+    for run_config in [
+        {'sp_label': 'rm-cost', 'pca_n_components': 2, 'mds_n_components': 2, 'edge_threshold': 1.0/1.0},
+        {'sp_label': 'rm-cost', 'pca_n_components': 2, 'mds_n_components': 2, 'edge_threshold': 1.0/10.0},
+        {'sp_label': 'rm-cost', 'pca_n_components': 2, 'mds_n_components': 2, 'edge_threshold': 1.0/20.0},
+
+        # {'sp_label': 'rm-cost', 'pca_n_components': 2, 'mds_n_components': 3},
+        # {'sp_label': 'rm-cost', 'pca_n_components': 2, 'mds_n_components': 5},
+        # {'sp_label': 'rm-cost', 'pca_n_components': 2, 'mds_n_components': len(np_images)},
+        # {'sp_label': 'imc-cost', 'pca_n_components': 2, 'mds_n_components': 2},
+        ]:
+        sp_label, pca_n_components, mds_n_components, edge_threshold = run_config['sp_label'], run_config['pca_n_components'], run_config['mds_n_components'], run_config['edge_threshold']
+        options = {'shortest_path_label': sp_label, 'lmds': False, 'PCA-n_components': pca_n_components, 'MDS-n_components': mds_n_components, 'edge_threshold': edge_threshold, 'debug': True}
+
+        reverse_image_mapping = {}
+        image_mapping = {}
+        reverse_image_mapping_gt = {}
+        image_mapping_gt = {}
+        errors = {}
+        total_error = 0.0
+
+        im_mds_position = data.load_mds_positions(label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}'.format(sp_label, options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds']))
+        im_mds_position_gt = data.load_mds_positions(label='gt-{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}'.format(sp_label, options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds']))
+        
+        positions = np.zeros((len(im_mds_position.keys()),2))
+        positions_gt = np.zeros((len(im_mds_position_gt.keys()),2))
+
+        images_common = set(im_mds_position.keys()).intersection(set(im_mds_position_gt.keys()))
+        positions__ = np.zeros((len(images_common),2))
+        positions_gt__ = np.zeros((len(images_common),2))
+
+        for i, image in enumerate(sorted(im_mds_position.keys())):
+            positions[i] = np.array(im_mds_position[image])
+            reverse_image_mapping[i] = image
+            image_mapping[image] = i
+
+        for i, image in enumerate(sorted(im_mds_position_gt.keys())):
+            positions_gt[i] = np.array(im_mds_position_gt[image])
+            reverse_image_mapping_gt[i] = image
+            image_mapping_gt[image] = i
+
+        for i, image in enumerate(set(im_mds_position.keys()).intersection(set(im_mds_position_gt.keys()))):
+            errors[image] = np.sum(np.absolute(positions[image_mapping[image],:] - positions_gt[image_mapping_gt[image],:]))
+            positions__[i] = positions[image_mapping[image]]
+            positions_gt__[i] = positions_gt[image_mapping_gt[image]]
+            total_error += errors[image]
+
+        distance_error = np.sum(np.sum(np.absolute(euclidean_distances(positions__) - euclidean_distances(positions_gt__))))
+        # logger.info(json.dumps(errors, sort_keys=True, indent=4, separators=(',', ': ')))
+        logger.info('Total MDS Error ( {} / {} ): {} / {}\t\timages: {}'.format(pca_n_components, mds_n_components, total_error, distance_error, len(set(im_mds_position.keys()).intersection(set(im_mds_position_gt.keys())))))
+        # import pdb; pdb.set_trace()
 
 def infer_positions(ctx):
     logger.info('Inferring camera positions using shortest paths...')
@@ -2863,30 +2952,50 @@ def infer_positions(ctx):
 
         distances_gt = euclidean_distances(positions_gt)
 
-    for sp_label in ['rm-cost', 'rm-seq-cost-{}'.format(seq_cost_factor)]:
-        distances_baseline = -1 * np.ones((len(images), len(images)))
+    # for sp_label in ['rm-cost', 'rm-seq-cost-{}'.format(seq_cost_factor)]:
+    for run_config in [
+        {'sp_label': 'rm-cost', 'pca_n_components': 2, 'mds_n_components': 2, 'edge_threshold': 1.0/1.0},
+        {'sp_label': 'rm-cost', 'pca_n_components': 2, 'mds_n_components': 2, 'edge_threshold': 1.0/10.0},
+        {'sp_label': 'rm-cost', 'pca_n_components': 2, 'mds_n_components': 2, 'edge_threshold': 1.0/20.0},
+
+        # {'sp_label': 'rm-cost', 'pca_n_components': 2, 'mds_n_components': 3},
+        # {'sp_label': 'rm-cost', 'pca_n_components': 2, 'mds_n_components': 5},
+        # {'sp_label': 'rm-cost', 'pca_n_components': 2, 'mds_n_components': len(np_images)},
+        # {'sp_label': 'imc-cost', 'pca_n_components': 2, 'mds_n_components': 2, 'edge_threshold': 10.0},
+        ]:
+
+        sp_label, pca_n_components, mds_n_components, edge_threshold = run_config['sp_label'], run_config['pca_n_components'], run_config['mds_n_components'], run_config['edge_threshold']
+
+        distances_baseline = 0.0 * np.ones((len(images), len(images)))
         cached_features = {}
         image_mapping = {}
         reverse_image_mapping = {}
         im_closest_images = {}
+        if sp_label == 'imc-cost':
+            image_matching_results = data.load_image_matching_results(robust_matches_threshold=15, classifier='CONVNET')
 
         for i,im1 in enumerate(images):
-            im_shortest_paths = data.load_shortest_paths(im1, label=sp_label)
+            # if sp_label == 'rm-cost':
+            im_shortest_paths = data.load_shortest_paths(im1, label='rm-cost', edge_threshold=np.round(edge_threshold,2))
             image_mapping[im1] = i
             reverse_image_mapping[i] = im1
 
-            im1_all_matches, im1_valid_rmatches, im1_all_robust_matches = data.load_all_matches(im1)
             p1, f1, c1 = data.load_features(im1)
             for j,im2 in enumerate(images):
+                cost = 0.0
                 if i == j:
                     distances_baseline[i,j] = 0.0
+                elif j < i:
+                    continue
                 else:
+                    # if sp_label == 'rm-cost':
                     if im2 in im_shortest_paths:
                         path = im_shortest_paths[im2]['path']
+                        entry = im_shortest_paths[im2]
                     else:
-                        im_shortest_paths = data.load_shortest_paths(im2, label=sp_label)
+                        im_shortest_paths = data.load_shortest_paths(im2, label=sp_label, edge_threshold=np.round(edge_threshold,2))
                         path = im_shortest_paths[im1]['path']
-                    shortest_path_distance = 0.0
+                        entry = im_shortest_paths[im1]
                     for k,p in enumerate(path):
                         im1_, im2_ = p.split('---')
                         if im1_ in cached_features:
@@ -2904,32 +3013,64 @@ def infer_positions(ctx):
                         #     print (path)
                         #     print ('{} : {}    /    {} : {}'.format(im1, len(p1_), im2, len(p2_)))
                         
-                        # shortest_path_distance += 1.0 / (path[p]['rmatches'] / min(len(p1_), len(p2_)))
-                        shortest_path_distance += path[p]['cost']
-                    distances_baseline[i,j] = shortest_path_distance
+                        # try:
+                        # cost += 1.0 / (1.0 * path[p]['rmatches'] / min(len(p1_), len(p2_)))
+                        # cost += 1.0 / (1.0 * path[p]['rmatches'])
+                        # except:
+                        #     import pdb; pdb.set_trace()
+                        if sp_label == 'rm-cost':
+                            cost += path[p]['cost']
+                        elif sp_label == 'imc-cost':
+                            cost += 1.0 / image_matching_results[im1_][im2_]['score']
+                        
+                        
+                    # elif sp_label == 'imc-cost':
+                    #     try:
+                    #         cost = 1.0 / image_matching_results[im1][im2]['score']
+                    #     except:
+                    #         import pdb; pdb.set_trace()
+                    #     print ('{} - {} : {} / {}'.format(im1, im2, image_matching_results[im1][im2]['num_rmatches'], cost))
+                    #     print ('\t\t{}-{}: {}  -  {} / {}'.format(im1, im2, p, path[p]['cost'], path[p]['rmatches']))
+                    # print ('\t{}-{}: {} - {}'.format(im1, im2, shortest_path_distance, entry['rmatches']))
+                    
+                    distances_baseline[i,j] = cost
                 distances_baseline[j,i] = distances_baseline[i,j]
+                # if j > 5:
+                #     import pdb; pdb.set_trace()
 
-        options = {'solve_mds_plot_freq': 1, 'max_iterations': 20, 'shortest_path_label': sp_label, 'lmds': False}
+        options = {'solve_mds_plot_freq': 1, 'max_iterations': 20, 'shortest_path_label': sp_label, 'lmds': False, 'PCA-n_components': pca_n_components, 'MDS-n_components': mds_n_components, 'edge_threshold': edge_threshold, 'debug': True}
         if data.reconstruction_exists('reconstruction_gt.json'):
-            mds_embedding_positions, mds_embedding_positions_gt, positions_inferred, positions_inferred_gt, updated_distances = solve_mds(data=data, distances_gt=distances_gt, distances=distances_baseline, num_fns=num_fns, opts=options, debug=False)
+            mds_embedding_positions, mds_embedding_positions_gt, positions_inferred, positions_inferred_gt, updated_distances = solve_mds(data=data, distances_gt=distances_gt, distances=distances_baseline, num_fns=num_fns, opts=options, debug=options['debug'])
         else:
-            mds_embedding_positions, positions_inferred, updated_distances = solve_mds(data=data, distances_gt=None, distances=distances_baseline, num_fns=num_fns, opts=options, debug=False)
+            mds_embedding_positions, positions_inferred, updated_distances = solve_mds(data=data, distances_gt=None, distances=distances_baseline, num_fns=num_fns, opts=options, debug=options['debug'])
 
         for i in range(0,num_fns):
             order = np.argsort(np.array(updated_distances[:,i]))
             im_closest_images[reverse_image_mapping[i]] = np_images[order].tolist()
 
         for im in im_closest_images:
-            data.save_closest_images(im, im_closest_images[im], label='{}-lmds-{}'.format(sp_label, options['lmds']))
+            data.save_closest_images(im, im_closest_images[im], label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}'.format(sp_label, options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds']))
 
-    if data.reconstruction_exists('reconstruction_gt.json'):
-        im_closest_images_gt = {}
-        np_images_gt = np.array(sorted(recon_gt.shots.keys()))
-        for i in range(0,num_fns_gt):
-            order_gt = np.argsort(np.array(distances_gt[:,i]))
-            im_closest_images_gt[reverse_image_mapping_gt[i]] = np_images_gt[order_gt].tolist()
-        for im in im_closest_images_gt:
-            data.save_closest_images(im, im_closest_images_gt[im], label='gt-lmds-{}'.format(options['lmds']))
+        im_mds_position = {}
+        for i in range(0,num_fns):
+            im_mds_position[reverse_image_mapping[i]] = positions_inferred[i].tolist()
+        data.save_mds_positions(im_mds_position, label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}'.format(sp_label, options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds']))
+
+        if data.reconstruction_exists('reconstruction_gt.json'):
+            im_mds_position_gt = {}
+            for i in range(0, len(positions_inferred_gt)):
+                im_mds_position_gt[reverse_image_mapping_gt[i]] = positions_inferred_gt[i].tolist()
+            data.save_mds_positions(im_mds_position_gt, label='gt-{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}'.format(sp_label, options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds']))
+
+
+        if data.reconstruction_exists('reconstruction_gt.json'):
+            im_closest_images_gt = {}
+            np_images_gt = np.array(sorted(recon_gt.shots.keys()))
+            for i in range(0,num_fns_gt):
+                order_gt = np.argsort(np.array(distances_gt[:,i]))
+                im_closest_images_gt[reverse_image_mapping_gt[i]] = np_images_gt[order_gt].tolist()
+            for im in im_closest_images_gt:
+                data.save_closest_images(im, im_closest_images_gt[im], label='gt-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}'.format(options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds']))
 
         # recon_inferred = create_inferred_reconstruction(positions_inferred, reverse_image_mapping)
         # relevant_reconstructions = [[recon_gt, recon_inferred, 'path']]
