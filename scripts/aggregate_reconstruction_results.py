@@ -157,66 +157,43 @@ def main(argv):
     parser_options = parser.parse_args()
 
     experiments = {
-        'imc-False-fm-False-wr-original-resc-NA-recc-0': \
+        'imc-False-fm-False-wr-original-resc-NA-udt-False-dt-0.5-recc-0': \
             {'key': 1, 'desc': 'Baseline'},
-        'imc-False-fm-False-wr-colmap-resc-NA-recc-0': \
+        'imc-False-fm-False-wr-colmap-resc-NA-udt-False-dt-0.5-recc-0': \
             {'key': 2, 'desc': 'colmap'},
-        'imc-False-fm-False-wr-tws-resc-im+fm-recc-0': \
-            {'key': 3, 'desc': 'im+fm'},
-        'imc-False-fm-False-wr-tws-resc-fm-recc-0': \
-            {'key': 4, 'desc': 'fm'},
-        'imc-False-fm-False-wr-tws-resc-im-recc-0': \
-            {'key': 5, 'desc': 'im'},
-        'imc-False-fm-False-wr-tws-resc-th-recc-0': \
-            {'key': 6, 'desc': 'th'},
-        'imc-False-fm-False-wr-original-resc-NA-recc-1': \
+        'imc-False-fm-False-wr-colmap-resc-NA-udt-True-dt-0.3-recc-0': \
+            {'key': 3, 'desc': 'colmap + dtv:0.3'},
+        'imc-False-fm-False-wr-colmap-resc-NA-udt-True-dt-0.4-recc-0': \
+            {'key': 4, 'desc': 'colmap + dtv:0.4'},
+        'imc-False-fm-False-wr-colmap-resc-NA-udt-True-dt-0.5-recc-0': \
+            {'key': 5, 'desc': 'colmap + dtv:0.5'},
+        'imc-False-fm-False-wr-colmap-resc-NA-udt-True-dt-0.75-recc-0': \
+            {'key': 6, 'desc': 'colmap + dtv:0.75'},
+        'imc-False-fm-False-wr-original-resc-NA-udt-False-dt-0.5-recc-1': \
             {'key': 7, 'desc': 'Baseline'},
-        'imc-False-fm-False-wr-colmap-resc-NA-recc-1': \
+        'imc-False-fm-False-wr-colmap-resc-NA-udt-False-dt-0.5-recc-1': \
             {'key': 8, 'desc': 'colmap'},
-        'imc-False-fm-False-wr-tws-resc-im+fm-recc-1': \
-            {'key': 9, 'desc': 'im+fm'},
-        'imc-False-fm-False-wr-tws-resc-fm-recc-1': \
-            {'key': 10, 'desc': 'fm'},
-        'imc-False-fm-False-wr-tws-resc-im-recc-1': \
-            {'key': 11, 'desc': 'im'},
-        'imc-False-fm-False-wr-tws-resc-th-recc-1': \
-            {'key': 12, 'desc': 'th'},
-        'imc-False-fm-False-wr-original-resc-NA-recc-2': \
+        'imc-False-fm-False-wr-colmap-resc-NA-udt-True-dt-0.3-recc-1': \
+            {'key': 9, 'desc': 'colmap + dtv:0.3'},
+        'imc-False-fm-False-wr-colmap-resc-NA-udt-True-dt-0.4-recc-1': \
+            {'key': 10, 'desc': 'colmap + dtv:0.4'},
+        'imc-False-fm-False-wr-colmap-resc-NA-udt-True-dt-0.5-recc-1': \
+            {'key': 11, 'desc': 'colmap + dtv:0.5'},
+        'imc-False-fm-False-wr-colmap-resc-NA-udt-True-dt-0.75-recc-1': \
+            {'key': 12, 'desc': 'colmap + dtv:0.75'},
+        'imc-False-fm-False-wr-original-resc-NA-udt-False-dt-0.5-recc-2': \
             {'key': 13, 'desc': 'Baseline'},
-        'imc-False-fm-False-wr-colmap-resc-NA-recc-2': \
+        'imc-False-fm-False-wr-colmap-resc-NA-udt-False-dt-0.5-recc-2': \
             {'key': 14, 'desc': 'colmap'},
-        'imc-False-fm-False-wr-tws-resc-im+fm-recc-2': \
-            {'key': 15, 'desc': 'im+fm'},
-        'imc-False-fm-False-wr-tws-resc-fm-recc-2': \
-            {'key': 16, 'desc': 'fm'},
-        'imc-False-fm-False-wr-tws-resc-im-recc-2': \
-            {'key': 17, 'desc': 'im'},
-        'imc-False-fm-False-wr-tws-resc-th-recc-2': \
-            {'key': 18, 'desc': 'th'},
-        'imc-False-fm-False-wr-original-resc-NA-recc-3': \
-            {'key': 19, 'desc': 'Baseline'},
-        'imc-False-fm-False-wr-colmap-resc-NA-recc-3': \
-            {'key': 20, 'desc': 'colmap'},
-        'imc-False-fm-False-wr-tws-resc-im+fm-recc-3': \
-            {'key': 21, 'desc': 'im+fm'},
-        'imc-False-fm-False-wr-tws-resc-fm-recc-3': \
-            {'key': 22, 'desc': 'fm'},
-        'imc-False-fm-False-wr-tws-resc-im-recc-3': \
-            {'key': 23, 'desc': 'im'},
-        'imc-False-fm-False-wr-tws-resc-th-recc-3': \
-            {'key': 24, 'desc': 'th'},
-        'imc-False-fm-False-wr-original-resc-NA-recc-4': \
-            {'key': 25, 'desc': 'Baseline'},
-        'imc-False-fm-False-wr-colmap-resc-NA-recc-4': \
-            {'key': 26, 'desc': 'colmap'},
-        'imc-False-fm-False-wr-tws-resc-im+fm-recc-4': \
-            {'key': 27, 'desc': 'im+fm'},
-        'imc-False-fm-False-wr-tws-resc-fm-recc-4': \
-            {'key': 28, 'desc': 'fm'},
-        'imc-False-fm-False-wr-tws-resc-im-recc-4': \
-            {'key': 29, 'desc': 'im'},
-        'imc-False-fm-False-wr-tws-resc-th-recc-4': \
-            {'key': 30, 'desc': 'th'},
+        'imc-False-fm-False-wr-colmap-resc-NA-udt-True-dt-0.3-recc-2': \
+            {'key': 15, 'desc': 'colmap + dtv:0.3'},
+        'imc-False-fm-False-wr-colmap-resc-NA-udt-True-dt-0.4-recc-2': \
+            {'key': 16, 'desc': 'colmap + dtv:0.4'},
+        'imc-False-fm-False-wr-colmap-resc-NA-udt-True-dt-0.5-recc-2': \
+            {'key': 17, 'desc': 'colmap + dtv:0.5'},
+        'imc-False-fm-False-wr-colmap-resc-NA-udt-True-dt-0.75-recc-2': \
+            {'key': 18, 'desc': 'colmap + dtv:0.75'},
+
         # 'imc-True-wr-sum-colmapr-False': \
         #     {'key': 4, 'desc': 'Image matching classifier with weighted resectioning'},
         # 'imc-True-wr-max-colmapr-False': \
