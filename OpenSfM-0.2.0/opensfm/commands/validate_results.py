@@ -152,7 +152,7 @@ def get_gt_results(data, options):
             _distance_rank_percentage_im1_im2_gt, _distance_rank_percentage_im2_im1_gt, \
             _num_gt_inliers, _labels] \
             = data.load_image_matching_dataset(robust_matches_threshold=options['robust_matches_threshold'])
-        image_matching_results = data.load_image_matching_results(options['robust_matches_threshold'], 'CONVNET')
+        image_matching_results = data.load_image_matching_results(options['robust_matches_threshold'], 'BASELINE')
 
         fns = []
         y_gt = []
@@ -166,11 +166,14 @@ def get_gt_results(data, options):
                 y_gt.append(_labels[ri])
                 num_rmatches.append(_num_rmatches[ri])
 
-        auc, auc_roc, pr, roc = classifier.calculate_dataset_auc(np.array(y), np.array(y_gt), debug=False)
-        _, _, f_auc, _ = classifier.calculate_per_image_mean_auc(np.array(fns), np.array(y), np.array(y_gt), debug=False)
+        try:
+            auc, auc_roc, pr, roc = classifier.calculate_dataset_auc(np.array(y), np.array(y_gt), debug=False)
+            _, _, f_auc, _ = classifier.calculate_per_image_mean_auc(np.array(fns), np.array(y), np.array(y_gt), debug=False)
 
-        baseline_auc, baseline_auc_roc, baseline_pr, baseline_roc = classifier.calculate_dataset_auc(np.array(num_rmatches), np.array(y_gt), debug=False)
-        _, _, baseline_f_auc, _ = classifier.calculate_per_image_mean_auc(np.array(fns), np.array(num_rmatches), np.array(y_gt), debug=False)
+            baseline_auc, baseline_auc_roc, baseline_pr, baseline_roc = classifier.calculate_dataset_auc(np.array(num_rmatches), np.array(y_gt), debug=False)
+            _, _, baseline_f_auc, _ = classifier.calculate_per_image_mean_auc(np.array(fns), np.array(num_rmatches), np.array(y_gt), debug=False)
+        except:
+            baseline_auc, baseline_auc_roc, baseline_f_auc, auc, auc_roc, f_auc = None, None, None, None, None, None    
     else:
         baseline_auc, baseline_auc_roc, baseline_f_auc, auc, auc_roc, f_auc = None, None, None, None, None, None
 
@@ -363,7 +366,8 @@ def ransac_based_ate_evaluation(data, relevant_reconstructions):
     ate_options = {
         'i_scale': 1.0,
         'offset': 0.0,
-        'max_difference': 0.02
+        'max_difference': 0.02,
+        'debug': False
     }
     
     total_ransac_iterations = 20000
@@ -408,7 +412,7 @@ def ransac_based_ate_evaluation(data, relevant_reconstructions):
                     'translation_error': translation_error
                     }
         
-        if len(best_model_cm['matches']) >= 2:
+        if len(best_model_cm['matches']) >= 2 and ate_options['debug']:
             plot_best_trajectories(data, gt_full_list, osfm_full_list, best_model_cm['matches'], \
                 best_model_cm['s'], best_model_cm['R'], best_model_cm['t'], label)
 

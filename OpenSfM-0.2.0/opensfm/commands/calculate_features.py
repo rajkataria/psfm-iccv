@@ -39,7 +39,7 @@ class Command:
         ctx.sequence_cost_factor = 1.0
         ctx.blurred = True
         ctx.debug = False
-
+        ctx.edge_thresholds = {'rm-cost': 10000000000, 'rm-seq-cost': 10000000000, 'outlier-logp': 0.0000000001}
         # classifier.calculate_consistency_errors(ctx)
         # classifier.create_image_matching_dataset(ctx)
         # import sys; sys.exit(1)
@@ -50,13 +50,18 @@ class Command:
         # classifier.create_image_matching_dataset(ctx)
 
         # classifier.calculate_multiple_motion_maps(ctx)
+        # classifier.calculate_image_keypoints(ctx)
+        # import sys; sys.exit(1)
 
         classifier.calculate_sequence_ranks(ctx)
-        classifier.calculate_shortest_paths(ctx)
-        classifier.infer_positions(ctx)
+
+        for i in range(0, 2):
+            ctx.iteration = i
+            classifier.calculate_shortest_paths(ctx)
+            classifier.infer_positions(ctx)
         # classifier.infer_cleaner_positions(ctx)
 
-        classifier.mds_errors(ctx)
+        # classifier.mds_errors(ctx)
         import sys; sys.exit(1)
 
         

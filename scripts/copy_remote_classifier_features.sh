@@ -1,6 +1,6 @@
 # copy_mode="full"
-copy_mode="minimal"
-# copy_mode="matching_results"
+# copy_mode="minimal"
+copy_mode="matching_results"
 # copy_mode="reconstructions"
 
 # remote_server="ec2-18-218-17-167.us-east-2.compute.amazonaws.com" # tum_rgbd_slam
@@ -9,17 +9,20 @@ remote_server="ec2-3-14-82-141.us-east-2.compute.amazonaws.com" # eth3d and tank
 local_root="/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce"
 # relevant_dataset="TUM_RGBD_SLAM"
 # relevant_dataset="ETH3D"
-relevant_dataset="TanksAndTemples"
-# relevant_dataset="UIUCTag"
+# relevant_dataset="TanksAndTemples"
+relevant_dataset="UIUCTag"
 
 # TanksAndTemples_relevant_sequences=('Barn' 'Caterpillar' 'Church' 'Courthouse' 'Ignatius' 'Meetingroom' 'Truck')
-TanksAndTemples_relevant_sequences=('Auditorium' 'Ballroom' 'Courtroom' 'Family' 'Francis' 'Horse' 'Lighthouse' 'M60' 'Museum' 'Palace' 'Panther' 'Playground' 'Temple' 'Train')
+# TanksAndTemples_relevant_sequences=('Auditorium' 'Ballroom' 'Courtroom' 'Family' 'Francis' 'Horse' 'Lighthouse' 'M60' 'Museum' 'Palace' 'Panther' 'Playground' 'Temple' 'Train')
 
 # TanksAndTemples_relevant_sequences=('Auditorium' 'Courtroom' 'Francis' 'Horse' 'Lighthouse' 'M60' 'Train')
 # TanksAndTemples_relevant_sequences=('Ballroom' 'Family' 'Museum' 'Palace' 'Panther' 'Playground' 'Temple')
 
 # TanksAndTemples_relevant_sequences=('Meetingroom')
+# TanksAndTemples_relevant_sequences=('Ballroom')
+
 UIUCTag_relevant_sequences=('ece_floor5_wall' 'ece_floor3_loop_ccw')
+
 
 datasets=($(ssh ubuntu@$remote_server ls -d /home/ubuntu/Results/completed-classifier-datasets-bruteforce/*/*/))
 echo "*********************************************************************************************************************************************************************************************"
@@ -96,7 +99,8 @@ for ds in "${datasets[@]}"; do
 	elif [ "$copy_mode" == "reconstructions" ]; then
 		echo -e "\t\tCopying dataset: "$ds" to $local_folder - mode: reconstructions";
 		# rsync -aqz ubuntu@$remote_server:$ds/tracks*.csv $local_folder/
-		# rsync -aqz ubuntu@$remote_server:$ds/reconstruction-*.json $local_folder/
+		rsync -aqz ubuntu@$remote_server:$ds/reconstruction_gt.json $local_folder/
+		rsync -aqz ubuntu@$remote_server:$ds/reconstruction-*.json $local_folder/
 		rsync -aqz ubuntu@$remote_server:$ds/results/*.json $local_folder/results/
 	elif [ "$copy_mode" == "matching_results" ]; then
 		echo -e "\t\tCopying dataset: "$ds" to $local_folder - mode: matching_results";

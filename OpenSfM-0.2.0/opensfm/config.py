@@ -146,6 +146,7 @@ resectioning_config: NA                         # NA, im, fm, th, depth
 reconstruction_counter: 0
 use_distance_threshold: no
 distance_threshold_value: 0.5
+distance_filter_value: 0.75
 use_gt_closest_images_pruning: no
 use_closest_images_pruning: no
 use_yan_disambiguation: no

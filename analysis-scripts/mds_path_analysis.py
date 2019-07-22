@@ -31,9 +31,55 @@ def mkdir_p(path):
     except os.error as exc:
         pass
 
+def plot_iris(num_rmatches, labels, counts):
+    legend = []
+    plt.clf()
+    fig = plt.figure()
+    # plt.xlim([0.0, 1.05])
+    
+    
+    
+    plt.subplot(2,2,1)
+    plt.title('Filtered matches - inliers/outliers: {}/{}'.format(counts['inliers'], counts['outliers']))
+    nbins = int((num_rmatches[labels >= 1].max() - num_rmatches[labels >= 1].min() + 1)/2.0)
+    plt.xlabel('Number of rmatches')
+    plt.ylabel('Count(inliers)={}'.format(len(np.where(labels >= 1)[0])))
+    plt.hist(num_rmatches[labels >= 1], bins=nbins)
+    
+    plt.subplot(2,2,2)
+    plt.title('Filtered matches - inliers/outliers: {}/{}'.format(counts['inliers'], counts['outliers']))
+    nbins = int((num_rmatches[labels <= 0].max() - num_rmatches[labels <= 0].min() + 1)/2.0)
+    plt.xlabel('Number of rmatches')
+    plt.ylabel('Count (outliers)={}'.format(len(np.where(labels <= 0)[0])))
+    plt.hist(num_rmatches[labels <= 0], bins=nbins)
+
+    plt.subplot(2,2,3)
+    plt.ylim([0.0, 100.0])
+    plt.title('Filtered matches - inliers/outliers: {}/{}'.format(counts['inliers'], counts['outliers']))
+    nbins = int((num_rmatches[labels >= 1].max() - num_rmatches[labels >= 1].min() + 1)/2.0)
+    plt.xlabel('Number of rmatches')
+    plt.ylabel('Count(inliers)={}'.format(len(np.where(labels >= 1)[0])))
+    plt.hist(num_rmatches[labels >= 1], bins=nbins)
+    
+    plt.subplot(2,2,4)
+    plt.ylim([0.0, 100.0])
+    plt.title('Filtered matches - inliers/outliers: {}/{}'.format(counts['inliers'], counts['outliers']))
+    nbins = int((num_rmatches[labels <= 0].max() - num_rmatches[labels <= 0].min() + 1)/2.0)
+    plt.xlabel('Number of rmatches')
+    plt.ylabel('Count (outliers)={}'.format(len(np.where(labels <= 0)[0])))
+    plt.hist(num_rmatches[labels <= 0], bins=nbins)
+
+    fig.set_size_inches(20.8, 11.8)
+    fig.canvas.draw()
+    fig_np = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep='').reshape(fig.canvas.get_width_height()[::-1] + (3,))
+    # plt.clf()
+    return fig, fig_np
+
+
 def distance_based_filter(dsets, fns, options):
     current_dset = None
     ris = []
+    iris = []
     all_distances = []
     for i, dset in enumerate(dsets):
         if current_dset != dset:
@@ -46,8 +92,10 @@ def distance_based_filter(dsets, fns, options):
         all_distances.append(distance_matrix[0,1])
         if distance_matrix[0,1] <= options['distance_threshold']:
             ris.append(i)
+        else:
+            iris.append(i)
         
-    return np.array(ris), np.array(all_distances)
+    return np.array(ris), np.array(iris), np.array(all_distances)
 
 def distance_thresholded_matching_results(datasets, options):
     mds_data_folder = options['mds_data_folder']
@@ -169,7 +217,7 @@ def distance_thresholded_matching_results(datasets, options):
 
     labels_tr[labels_tr < 0] = 0
 
-    ris, all_distances = distance_based_filter(dsets_tr, fns_tr, options)
+    ris, iris, all_distances = distance_based_filter(dsets_tr, fns_tr, options)
     # import pdb; pdb.set_trace()
     # f1 = plt.figure(1)
     # plt.ylabel('Precision')
@@ -180,6 +228,11 @@ def distance_thresholded_matching_results(datasets, options):
     auc_pr_baseline, auc_roc_baseline, pr_baseline, roc_baseline = matching_classifiers.calculate_dataset_auc(num_rmatches_tr, labels_tr)#, color='green', ls='dashed', markers=[15, 16, 20])
 
     auc_pr_distance_thresholded, auc_roc_distance_thresholded, pr_distance_thresholded, roc_distance_thresholded = matching_classifiers.calculate_dataset_auc(num_rmatches_tr[ris], labels_tr[ris])#, color='green', ls='dashed', markers=[15, 16, 20])
+    
+    labels_zeroed = np.copy(labels_tr)
+    labels_zeroed[iris] = 0
+    auc_pr_zeroed, auc_roc_zeroed, pr_zeroed, roc_zeroed = matching_classifiers.calculate_dataset_auc(num_rmatches_tr, labels_zeroed)#, color='green', ls='dashed', markers=[15, 16, 20])
+
     # auc_e_t = timer()
     # aucpi_s_t = timer()
     # _, _, _, auc_per_image_per_dset_means_baseline, _, auc_per_image_mean_baseline, auc_roc_per_image_mean_baseline = \
@@ -195,7 +248,14 @@ def distance_thresholded_matching_results(datasets, options):
     #     ))
 
     fig_prs, _ = matching_classifiers.plot_prs(pr_distance_thresholded, pr_baseline, auc_pr_distance_thresholded, auc_pr_baseline, markers=[15, 16, 20], markers_baseline=[15, 16, 20])
-    fig_prs.savefig(os.path.join(mds_data_folder, 'distance-thresholded-image-matching-PR-distance-threshold-{}-tuples-{}-{}.png'.format(options['distance_threshold'], len(ris), len(labels_tr))))
+    fig_prs.savefig(os.path.join(mds_data_folder, 'distance-thresholded-image-matching-PR-{}-tuples-{}-{}.png'.format(options['distance_threshold'], len(ris), len(labels_tr))))
+
+    fig_prs_zeroed, _ = matching_classifiers.plot_prs(pr_zeroed, pr_baseline, auc_pr_zeroed, auc_pr_baseline, markers=[15, 16, 20], markers_baseline=[15, 16, 20])
+    fig_prs_zeroed.savefig(os.path.join(mds_data_folder, 'distance-thresholded-image-matching-PR-zeroed-{}-tuples-{}-{}.png'.format(options['distance_threshold'], len(labels_zeroed), len(labels_tr))))
+
+    counts = {'inliers': len(np.where(labels_tr >= 1)[0]), 'outliers': len(np.where(labels_tr <= 0)[0])}
+    fig_prs_iris, _ = plot_iris(num_rmatches_tr[iris], labels_tr[iris], counts)
+    fig_prs_iris.savefig(os.path.join(mds_data_folder, 'distance-thresholded-image-matching-PR-iris-{}-tuples-{}-{}.png'.format(options['distance_threshold'], len(iris), len(labels_tr))))
 
     auc_pr_distances, auc_roc_distances, pr_distances, roc_distances = matching_classifiers.calculate_dataset_auc(-1.0 * all_distances + 2.0, labels_tr)#, color='green', ls='dashed', markers=[15, 16, 20])
     fig_prs_distances, _ = matching_classifiers.plot_prs(pr_distances, pr_baseline, auc_pr_distances, auc_pr_baseline, markers=[1.0, 1.1, 1.2], markers_baseline=[15, 16, 20])
@@ -351,22 +411,22 @@ def main():
     ]
 
     uiuctag_datasets = [
-        '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/ece_floor2_hall/', 
-        '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/ece_floor3_loop/', 
-        '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/ece_floor3_loop_ccw/', 
-        '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/ece_floor3_loop_cw/', 
-        '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/ece_floor5/', 
-        '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/ece_floor5_stairs/', 
-        '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/ece_floor5_wall/', 
-        '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/ece_stairs/', 
-        '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/yeh_day_all/', 
-        '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/yeh_day_atrium/', 
-        '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/yeh_day_backward/', 
-        '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/yeh_day_forward/', 
-        '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/yeh_night_all/', 
-        '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/yeh_night_atrium/', 
-        '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/yeh_night_backward/', 
-        '/hdd/Research/psfm-iccv/data/iccv-results/UIUCTag/yeh_night_forward/'
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/ece_floor2_hall/', 
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/ece_floor3_loop/', 
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/ece_floor3_loop_ccw/', 
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/ece_floor3_loop_cw/', 
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/ece_floor5/', 
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/ece_floor5_stairs/', 
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/ece_floor5_wall/', 
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/ece_stairs/', 
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/yeh_day_all/', 
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/yeh_day_atrium/', 
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/yeh_day_backward/', 
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/yeh_day_forward/', 
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/yeh_night_all/', 
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/yeh_night_atrium/', 
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/yeh_night_backward/', 
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/yeh_night_forward/'
     ]
 
     tanks_and_temples_datasets = [
@@ -380,34 +440,44 @@ def main():
     ]
 
     tum_rgbd_datasets = [
-        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_cabinet/',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_large_cabinet/',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_long_office_household/',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_nostructure_notexture_far/',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_nostructure_notexture_near_withloop/',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_nostructure_texture_far/',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_nostructure_texture_near_withloop/',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_sitting_halfsphere/',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_sitting_rpy/',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_sitting_static/',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_sitting_xyz/',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_structure_notexture_far/',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_structure_notexture_near/',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_structure_texture_far/',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_structure_texture_near/',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_teddy/',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_walking_halfsphere/',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_walking_rpy/',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_walking_static/',
-        '/hdd/Research/psfm-iccv/data/iccv-results/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_walking_xyz/'
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_cabinet/',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_large_cabinet/',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_long_office_household/',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_nostructure_notexture_far/',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_nostructure_notexture_near_withloop/',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_nostructure_texture_far/',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_nostructure_texture_near_withloop/',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_sitting_halfsphere/',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_sitting_rpy/',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_sitting_static/',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_sitting_xyz/',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_structure_notexture_far/',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_structure_notexture_near/',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_structure_texture_far/',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_structure_texture_near/',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_teddy/',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_walking_halfsphere/',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_walking_rpy/',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_walking_static/',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_walking_xyz/'
         ]
 
+    yan_datasets = [
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/Yan/books/',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/Yan/cereal/',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/Yan/cup/',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/Yan/desk/',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/Yan/oats/',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/Yan/street/',
+    ]
+
     options = {
-        'plot': 'distance-based-thresholding',
+        # 'plot': 'distance-based-thresholding',
+        'plot': 'ranks',
         'image_matching_gt_threshold': 15,
         'balance': False,
         'mds_data_folder': 'data/mds-path-analysis',
-        'distance_thresholds': [0.5, 0.75, 1.0, 1.25, 1.5],
+        'distance_thresholds': [0.3, 0.4, 0.5, 0.75, 1.0, 1.25, 1.5],
         'shortest_path_label': 'rm-cost',
         'PCA-n_components': 2,
         'MDS-n_components': 2,
@@ -422,13 +492,13 @@ def main():
     else:
         options['fontsize'] = 20
 
-    # datasets = [
-    #     '/hdd/Research/psfm-iccv/data/temp-recons/boulders',
-    #     '/hdd/Research/psfm-iccv/data/temp-recons/exhibition_hall',
-    #     '/hdd/Research/psfm-iccv/data/temp-recons/ece_floor3_loop_cw',
-    #     '/hdd/Research/psfm-iccv/data/temp-recons/ece_floor3_loop_ccw',
-    # ]
-    datasets = eth3d_datasets + tanks_and_temples_datasets
+    datasets = [
+        '/hdd/Research/psfm-iccv/data/temp-recons/boulders',
+        '/hdd/Research/psfm-iccv/data/temp-recons/exhibition_hall',
+        '/hdd/Research/psfm-iccv/data/temp-recons/ece_floor3_loop_cw',
+        '/hdd/Research/psfm-iccv/data/temp-recons/ece_floor3_loop_ccw',
+    ]
+    # datasets = yan_datasets
 
     if options['plot'] == 'distance-based-thresholding' and options['aggregate']:
         mkdir_p(options['mds_data_folder'])

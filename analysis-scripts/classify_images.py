@@ -27,31 +27,43 @@ def save_rmatches(outdir, dataset_name, num_rmatches, label):
     with gzip.open(os.path.join(outdir, '{}-{}.pkl.gz'.format(dataset_name, label)), 'wb') as fout:
         pickle.dump(num_rmatches, fout)
 
-def plot_baseline_histograms(outdir, inliers_distribution_8_50, outliers_distribution_8_50, inliers_distribution_8_500, outliers_distribution_8_500, inliers_distribution, outliers_distribution, nbins, x_max):
+def plot_baseline_histograms(outdir, inliers_distribution, outliers_distribution, bins, x_max):
     fontsize = 12
     epsilon = 0.0000001
 
 
-    plt.subplot(3,1,1)
-    plt.xlim(0, 51)
+    plt.subplot(4,1,1)
+    # plt.xlim(0, 51)
     plt.ylim(0, 1.1)
     plt.xlabel('rmatches', fontsize=fontsize)
     plt.ylabel('Inlier %', fontsize=fontsize)
-    plt.plot(np.linspace(8,50,41), (inliers_distribution_8_50[0].astype(np.float) + epsilon)/(inliers_distribution_8_50[0].astype(np.float) + outliers_distribution_8_50[0].astype(np.float) + epsilon))
+    # plt.plot(np.linspace(8,50,41), (inliers_distribution_8_50[0].astype(np.float) + epsilon)/(inliers_distribution_8_50[0].astype(np.float) + outliers_distribution_8_50[0].astype(np.float) + epsilon))
+    plt.plot(bins[:-16], (inliers_distribution[0].astype(np.float)[:-15] + epsilon)/(inliers_distribution[0].astype(np.float)[:-15] + outliers_distribution[0].astype(np.float)[:-15] + epsilon))
 
-    plt.subplot(3,1,2)
-    plt.xlim(0, 501)
+    plt.subplot(4,1,2)
+    # plt.xlim(0, 501)
     plt.ylim(0, 1.1)
     plt.xlabel('rmatches', fontsize=fontsize)
     plt.ylabel('Inlier %', fontsize=fontsize)
-    plt.plot(np.linspace(8,500,491), (inliers_distribution_8_500[0].astype(np.float) + epsilon)/(inliers_distribution_8_500[0].astype(np.float) + outliers_distribution_8_500[0].astype(np.float) + epsilon))
+    # plt.plot(np.linspace(8,500,491), (inliers_distribution_8_500[0].astype(np.float) + epsilon)/(inliers_distribution_8_500[0].astype(np.float) + outliers_distribution_8_500[0].astype(np.float) + epsilon))
+    plt.plot(bins[:-11], (inliers_distribution[0].astype(np.float)[:-10] + epsilon)/(inliers_distribution[0].astype(np.float)[:-10] + outliers_distribution[0].astype(np.float)[:-10] + epsilon))
 
-    plt.subplot(3,1,3)
+    plt.subplot(4,1,3)
+    # plt.xlim(0, 501)
+    plt.ylim(0, 1.1)
+    plt.xlabel('rmatches', fontsize=fontsize)
+    plt.ylabel('Inlier %', fontsize=fontsize)
+    # plt.plot(np.linspace(8,500,491), (inliers_distribution_8_500[0].astype(np.float) + epsilon)/(inliers_distribution_8_500[0].astype(np.float) + outliers_distribution_8_500[0].astype(np.float) + epsilon))
+    plt.plot(bins[:-8], (inliers_distribution[0].astype(np.float)[:-7] + epsilon)/(inliers_distribution[0].astype(np.float)[:-7] + outliers_distribution[0].astype(np.float)[:-7] + epsilon))
+
+    plt.subplot(4,1,4)
     plt.xlim(0, x_max)
     plt.ylim(0, 1.1)
     plt.xlabel('rmatches', fontsize=fontsize)
     plt.ylabel('Inlier %', fontsize=fontsize)
-    plt.plot(np.linspace(8,x_max,nbins), (inliers_distribution[0].astype(np.float) + epsilon)/(inliers_distribution[0].astype(np.float) + outliers_distribution[0].astype(np.float) + epsilon))
+    # plt.plot(np.linspace(8,x_max,nbins), (inliers_distribution[0].astype(np.float) + epsilon)/(inliers_distribution[0].astype(np.float) + outliers_distribution[0].astype(np.float) + epsilon))
+    # import pdb; pdb.set_trace()
+    plt.plot(bins[:-1], (inliers_distribution[0].astype(np.float) + epsilon)/(inliers_distribution[0].astype(np.float) + outliers_distribution[0].astype(np.float) + epsilon))
 
     fig = plt.gcf()
     fig.set_size_inches(18.5, 10.5)
@@ -110,18 +122,20 @@ def create_baseline_classifier(training_datasets):
     print ('#'*100)
 
     x_max = int(max(num_rmatches_inliers))
-    nbins = (x_max-8-1) / 1
+    # nbins = (x_max-8-1) / 1
+    bins = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 38, 40, 42, 46, 54, 70, 102, 134, 166, 198, 230, 294, 422, 550, 678, 806, 934, 1062, 2086, 3110, 4134, 5158]
 
-    inliers_distribution = np.histogram(num_rmatches_inliers, bins=nbins, range=(8,x_max))
-    outliers_distribution = np.histogram(num_rmatches_outliers, bins=nbins, range=(8,x_max))
+    inliers_distribution = np.histogram(num_rmatches_inliers, bins=bins, range=(8,x_max))
+    outliers_distribution = np.histogram(num_rmatches_outliers, bins=bins, range=(8,x_max))
 
-    inliers_distribution_8_50 = np.histogram(num_rmatches_inliers, bins=41, range=(8,50))
-    outliers_distribution_8_50 = np.histogram(num_rmatches_outliers, bins=41, range=(8,50))
+    # inliers_distribution_8_50 = np.histogram(num_rmatches_inliers, bins=41, range=(8,50))
+    # outliers_distribution_8_50 = np.histogram(num_rmatches_outliers, bins=41, range=(8,50))
 
-    inliers_distribution_8_500 = np.histogram(num_rmatches_inliers, bins=491, range=(8,500))
-    outliers_distribution_8_500 = np.histogram(num_rmatches_outliers, bins=491, range=(8,500))
+    # inliers_distribution_8_500 = np.histogram(num_rmatches_inliers, bins=491, range=(8,500))
+    # outliers_distribution_8_500 = np.histogram(num_rmatches_outliers, bins=491, range=(8,500))
 
-    plot_baseline_histograms(outdir, inliers_distribution_8_50, outliers_distribution_8_50, inliers_distribution_8_500, outliers_distribution_8_500, inliers_distribution, outliers_distribution, nbins, x_max)
+    # plot_baseline_histograms(outdir, inliers_distribution_8_50, outliers_distribution_8_50, inliers_distribution_8_500, outliers_distribution_8_500, inliers_distribution, outliers_distribution, bins, x_max)
+    plot_baseline_histograms(outdir, inliers_distribution, outliers_distribution, bins, x_max)
     np.save(os.path.join(outdir, 'inliers_distribution'), inliers_distribution)
     np.save(os.path.join(outdir, 'outliers_distribution'), outliers_distribution)
 
@@ -153,6 +167,7 @@ def baseline_histogram_classifier(arg):
     bins = trained_classifier[0][1]
     relevant_bins = np.digitize(num_rmatches_te, bins) - 1
     inlier_percentage = (inliers_distribution[0][relevant_bins].astype(np.float) + epsilon) / (inliers_distribution[0][relevant_bins].astype(np.float) + outliers_distribution[0][relevant_bins].astype(np.float) + epsilon)
+
     return fns_te, num_rmatches_te, None, inlier_percentage, shortest_path_length_te, None
     
 def classify_images(datasets, options={}):    
@@ -216,7 +231,16 @@ def classify_images(datasets, options={}):
             im1_all_matches, im1_valid_rmatches, im1_all_robust_matches = data.load_all_matches(im1)
             for im2 in im1_all_robust_matches:
                 rmatches = im1_all_robust_matches[im2]
+                # if im1 == 'DSC_1746.JPG' and im2 == 'DSC_1754.JPG':
+                #     import pdb; pdb.set_trace()
                 if len(rmatches) == 0:
+                    if im1 not in results:
+                        results[im1] = {}
+                    if im2 not in results:
+                        results[im2] = {}
+                    
+                    results[im1][im2] = {'im1': im1, 'im2': im2, 'score': 0.0, 'num_rmatches': 0.0, 'shortest_path_length': 0}
+                    results[im2][im1] = {'im1': im2, 'im2': im1, 'score': 0.0, 'num_rmatches': 0.0, 'shortest_path_length': 0}
                     continue
                 fns_te_.append([im1,im2])
                 dsets_te_.append(t)
@@ -305,7 +329,6 @@ def classify_images(datasets, options={}):
             results_fns, results_rmatches, _, scores, spl, _ = baseline_histogram_classifier(arg)
         elif options['classifier'] == 'CONVNET':
             results_fns, results_rmatches, _, scores, spl, _ = convnet.classify_convnet_image_match_inference(arg)
-
         print ("\tFinished classifying data for {} using {}".format(t.split('/')[-1], options['classifier']))  
 
         for i,(im1,im2) in enumerate(results_fns):
@@ -347,11 +370,11 @@ def main(argv):
     }
 
     training_datasets = [
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Barn',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Caterpillar',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Church',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Courthouse',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Ignatius',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Barn',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Caterpillar',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Church',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Courthouse',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Ignatius',
     
         '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/courtyard',
         '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/delivery_area',
@@ -386,52 +409,52 @@ def main(argv):
     ]
 
     datasets = [
-        # # Validation set
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Meetingroom',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Truck',
+        # Validation set
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Meetingroom',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Truck',
 
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/exhibition_hall',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/lecture_room',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/living_room',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/exhibition_hall',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/lecture_room',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/living_room',
 
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_cabinet',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_large_cabinet',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_long_office_household',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_nostructure_notexture_far',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_nostructure_notexture_near_withloop',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_nostructure_texture_far',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_nostructure_texture_near_withloop',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_sitting_halfsphere',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_sitting_rpy',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_sitting_static',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_sitting_xyz',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_structure_notexture_far',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_structure_notexture_near',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_structure_texture_far',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_structure_texture_near',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_teddy',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_walking_halfsphere',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_walking_rpy',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_walking_static',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_walking_xyz',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_cabinet',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_large_cabinet',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_long_office_household',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_nostructure_notexture_far',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_nostructure_notexture_near_withloop',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_nostructure_texture_far',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_nostructure_texture_near_withloop',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_sitting_halfsphere',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_sitting_rpy',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_sitting_static',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_sitting_xyz',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_structure_notexture_far',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_structure_notexture_near',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_structure_texture_far',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_structure_texture_near',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_teddy',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_walking_halfsphere',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_walking_rpy',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_walking_static',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TUM_RGBD_SLAM/rgbd_dataset_freiburg3_walking_xyz',
 
-        # # Test set
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/botanical_garden',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/boulders',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/bridge',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/door',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/lounge',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/observatory',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/office',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/old_computer',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/pipes',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/playground',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/relief',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/relief_2',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/statue',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/terrace',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/terrace_2',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/terrains',
+        # Test set
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/botanical_garden',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/boulders',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/bridge',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/door',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/lounge',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/observatory',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/office',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/old_computer',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/pipes',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/playground',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/relief',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/relief_2',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/statue',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/terrace',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/terrace_2',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/terrains',
 
         # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/ece_floor2_hall',
         # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/ece_floor3_loop',
@@ -450,25 +473,38 @@ def main(argv):
         # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/yeh_night_backward',
         # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/yeh_night_forward',
 
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Auditorium',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Ballroom',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Courtroom',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Family',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Francis',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Horse',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Lighthouse',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/M60',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Museum',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Palace',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Panther',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Playground',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Temple',
-        # '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Train',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Auditorium',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Ballroom',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Courtroom',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Family',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Francis',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Horse',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Lighthouse',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/M60',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Museum',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Palace',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Panther',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Playground',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Temple',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/TanksAndTemples/Train',
     ]
 
     # datasets = ['/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/ETH3D/botanical_garden']
+    
+    yan_datasets = [
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/Yan/books',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/Yan/cereal',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/Yan/cup',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/Yan/desk',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/Yan/oats',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/Yan/street'
+    ]
+
     # create_baseline_classifier(training_datasets)
-    classify_images(training_datasets, options)
+
+    # classify_images(training_datasets + datasets + yan_datasets, options)
+    classify_images(['/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/ece_floor3_loop_ccw',
+        '/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/UIUCTag/ece_floor5_wall'], options)
 
 if __name__ == '__main__':
     main(sys.argv)

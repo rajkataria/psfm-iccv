@@ -1688,7 +1688,7 @@ def formulate_paths(data, cutoff, edge_threshold, debug):
     if data.graph_exists('rm', edge_threshold):
         G = data.load_graph('rm', edge_threshold)
     else:
-        num_rmatches, _, _ = rmatches_adapter(data, debug=debug)
+        num_rmatches, _, _, _ = rmatches_adapter(data, debug=debug)
         G = opensfm.commands.formulate_graphs.formulate_graph([data, data.images(), num_rmatches, graph_label, edge_threshold])
         data.save_graph(G, 'rm', edge_threshold)
 
@@ -1751,6 +1751,34 @@ def calculate_consistency_errors(ctx):
                 logger.info('Finished formulating consistency errors - Cutoff: {} Edge threshold: {}   Time: {}'.format(cutoff, edge_threshold, timer() - s_time))
             # data.save_consistency_errors(histograms, cutoff=cutoff, edge_threshold=edge_threshold)
 
+def filter_rmatches_cost(ctx, graph_label, num_rmatches_cost, options):
+    data = ctx.data
+    if options['iteration'] == 0:
+        return num_rmatches_cost
+    else:
+        mds_positions = data.load_mds_positions(label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}'.format(options['sp_label'], options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds'], options['iteration'] - 1))
+        for im1 in num_rmatches_cost:
+            for im2 in num_rmatches_cost[im1]:
+                dist = euclidean_distances([mds_positions[im1], mds_positions[im2]])[0,1]
+                if dist > data.config['distance_filter_value']:
+                    num_rmatches_cost[im1][im2] = ctx.edge_thresholds[graph_label]
+
+    return num_rmatches_cost
+
+def filter_classifier_scores(ctx, graph_label, classifier_scores, options):
+    data = ctx.data
+    if options['iteration'] == 0:
+        return classifier_scores
+    else:
+        mds_positions = data.load_mds_positions(label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}'.format(options['sp_label'], options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds'], options['iteration'] - 1))
+        for im1 in classifier_scores:
+            for im2 in classifier_scores[im1]:
+                dist = euclidean_distances([mds_positions[im1], mds_positions[im2]])[0,1]
+                if dist > data.config['distance_filter_value']:
+                    classifier_scores[im1][im2] = ctx.edge_thresholds[graph_label]
+
+    return classifier_scores
+
 def get_rmatches_and_edge_costs(G, im1, im2, num_rmatches):
     edge_data = G.get_edge_data(im1, im2)
     if edge_data and 'weight' in edge_data:
@@ -1769,13 +1797,15 @@ def get_rmatches_and_edge_costs(G, im1, im2, num_rmatches):
 
 def shortest_path_per_image(arg):
     shortest_paths = {}
-    data, i, im1, images, G, num_rmatches, label, edge_threshold = arg
+    data, i, im1, images, G, num_rmatches, label, edge_threshold, iteration = arg
     
     for j,im2 in enumerate(images):
         if j <= i:
             continue
         rmatches, edge_cost = get_rmatches_and_edge_costs(G, im1, im2, num_rmatches)
         shortest_path = nx.shortest_path(G, im1, im2, weight='weight')
+
+            # shortest_path = nx.algorithms.shortest_paths.weighted.bellman_ford_predecessor_and_distance(G, im1, im2, weight='weight')
         path = {}
         for k, _ in enumerate(shortest_path):
             if k == 0:
@@ -1785,7 +1815,7 @@ def shortest_path_per_image(arg):
 
         shortest_paths[im2] = {'rmatches': rmatches, 'path': path, 'shortest_path': shortest_path, 'cost': edge_cost}
 
-    data.save_shortest_paths(im1, shortest_paths, label=label, edge_threshold=np.round(edge_threshold,2))
+    data.save_shortest_paths(im1, shortest_paths, label=label, edge_threshold=np.round(edge_threshold,2), iteration=iteration)
     # return im1, shortest_paths
 
 def calculate_shortest_paths(ctx):
@@ -1793,35 +1823,52 @@ def calculate_shortest_paths(ctx):
     processes = ctx.data.config['processes']
     images = sorted(data.images())
     shortest_paths = {}
-    edge_threshold = 1.0/1.0
+    # edge_threshold = ctx.edge_threshold
+    # edge_threshold = 1.0/1.0
     # edge_threshold = 1.0/10.0
     # edge_threshold = 1.0/20.0
-    graph_label = 'rm-cost'
-    seq_cost_factor = ctx.sequence_cost_factor
-    debug = False
-    graph_label_with_sequences = 'rm-seq-cost-{}'.format(seq_cost_factor)
-    options = {'apply_sequence_ranks': True, 'sequence_cost_factor': seq_cost_factor}
+    configurations = []
+    for graph_label in ['rm-cost', 'rm-seq-cost', 'outlier-logp']:
+        # graph_label = 'rm-cost'
+        options = {'sp_label': graph_label, 'PCA-n_components': 2, 'MDS-n_components': 2, 'edge_threshold': ctx.edge_thresholds[graph_label], 'lmds': False, 'iteration': ctx.iteration, 'debug': False}
+        if 'rm-seq-cost' in graph_label:
+            seq_cost_factor = ctx.sequence_cost_factor
+            graph_label = 'rm-seq-cost-{}'.format(seq_cost_factor)
+            options['sequence_cost_factor'] = seq_cost_factor
+            options['apply_sequence_ranks'] = True
 
-    num_rmatches, num_rmatches_cost, im_num_rmatches_cost_with_sequences = rmatches_adapter(data, options, debug=debug)
+        
+        # graph_label_with_sequences = 'rm-seq-cost-{}'.format(seq_cost_factor)
+        
 
-    # if data.graph_exists(graph_label, edge_threshold) and data.graph_exists(graph_label_with_sequences, edge_threshold):
-    #     G = data.load_graph(graph_label, edge_threshold)
-    #     G_ = data.load_graph(graph_label_with_sequences, edge_threshold)
-    # else:
-    G = opensfm.commands.formulate_graphs.formulate_graph([data, images, num_rmatches_cost, graph_label, edge_threshold])
-    data.save_graph(G, graph_label, edge_threshold)
-    configurations = [[G, graph_label]]
-    if options['apply_sequence_ranks']:
-        G_ = opensfm.commands.formulate_graphs.formulate_graph([data, images, im_num_rmatches_cost_with_sequences, graph_label_with_sequences, edge_threshold])
-        data.save_graph(G_, graph_label_with_sequences, edge_threshold)
-        configurations.append([G_, graph_label_with_sequences])
+        num_rmatches, num_rmatches_cost, im_num_rmatches_cost_with_sequences, im_classifier_scores = rmatches_adapter(data, options, debug=options['debug'])
+        if graph_label == 'rm-cost':
+            criteria = filter_rmatches_cost(ctx, graph_label, num_rmatches_cost, options)
+        elif graph_label == 'outlier-logp':
+            criteria = filter_classifier_scores(ctx, graph_label, im_classifier_scores, options)
+        elif 'rm-seq-cost' in graph_label:
+            criteria = im_num_rmatches_cost_with_sequences
 
-    # for datum in [[G, graph_label], [G_, graph_label_with_sequences]]:
+        # if data.graph_exists(graph_label, edge_threshold) and data.graph_exists(graph_label_with_sequences, edge_threshold):
+        #     G = data.load_graph(graph_label, edge_threshold)
+        #     G_ = data.load_graph(graph_label_with_sequences, edge_threshold)
+        # else:
+        # import pdb; pdb.set_trace()
+        G = opensfm.commands.formulate_graphs.formulate_graph([data, images, criteria, graph_label, options['edge_threshold']])
+        data.save_graph(G, graph_label, options['edge_threshold'], options['iteration'])
+        configurations.append([G, graph_label, options['edge_threshold']])
+        # if options['apply_sequence_ranks']:
+        #     G_ = opensfm.commands.formulate_graphs.formulate_graph([data, images, im_num_rmatches_cost_with_sequences, graph_label_with_sequences, edge_threshold])
+        #     data.save_graph(G_, graph_label_with_sequences, edge_threshold, options['iteration'])
+        #     configurations.append([G_, graph_label_with_sequences])
+
+        # for datum in [[G, graph_label], [G_, graph_label_with_sequences]]:
+
     for datum in configurations:
         args = []
-        graph, label = datum
+        graph, label, et = datum
         for i,im1 in enumerate(images):
-            args.append([data, i, im1, images, graph, num_rmatches, label, edge_threshold])
+            args.append([data, i, im1, images, graph, num_rmatches, label, et, options['iteration']])
         
         p = Pool(processes)
         p_results = []
@@ -2176,8 +2223,10 @@ def create_image_matching_dataset(ctx):
 def rmatches_adapter(data, options={}, debug=False):
     im_all_rmatches = {}
     im_num_rmatches = {}
+    im_classifier_scores = {}
     im_num_rmatches_cost = {}
     im_num_rmatches_cost_with_sequences = {}
+    image_matching_results = data.load_image_matching_results(robust_matches_threshold=15, classifier='BASELINE')
 
     for img in data.images():
         _, _, rmatches = data.load_all_matches(img)
@@ -2222,6 +2271,7 @@ def rmatches_adapter(data, options={}, debug=False):
     for im1 in im_all_rmatches:
         if im1 not in im_num_rmatches:
             im_num_rmatches[im1] = {}
+            im_classifier_scores[im1] = {}
             im_num_rmatches_cost[im1] = {}
         
         if 'apply_sequence_ranks' in options and options['apply_sequence_ranks'] is True:
@@ -2231,6 +2281,7 @@ def rmatches_adapter(data, options={}, debug=False):
         for im2 in im_all_rmatches[im1]:
             if im2 not in im_num_rmatches:
                 im_num_rmatches[im2] = {}
+                im_classifier_scores[im2] = {}
                 im_num_rmatches_cost[im2] = {}
             if 'apply_sequence_ranks' in options and options['apply_sequence_ranks'] is True:
                 if im2 not in im_num_rmatches_cost_with_sequences:
@@ -2238,6 +2289,9 @@ def rmatches_adapter(data, options={}, debug=False):
 
             im_num_rmatches[im1][im2] = len(im_all_rmatches[im1][im2])
             im_num_rmatches[im2][im1] = im_num_rmatches[im1][im2]
+            im_classifier_scores[im1][im2] = image_matching_results[im1][im2]['score']
+            im_classifier_scores[im2][im1] = im_classifier_scores[im1][im2]
+
             if len(im_all_rmatches[im1][im2]) == 0:
                 im_num_rmatches_cost[im1][im2] = 100000000.0
             else:
@@ -2253,7 +2307,7 @@ def rmatches_adapter(data, options={}, debug=False):
                     im_num_rmatches_cost_with_sequences[im1][im2] = im_num_rmatches_cost[im1][im2]
                     im_num_rmatches_cost_with_sequences[im2][im1] = im_num_rmatches_cost[im2][im1]
 
-    return im_num_rmatches, im_num_rmatches_cost, im_num_rmatches_cost_with_sequences
+    return im_num_rmatches, im_num_rmatches_cost, im_num_rmatches_cost_with_sequences, im_classifier_scores
 
 def vocab_tree_adapter(data, options={}):
     vtranks, vtscores = data.load_vocab_ranks_and_scores()
@@ -2389,7 +2443,7 @@ def calculate_lccs(ctx):
     edge_threshold = 15
     debug = False
 
-    num_rmatches, _, _ = rmatches_adapter(data, debug=debug)
+    num_rmatches, _, _, _ = rmatches_adapter(data, debug=debug)
     G = opensfm.commands.formulate_graphs.formulate_graph([data, images, num_rmatches, 'rm', edge_threshold])
     for threshold in [15, 20, 25, 30, 35, 40]:
         G_thresholded = opensfm.commands.formulate_graphs.threshold_graph_edges(G, threshold, key='weight')
@@ -2451,7 +2505,7 @@ def plot_mds(data, pos_gt, pos, iteration, opts):
                         label='True Position')
         results_folder = os.path.join(data.data_path, 'results')
         mkdir_p(results_folder)
-        plt.savefig(os.path.join(data.data_path, 'results', 'path-gt-lmds-{}-i-{}-PCA-n_components-{}-MDS-n_components-{}.png'.format(opts['lmds'], iteration, opts['PCA-n_components'], opts['MDS-n_components'])),dpi=90)
+        plt.savefig(os.path.join(data.data_path, 'results', 'path-gt-lmds-{}-i-{}-PCA-n_components-{}-MDS-n_components-{}-it-{}.png'.format(opts['lmds'], iteration, opts['PCA-n_components'], opts['MDS-n_components'], opts['iteration'])),dpi=90)
     
     if pos_gt is None and (iteration + 1) % opts['solve_mds_plot_freq'] == 0:
         for i in range(0,len(pos)):
@@ -2467,7 +2521,7 @@ def plot_mds(data, pos_gt, pos, iteration, opts):
         #     plt.scatter(pos[:, 0], pos[:, 1], c='r', s=s, lw=0, label='MDS - Iteration {}'.format(iteration))
         results_folder = os.path.join(data.data_path, 'results')
         mkdir_p(results_folder)
-        plt.savefig(os.path.join(results_folder, 'path-inferred-{}-lmds-{}-PCA-n_components-{}-MDS-n_components-{}.png'.format(opts['shortest_path_label'], opts['lmds'], opts['PCA-n_components'], opts['MDS-n_components'])),dpi=90)
+        plt.savefig(os.path.join(results_folder, 'path-inferred-{}-lmds-{}-PCA-n_components-{}-MDS-n_components-{}-it-{}.png'.format(opts['shortest_path_label'], opts['lmds'], opts['PCA-n_components'], opts['MDS-n_components'], opts['iteration'])),dpi=90)
         
 
     if False:
@@ -2849,18 +2903,18 @@ def infer_cleaner_positions(ctx):
             im_closest_images[reverse_image_mapping[i]] = np_images[order].tolist()
 
         for im in im_closest_images:
-            data.save_closest_images(im, im_closest_images[im], label='{}-PCA_n_components-{}-MDS_n_components-{}-lmds-{}'.format(sp_label, options['PCA-n_components'], options['MDS-n_components'], options['lmds']))
+            data.save_closest_images(im, im_closest_images[im], label='{}-PCA_n_components-{}-MDS_n_components-{}-lmds-{}-it-{}'.format(sp_label, options['PCA-n_components'], options['MDS-n_components'], options['lmds'], options['iteration']))
 
         im_mds_position = {}
         for i in range(0, len(all_positions_inferred)):
             im_mds_position[reverse_image_mapping[i]] = all_positions_inferred[i].tolist()
-        data.save_mds_positions(im_mds_position, label='{}-PCA_n_components-{}-MDS_n_components-{}-lmds-{}'.format(sp_label, options['PCA-n_components'], options['MDS-n_components'], options['lmds']))
+        data.save_mds_positions(im_mds_position, label='{}-PCA_n_components-{}-MDS_n_components-{}-lmds-{}-it-{}'.format(sp_label, options['PCA-n_components'], options['MDS-n_components'], options['lmds'], options['iteration'], options['iteration']))
 
         if data.reconstruction_exists('reconstruction_gt.json'):
             im_mds_position_gt = {}
             for i in range(0, len(all_positions_inferred_gt)):
                 im_mds_position_gt[reverse_image_mapping_gt[i]] = all_positions_inferred_gt[i].tolist()
-            data.save_mds_positions(im_mds_position_gt, label='gt-{}-PCA_n_components-{}-MDS_n_components-{}-lmds-{}'.format(sp_label, options['PCA-n_components'], options['MDS-n_components'], options['lmds']))
+            data.save_mds_positions(im_mds_position_gt, label='gt-{}-PCA_n_components-{}-MDS_n_components-{}-lmds-{}-it-{}'.format(sp_label, options['PCA-n_components'], options['MDS-n_components'], options['lmds'], options['iteration']))
 
     # import sys; sys.exit(1)
     if data.reconstruction_exists('reconstruction_gt.json'):
@@ -2871,7 +2925,7 @@ def infer_cleaner_positions(ctx):
             im_closest_images_gt[reverse_image_mapping_gt[i]] = np_images_gt[order_gt].tolist()
         
         for im in im_closest_images_gt:
-            data.save_closest_images(im, im_closest_images_gt[im], label='gt-PCA_n_components-{}-MDS_n_components-{}-lmds-{}'.format(options['PCA-n_components'], options['MDS-n_components'], options['lmds']))
+            data.save_closest_images(im, im_closest_images_gt[im], label='gt-PCA_n_components-{}-MDS_n_components-{}-lmds-{}-it-{}'.format(options['PCA-n_components'], options['MDS-n_components'], options['lmds'], options['iteration']))
 
         # recon_inferred = create_inferred_reconstruction(positions_inferred, reverse_image_mapping)
         # relevant_reconstructions = [[recon_gt, recon_inferred, 'path']]
@@ -2883,9 +2937,9 @@ def mds_errors(ctx):
     images = sorted(data.images())
     np_images = np.array(images)
     for run_config in [
-        {'sp_label': 'rm-cost', 'pca_n_components': 2, 'mds_n_components': 2, 'edge_threshold': 1.0/1.0},
-        {'sp_label': 'rm-cost', 'pca_n_components': 2, 'mds_n_components': 2, 'edge_threshold': 1.0/10.0},
-        {'sp_label': 'rm-cost', 'pca_n_components': 2, 'mds_n_components': 2, 'edge_threshold': 1.0/20.0},
+        # {'sp_label': 'rm-cost', 'pca_n_components': 2, 'mds_n_components': 2, 'edge_threshold': 1.0/1.0},
+        {'sp_label': 'rm-cost', 'pca_n_components': 2, 'mds_n_components': 2, 'edge_threshold': ctx.edge_thresholds['rm-cost'] },
+        # {'sp_label': 'rm-cost', 'pca_n_components': 2, 'mds_n_components': 2, 'edge_threshold': 1.0/20.0},
 
         # {'sp_label': 'rm-cost', 'pca_n_components': 2, 'mds_n_components': 3},
         # {'sp_label': 'rm-cost', 'pca_n_components': 2, 'mds_n_components': 5},
@@ -2954,9 +3008,10 @@ def infer_positions(ctx):
 
     # for sp_label in ['rm-cost', 'rm-seq-cost-{}'.format(seq_cost_factor)]:
     for run_config in [
-        {'sp_label': 'rm-cost', 'pca_n_components': 2, 'mds_n_components': 2, 'edge_threshold': 1.0/1.0},
-        {'sp_label': 'rm-cost', 'pca_n_components': 2, 'mds_n_components': 2, 'edge_threshold': 1.0/10.0},
-        {'sp_label': 'rm-cost', 'pca_n_components': 2, 'mds_n_components': 2, 'edge_threshold': 1.0/20.0},
+        # {'sp_label': 'rm-cost', 'pca_n_components': 2, 'mds_n_components': 2, 'edge_threshold': 1.0/1.0},
+        {'sp_label': 'rm-cost', 'pca_n_components': 2, 'mds_n_components': 2, 'edge_threshold': ctx.edge_thresholds['rm-cost'], 'iteration': ctx.iteration},
+        {'sp_label': 'outlier-logp', 'pca_n_components': 2, 'mds_n_components': 2, 'edge_threshold': ctx.edge_thresholds['outlier-logp'], 'iteration': ctx.iteration},
+        # {'sp_label': 'rm-cost', 'pca_n_components': 2, 'mds_n_components': 2, 'edge_threshold': 1.0/20.0},
 
         # {'sp_label': 'rm-cost', 'pca_n_components': 2, 'mds_n_components': 3},
         # {'sp_label': 'rm-cost', 'pca_n_components': 2, 'mds_n_components': 5},
@@ -2964,7 +3019,7 @@ def infer_positions(ctx):
         # {'sp_label': 'imc-cost', 'pca_n_components': 2, 'mds_n_components': 2, 'edge_threshold': 10.0},
         ]:
 
-        sp_label, pca_n_components, mds_n_components, edge_threshold = run_config['sp_label'], run_config['pca_n_components'], run_config['mds_n_components'], run_config['edge_threshold']
+        sp_label, pca_n_components, mds_n_components, edge_threshold, iteration = run_config['sp_label'], run_config['pca_n_components'], run_config['mds_n_components'], run_config['edge_threshold'], run_config['iteration']
 
         distances_baseline = 0.0 * np.ones((len(images), len(images)))
         cached_features = {}
@@ -2976,7 +3031,7 @@ def infer_positions(ctx):
 
         for i,im1 in enumerate(images):
             # if sp_label == 'rm-cost':
-            im_shortest_paths = data.load_shortest_paths(im1, label='rm-cost', edge_threshold=np.round(edge_threshold,2))
+            im_shortest_paths = data.load_shortest_paths(im1, label=sp_label, edge_threshold=np.round(edge_threshold,2), iteration=iteration)
             image_mapping[im1] = i
             reverse_image_mapping[i] = im1
 
@@ -2993,7 +3048,7 @@ def infer_positions(ctx):
                         path = im_shortest_paths[im2]['path']
                         entry = im_shortest_paths[im2]
                     else:
-                        im_shortest_paths = data.load_shortest_paths(im2, label=sp_label, edge_threshold=np.round(edge_threshold,2))
+                        im_shortest_paths = data.load_shortest_paths(im2, label=sp_label, edge_threshold=np.round(edge_threshold,2), iteration=iteration)
                         path = im_shortest_paths[im1]['path']
                         entry = im_shortest_paths[im1]
                     for k,p in enumerate(path):
@@ -3020,6 +3075,8 @@ def infer_positions(ctx):
                         #     import pdb; pdb.set_trace()
                         if sp_label == 'rm-cost':
                             cost += path[p]['cost']
+                        elif sp_label == 'outlier-logp':
+                            cost += path[p]['cost']
                         elif sp_label == 'imc-cost':
                             cost += 1.0 / image_matching_results[im1_][im2_]['score']
                         
@@ -3038,7 +3095,9 @@ def infer_positions(ctx):
                 # if j > 5:
                 #     import pdb; pdb.set_trace()
 
-        options = {'solve_mds_plot_freq': 1, 'max_iterations': 20, 'shortest_path_label': sp_label, 'lmds': False, 'PCA-n_components': pca_n_components, 'MDS-n_components': mds_n_components, 'edge_threshold': edge_threshold, 'debug': True}
+        # if sp_label == 'outlier-logp':
+        #     import pdb; pdb.set_trace();
+        options = {'solve_mds_plot_freq': 1, 'max_iterations': 20, 'shortest_path_label': sp_label, 'lmds': False, 'PCA-n_components': pca_n_components, 'MDS-n_components': mds_n_components, 'edge_threshold': edge_threshold, 'iteration': iteration, 'debug': True}
         if data.reconstruction_exists('reconstruction_gt.json'):
             mds_embedding_positions, mds_embedding_positions_gt, positions_inferred, positions_inferred_gt, updated_distances = solve_mds(data=data, distances_gt=distances_gt, distances=distances_baseline, num_fns=num_fns, opts=options, debug=options['debug'])
         else:
@@ -3049,18 +3108,18 @@ def infer_positions(ctx):
             im_closest_images[reverse_image_mapping[i]] = np_images[order].tolist()
 
         for im in im_closest_images:
-            data.save_closest_images(im, im_closest_images[im], label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}'.format(sp_label, options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds']))
+            data.save_closest_images(im, im_closest_images[im], label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}'.format(sp_label, options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds'], options['iteration']))
 
         im_mds_position = {}
         for i in range(0,num_fns):
             im_mds_position[reverse_image_mapping[i]] = positions_inferred[i].tolist()
-        data.save_mds_positions(im_mds_position, label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}'.format(sp_label, options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds']))
+        data.save_mds_positions(im_mds_position, label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}'.format(sp_label, options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds'], options['iteration']))
 
         if data.reconstruction_exists('reconstruction_gt.json'):
             im_mds_position_gt = {}
             for i in range(0, len(positions_inferred_gt)):
                 im_mds_position_gt[reverse_image_mapping_gt[i]] = positions_inferred_gt[i].tolist()
-            data.save_mds_positions(im_mds_position_gt, label='gt-{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}'.format(sp_label, options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds']))
+            data.save_mds_positions(im_mds_position_gt, label='gt-{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}'.format(sp_label, options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds'], options['iteration']))
 
 
         if data.reconstruction_exists('reconstruction_gt.json'):
@@ -3070,7 +3129,7 @@ def infer_positions(ctx):
                 order_gt = np.argsort(np.array(distances_gt[:,i]))
                 im_closest_images_gt[reverse_image_mapping_gt[i]] = np_images_gt[order_gt].tolist()
             for im in im_closest_images_gt:
-                data.save_closest_images(im, im_closest_images_gt[im], label='gt-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}'.format(options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds']))
+                data.save_closest_images(im, im_closest_images_gt[im], label='gt-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}'.format(options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds'], options['iteration']))
 
         # recon_inferred = create_inferred_reconstruction(positions_inferred, reverse_image_mapping)
         # relevant_reconstructions = [[recon_gt, recon_inferred, 'path']]
