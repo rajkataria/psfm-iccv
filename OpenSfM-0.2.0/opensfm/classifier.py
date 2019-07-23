@@ -2825,7 +2825,7 @@ def infer_cleaner_positions(ctx):
                 landmark_indices.append(i)
         landmark_indices = np.array(landmark_indices)
         
-        options = {'solve_mds_plot_freq': 1, 'max_iterations': 20, 'shortest_path_label': sp_label, 'lmds': True, 'PCA-n_components': pca_n_components, 'MDS-n_components': mds_n_components ,'debug': True}
+        options = {'solve_mds_plot_freq': 1, 'max_iterations': 20, 'shortest_path_label': sp_label, 'lmds': True, 'PCA-n_components': pca_n_components, 'MDS-n_components': mds_n_components ,'debug': False if 'aws' in os.uname()[2] else True}
         if data.reconstruction_exists('reconstruction_gt.json'):
             # distances_gt_pruned_sq = np.multiply(distances_gt_pruned, distances_gt_pruned)
             # distances_baseline_pruned_sq = np.multiply(distances_baseline_pruned, distances_baseline_pruned)
@@ -2947,7 +2947,7 @@ def mds_errors(ctx):
         # {'sp_label': 'imc-cost', 'pca_n_components': 2, 'mds_n_components': 2},
         ]:
         sp_label, pca_n_components, mds_n_components, edge_threshold = run_config['sp_label'], run_config['pca_n_components'], run_config['mds_n_components'], run_config['edge_threshold']
-        options = {'shortest_path_label': sp_label, 'lmds': False, 'PCA-n_components': pca_n_components, 'MDS-n_components': mds_n_components, 'edge_threshold': edge_threshold, 'debug': True}
+        options = {'shortest_path_label': sp_label, 'lmds': False, 'PCA-n_components': pca_n_components, 'MDS-n_components': mds_n_components, 'edge_threshold': edge_threshold, 'debug': False if 'aws' in os.uname()[2] else True}
 
         reverse_image_mapping = {}
         image_mapping = {}

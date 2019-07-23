@@ -367,7 +367,7 @@ def ransac_based_ate_evaluation(data, relevant_reconstructions):
         'i_scale': 1.0,
         'offset': 0.0,
         'max_difference': 0.02,
-        'debug': False
+        'debug': False if 'aws' in os.uname()[2] else True
     }
     
     total_ransac_iterations = 20000
