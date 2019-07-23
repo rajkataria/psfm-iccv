@@ -3097,7 +3097,7 @@ def infer_positions(ctx):
 
         # if sp_label == 'outlier-logp':
         #     import pdb; pdb.set_trace();
-        options = {'solve_mds_plot_freq': 1, 'max_iterations': 20, 'shortest_path_label': sp_label, 'lmds': False, 'PCA-n_components': pca_n_components, 'MDS-n_components': mds_n_components, 'edge_threshold': edge_threshold, 'iteration': iteration, 'debug': True}
+        options = {'solve_mds_plot_freq': 1, 'max_iterations': 20, 'shortest_path_label': sp_label, 'lmds': False, 'PCA-n_components': pca_n_components, 'MDS-n_components': mds_n_components, 'edge_threshold': edge_threshold, 'iteration': iteration, 'debug': False if 'aws' in os.uname()[2] else True}
         if data.reconstruction_exists('reconstruction_gt.json'):
             mds_embedding_positions, mds_embedding_positions_gt, positions_inferred, positions_inferred_gt, updated_distances = solve_mds(data=data, distances_gt=distances_gt, distances=distances_baseline, num_fns=num_fns, opts=options, debug=options['debug'])
         else:
