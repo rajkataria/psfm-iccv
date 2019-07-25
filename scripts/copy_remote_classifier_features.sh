@@ -1,6 +1,6 @@
 # copy_mode="full"
-# copy_mode="minimal"
-copy_mode="matching_results"
+copy_mode="minimal"
+# copy_mode="matching_results"
 # copy_mode="reconstructions"
 
 # remote_server="ec2-18-218-17-167.us-east-2.compute.amazonaws.com" # tum_rgbd_slam
@@ -9,10 +9,10 @@ remote_server="ec2-3-14-82-141.us-east-2.compute.amazonaws.com" # eth3d and tank
 local_root="/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce"
 # relevant_dataset="TUM_RGBD_SLAM"
 # relevant_dataset="ETH3D"
-# relevant_dataset="TanksAndTemples"
-relevant_dataset="UIUCTag"
+relevant_dataset="TanksAndTemples"
+# relevant_dataset="UIUCTag"
 
-# TanksAndTemples_relevant_sequences=('Barn' 'Caterpillar' 'Church' 'Courthouse' 'Ignatius' 'Meetingroom' 'Truck')
+TanksAndTemples_relevant_sequences=('Barn' 'Caterpillar' 'Church' 'Courthouse' 'Ignatius' 'Meetingroom' 'Truck')
 # TanksAndTemples_relevant_sequences=('Auditorium' 'Ballroom' 'Courtroom' 'Family' 'Francis' 'Horse' 'Lighthouse' 'M60' 'Museum' 'Palace' 'Panther' 'Playground' 'Temple' 'Train')
 
 # TanksAndTemples_relevant_sequences=('Auditorium' 'Courtroom' 'Francis' 'Horse' 'Lighthouse' 'M60' 'Train')
@@ -59,6 +59,7 @@ for ds in "${datasets[@]}"; do
 		mkdir -p $local_folder/all_matches/
 		mkdir -p $local_folder/matches/
 		mkdir -p $local_folder/results/
+		mkdir -p $local_folder/classifier_features/closest_images/
 		if [ "$copy_mode" == "full" ];then
 			mkdir -p $local_folder/exif/
 			mkdir -p $local_folder/images-blurred/
@@ -91,6 +92,7 @@ for ds in "${datasets[@]}"; do
 		# rsync -aqz ubuntu@$remote_server:$ds/features/* $local_folder/features/
 		# rsync -aqz ubuntu@$remote_server:$ds/classifier_features/feature_maps $local_folder/classifier_features/
 		rsync -aqz ubuntu@$remote_server:$ds/classifier_features/mds_* $local_folder/classifier_features/
+		rsync -aqz ubuntu@$remote_server:$ds/classifier_features/closest_images $local_folder/classifier_features/
 		# rsync -aqz ubuntu@$remote_server:$ds/classifier_features/match_maps $local_folder/classifier_features/
 		# rsync -aqz ubuntu@$remote_server:$ds/classifier_features/pe_maps $local_folder/classifier_features/
 		# rsync -aqz ubuntu@$remote_server:$ds/rmatches_secondary/* $local_folder/rmatches_secondary/
