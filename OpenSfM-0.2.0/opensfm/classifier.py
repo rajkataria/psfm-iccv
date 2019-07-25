@@ -1828,8 +1828,8 @@ def calculate_shortest_paths(ctx):
     # edge_threshold = 1.0/10.0
     # edge_threshold = 1.0/20.0
     configurations = []
-    # for graph_label in ['rm-cost', 'rm-seq-cost', 'outlier-logp']:
-    for graph_label in ['rm-cost', 'outlier-logp']:
+    # for graph_label in ['rm-cost', 'rm-seq-cost', 'inlier-logp']:
+    for graph_label in ['rm-cost', 'inlier-logp']:
         # graph_label = 'rm-cost'
         options = {'sp_label': graph_label, 'PCA-n_components': 2, 'MDS-n_components': 2, 'edge_threshold': ctx.edge_thresholds[graph_label], 'lmds': False, 'iteration': ctx.iteration, 'debug': False}
         if 'rm-seq-cost' in graph_label:
@@ -1845,7 +1845,7 @@ def calculate_shortest_paths(ctx):
         num_rmatches, num_rmatches_cost, im_num_rmatches_cost_with_sequences, im_classifier_scores = rmatches_adapter(data, options, debug=options['debug'])
         if graph_label == 'rm-cost':
             criteria = filter_rmatches_cost(ctx, graph_label, num_rmatches_cost, options)
-        elif graph_label == 'outlier-logp':
+        elif graph_label == 'inlier-logp':
             criteria = filter_classifier_scores(ctx, graph_label, im_classifier_scores, options)
         elif 'rm-seq-cost' in graph_label:
             criteria = im_num_rmatches_cost_with_sequences
@@ -3011,7 +3011,7 @@ def infer_positions(ctx):
     for run_config in [
         # {'sp_label': 'rm-cost', 'pca_n_components': 2, 'mds_n_components': 2, 'edge_threshold': 1.0/1.0},
         {'sp_label': 'rm-cost', 'pca_n_components': 2, 'mds_n_components': 2, 'edge_threshold': ctx.edge_thresholds['rm-cost'], 'iteration': ctx.iteration},
-        {'sp_label': 'outlier-logp', 'pca_n_components': 2, 'mds_n_components': 2, 'edge_threshold': ctx.edge_thresholds['outlier-logp'], 'iteration': ctx.iteration},
+        {'sp_label': 'inlier-logp', 'pca_n_components': 2, 'mds_n_components': 2, 'edge_threshold': ctx.edge_thresholds['inlier-logp'], 'iteration': ctx.iteration},
         # {'sp_label': 'rm-cost', 'pca_n_components': 2, 'mds_n_components': 2, 'edge_threshold': 1.0/20.0},
 
         # {'sp_label': 'rm-cost', 'pca_n_components': 2, 'mds_n_components': 3},
@@ -3076,7 +3076,7 @@ def infer_positions(ctx):
                         #     import pdb; pdb.set_trace()
                         if sp_label == 'rm-cost':
                             cost += path[p]['cost']
-                        elif sp_label == 'outlier-logp':
+                        elif sp_label == 'inlier-logp':
                             cost += path[p]['cost']
                         elif sp_label == 'imc-cost':
                             cost += 1.0 / image_matching_results[im1_][im2_]['score']
@@ -3096,7 +3096,7 @@ def infer_positions(ctx):
                 # if j > 5:
                 #     import pdb; pdb.set_trace()
 
-        # if sp_label == 'outlier-logp':
+        # if sp_label == 'inlier-logp':
         #     import pdb; pdb.set_trace();
         options = {'solve_mds_plot_freq': 1, 'max_iterations': 20, 'shortest_path_label': sp_label, 'lmds': False, 'PCA-n_components': pca_n_components, 'MDS-n_components': mds_n_components, 'edge_threshold': edge_threshold, 'iteration': iteration, 'debug': False if 'aws' in os.uname()[2] else True}
         if data.reconstruction_exists('reconstruction_gt.json'):

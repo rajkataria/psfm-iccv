@@ -39,7 +39,7 @@ class Command:
         ctx.sequence_cost_factor = 1.0
         ctx.blurred = True
         ctx.debug = False
-        ctx.edge_thresholds = {'rm-cost': 10000000000, 'rm-seq-cost': 10000000000, 'outlier-logp': 0.0000000001}
+        ctx.edge_thresholds = {'rm-cost': 10000000000, 'rm-seq-cost': 10000000000, 'inlier-logp': 0.0000000001}
         # classifier.calculate_consistency_errors(ctx)
         # classifier.create_image_matching_dataset(ctx)
         # import sys; sys.exit(1)
@@ -54,7 +54,7 @@ class Command:
         # import sys; sys.exit(1)
 
         # classifier.calculate_sequence_ranks(ctx)
-        for dfv in [0.3, 0.5]:
+        for dfv in [0.3, 0.45, 0.5]:
             ctx.distance_filter_value = dfv
             for i in range(0, 2):
                 ctx.iteration = i

@@ -232,12 +232,12 @@ def formulate_graph(args):
             if j <= i:
                 continue
             if img1 in scores and img2 in scores[img1]:
-                if criteria == 'outlier-logp':
-                    # outlier_logp = np.log(1.0 - scores[img1][img2])
-                    outlier_logp = 1.0 - scores[img1][img2]
-                    # if outlier_logp <= np.log(1.0 - edge_threshold):
-                    if outlier_logp <= (1.0 - edge_threshold):
-                        G.add_edge(img1, img2, weight=outlier_logp)
+                if criteria == 'inlier-logp':
+                    # inlier_logp = np.log(1.0 - scores[img1][img2])
+                    inlier_logp = -np.log(scores[img1][img2])
+                    # if inlier_logp <= np.log(1.0 - edge_threshold):
+                    if inlier_logp <= edge_threshold:
+                        G.add_edge(img1, img2, weight=inlier_logp)
                 elif 'cost' in criteria:
                     if scores[img1][img2] <= edge_threshold:
                         G.add_edge(img1, img2, weight=scores[img1][img2])
