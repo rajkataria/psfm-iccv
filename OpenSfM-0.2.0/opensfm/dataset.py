@@ -462,8 +462,8 @@ class DataSet:
     def __rmatches_secondary_file(self, image):
         return os.path.join(self.__rmatches_secondary_path(), '{}_rmatches_secondary.pkl.gz'.format(image))
 
-    def __graph_file(self, graph_label, edge_threshold, iteration):
-        return os.path.join(self.__classifier_features_graph_path(), 'graph-{}-et-{}-it-{}.gpickle'.format(graph_label, edge_threshold, iteration))
+    def __graph_file(self, graph_label, edge_threshold, iteration, dfv):
+        return os.path.join(self.__classifier_features_graph_path(), 'graph-{}-et-{}-it-{}-dfv-{}.gpickle'.format(graph_label, edge_threshold, iteration, dfv))
 
     def __all_matches_file(self, image):
         """File for all matches for an image"""
@@ -622,15 +622,15 @@ class DataSet:
     def __non_iconic_image_list_file(self, ext):
         return os.path.join(self.__yan_path(), 'non_iconic_images.{}'.format(ext))
 
-    def graph_exists(self, graph_label, edge_threshold, iteration):
-        return os.path.isfile(self.__graph_file(graph_label, edge_threshold, iteration))
+    def graph_exists(self, graph_label, edge_threshold, iteration, dfv):
+        return os.path.isfile(self.__graph_file(graph_label, edge_threshold, iteration, dfv))
 
-    def load_graph(self, graph_label, edge_threshold, iteration):
-        return nx.read_gpickle(self.__graph_file(graph_label, edge_threshold, iteration))
+    def load_graph(self, graph_label, edge_threshold, iteration, dfv):
+        return nx.read_gpickle(self.__graph_file(graph_label, edge_threshold, iteration, dfv))
 
-    def save_graph(self, G, graph_label, edge_threshold, iteration):
+    def save_graph(self, G, graph_label, edge_threshold, iteration, dfv):
         io.mkdir_p(self.__classifier_features_graph_path())
-        nx.write_gpickle(G, self.__graph_file(graph_label, edge_threshold, iteration))
+        nx.write_gpickle(G, self.__graph_file(graph_label, edge_threshold, iteration, dfv))
 
     def save_shortest_paths(self, im, shortest_paths, label, edge_threshold, iteration, dfv):
         io.mkdir_p(self.__classifier_features_shortest_paths_path())

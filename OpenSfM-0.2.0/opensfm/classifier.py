@@ -1855,7 +1855,7 @@ def calculate_shortest_paths(ctx):
         # else:
         # import pdb; pdb.set_trace()
         G = opensfm.commands.formulate_graphs.formulate_graph([data, images, criteria, graph_label, options['edge_threshold']])
-        data.save_graph(G, graph_label, options['edge_threshold'], options['iteration'])
+        data.save_graph(G, graph_label, options['edge_threshold'], options['iteration'], ctx.distance_filter_value)
         configurations.append([G, graph_label, options['edge_threshold']])
         # if options['apply_sequence_ranks']:
         #     G_ = opensfm.commands.formulate_graphs.formulate_graph([data, images, im_num_rmatches_cost_with_sequences, graph_label_with_sequences, edge_threshold])
