@@ -58,7 +58,9 @@ class Command:
             ctx.distance_filter_value = dfv
             for i in range(0, 2):
                 ctx.iteration = i
+                logger.info('\tCalculating shortest paths...')
                 classifier.calculate_shortest_paths(ctx)
+                logger.info('\tInfering positions...')
                 classifier.infer_positions(ctx)
         # classifier.infer_cleaner_positions(ctx)
 
