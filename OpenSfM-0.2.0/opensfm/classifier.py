@@ -1828,7 +1828,8 @@ def calculate_shortest_paths(ctx):
     # edge_threshold = 1.0/10.0
     # edge_threshold = 1.0/20.0
     configurations = []
-    for graph_label in ['rm-cost', 'rm-seq-cost', 'outlier-logp']:
+    # for graph_label in ['rm-cost', 'rm-seq-cost', 'outlier-logp']:
+    for graph_label in ['rm-cost', 'outlier-logp']:
         # graph_label = 'rm-cost'
         options = {'sp_label': graph_label, 'PCA-n_components': 2, 'MDS-n_components': 2, 'edge_threshold': ctx.edge_thresholds[graph_label], 'lmds': False, 'iteration': ctx.iteration, 'debug': False}
         if 'rm-seq-cost' in graph_label:

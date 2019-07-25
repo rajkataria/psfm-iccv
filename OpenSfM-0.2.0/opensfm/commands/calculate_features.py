@@ -53,10 +53,10 @@ class Command:
         # classifier.calculate_image_keypoints(ctx)
         # import sys; sys.exit(1)
 
-        classifier.calculate_sequence_ranks(ctx)
-        for dfv in [0.3, 0.5, 0.75]:
+        # classifier.calculate_sequence_ranks(ctx)
+        for dfv in [0.3, 0.5]:
             ctx.distance_filter_value = dfv
-            for i in range(0, 4):
+            for i in range(0, 2):
                 ctx.iteration = i
                 classifier.calculate_shortest_paths(ctx)
                 classifier.infer_positions(ctx)
