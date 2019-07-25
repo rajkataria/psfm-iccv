@@ -632,20 +632,20 @@ class DataSet:
         io.mkdir_p(self.__classifier_features_graph_path())
         nx.write_gpickle(G, self.__graph_file(graph_label, edge_threshold, iteration))
 
-    def save_shortest_paths(self, im, shortest_paths, label, edge_threshold, iteration):
+    def save_shortest_paths(self, im, shortest_paths, label, edge_threshold, iteration, dfv):
         io.mkdir_p(self.__classifier_features_shortest_paths_path())
-        with gzip.open(self.__feature_shortest_paths_file(im, label='{}-edge_threshold-{}-it-{}'.format(label, edge_threshold, iteration), ext='pkl.gz'), 'wb') as fout:
+        with gzip.open(self.__feature_shortest_paths_file(im, label='{}-edge_threshold-{}-it-{}-dfv-{}'.format(label, edge_threshold, iteration, dfv), ext='pkl.gz'), 'wb') as fout:
             pickle.dump(shortest_paths, fout)
-        with open(self.__feature_shortest_paths_file(im, label='{}-edge_threshold-{}-it-{}'.format(label, edge_threshold, iteration), ext='json'), 'w') as fout:
+        with open(self.__feature_shortest_paths_file(im, label='{}-edge_threshold-{}-it-{}-dfv-{}'.format(label, edge_threshold, iteration, dfv), ext='json'), 'w') as fout:
             json.dump(shortest_paths, fout, sort_keys=True, indent=4, separators=(',', ': '))
 
-    def load_shortest_paths(self, im, label, edge_threshold, iteration):
-        with gzip.open(self.__feature_shortest_paths_file(im, label='{}-edge_threshold-{}-it-{}'.format(label, edge_threshold, iteration)), 'rb') as fin:
+    def load_shortest_paths(self, im, label, edge_threshold, iteration, dfv):
+        with gzip.open(self.__feature_shortest_paths_file(im, label='{}-edge_threshold-{}-it-{}-dfv-{}'.format(label, edge_threshold, iteration, dfv)), 'rb') as fin:
             shortest_paths = pickle.load(fin)
         return shortest_paths
     
-    def shortest_paths_exists(self, im, label, edge_threshold, iteration):
-        return os.path.isfile(self.__feature_shortest_paths_file(im, label='{}-edge_threshold-{}-it-{}'.format(label, edge_threshold, iteration)))
+    def shortest_paths_exists(self, im, label, edge_threshold, iteration, dfv):
+        return os.path.isfile(self.__feature_shortest_paths_file(im, label='{}-edge_threshold-{}-it-{}-dfv-{}'.format(label, edge_threshold, iteration, dfv)))
 
     def matches_exists(self, image):
         return os.path.isfile(self.__matches_file(image))

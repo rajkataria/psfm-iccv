@@ -54,11 +54,12 @@ class Command:
         # import sys; sys.exit(1)
 
         classifier.calculate_sequence_ranks(ctx)
-
-        for i in range(0, 2):
-            ctx.iteration = i
-            classifier.calculate_shortest_paths(ctx)
-            classifier.infer_positions(ctx)
+        for dfv in [0.3, 0.5, 0.75]:
+            ctx.distance_filter_value = dfv
+            for i in range(0, 4):
+                ctx.iteration = i
+                classifier.calculate_shortest_paths(ctx)
+                classifier.infer_positions(ctx)
         # classifier.infer_cleaner_positions(ctx)
 
         # classifier.mds_errors(ctx)
