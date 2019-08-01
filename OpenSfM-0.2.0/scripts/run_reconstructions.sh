@@ -34,17 +34,17 @@ declare -A run100=(
 declare -A run101=(
     [use_image_matching_classifier]='false'
     [use_weighted_resectioning]='colmap'                                                    [use_weighted_feature_matches]='false'
-    [use_image_matching_thresholding]='false'   [use_distance_threshold]='false'            [image_matching_classifier_threshold]='0.5'
+    [use_image_matching_thresholding]='false'   [use_distance_threshold]='true'             [image_matching_classifier_threshold]='0.5'
     [use_closest_images_pruning]='false'        [closest_images_top_k]='H'                  [use_gt_closest_images_pruning]='false'
     [resectioning_config]='NA'                  [distance_threshold_value]='0.6'
     [mds_k_closest_images_percentage]='0.15'    [mds_k_closest_images_min]='7'              [mds_k_closest_images_max]='12'
     )
 
-# MDS + colmap + udt (6-14 at 20%)
+# MDS + colmap + udt (6-14 at 15%)
 declare -A run102=(
     [use_image_matching_classifier]='false'
     [use_weighted_resectioning]='colmap'                                                    [use_weighted_feature_matches]='false'
-    [use_image_matching_thresholding]='false'   [use_distance_threshold]='false'            [image_matching_classifier_threshold]='0.5'
+    [use_image_matching_thresholding]='false'   [use_distance_threshold]='true'             [image_matching_classifier_threshold]='0.5'
     [use_closest_images_pruning]='false'        [closest_images_top_k]='H'                  [use_gt_closest_images_pruning]='false'
     [resectioning_config]='NA'                  [distance_threshold_value]='0.6'
     [mds_k_closest_images_percentage]='0.15'    [mds_k_closest_images_min]='6'              [mds_k_closest_images_max]='14'
@@ -54,7 +54,7 @@ declare -A run102=(
 declare -A run103=(
     [use_image_matching_classifier]='false'
     [use_weighted_resectioning]='colmap'                                                    [use_weighted_feature_matches]='false'
-    [use_image_matching_thresholding]='false'   [use_distance_threshold]='false'            [image_matching_classifier_threshold]='0.5'
+    [use_image_matching_thresholding]='false'   [use_distance_threshold]='true'             [image_matching_classifier_threshold]='0.5'
     [use_closest_images_pruning]='false'        [closest_images_top_k]='H'                  [use_gt_closest_images_pruning]='false'
     [resectioning_config]='NA'                  [distance_threshold_value]='0.6'
     [mds_k_closest_images_percentage]='0.20'    [mds_k_closest_images_min]='6'              [mds_k_closest_images_max]='14'
