@@ -181,7 +181,7 @@ def draw_graph(G, filename, highlighted_nodes=[], layout='spring', title=None):
     for n1,n2 in weights:
         if len(highlighted_nodes) > 0 and (n1 not in highlighted_nodes or n2 not in highlighted_nodes):
             continue
-        edge_weights[(n1,n2)] = round(weights[(n1,n2)], 2)
+        edge_weights[(n1,n2)] = round(weights[(n1,n2)], 5)
     nx.draw_networkx_edge_labels(G,pos,edge_labels=edge_weights)
     
     if len(highlighted_nodes) == 0:
@@ -233,13 +233,15 @@ def formulate_graph(args):
                 continue
             if img1 in scores and img2 in scores[img1]:
                 if criteria == 'inlier-logp':
-                    # inlier_logp = np.log(1.0 - scores[img1][img2])
                     inlier_logp = -np.log(scores[img1][img2])
-                    # if inlier_logp <= np.log(1.0 - edge_threshold):
-                    if inlier_logp <= edge_threshold:
+                    if inlier_logp <  -np.log(edge_threshold):
                         G.add_edge(img1, img2, weight=inlier_logp)
+                    # if img1 == '0000.jpg' and img2 == '0013.jpg':
+                    #     print ('{} - {}  :  {}  /  {}    et: {}'.format(img1, img2, scores[img1][img2], inlier_logp, -np.log(edge_threshold)))
+                    # else:
+                    #     logger.info('scores: {} / {}    et: {}'.format(scores[img1][img2], inlier_logp, edge_threshold))
                 elif 'cost' in criteria:
-                    if scores[img1][img2] <= edge_threshold:
+                    if scores[img1][img2] < edge_threshold:
                         G.add_edge(img1, img2, weight=scores[img1][img2])
                 else:
                     if scores[img1][img2] >= edge_threshold:
@@ -263,6 +265,11 @@ def formulate_graph(args):
     }
     data.save_report(io.json_dumps(report),
                      'similarity-graphs.json')
+
+    # G = nx.minimum_spanning_tree(G)
+    # i1 = sorted(images)[0]
+    # i2 = sorted(images)[-1]
+    # G.add_edge(i1, i2, weight=scores[i1][i2])
     return G
 
 def threshold_graph_edges(G, threshold, key='weight'):

@@ -29,8 +29,11 @@ class Command:
             'shortest_path_label': 'rm-cost',
             'PCA-n_components': 2,
             'MDS-n_components': 2,
-            'edge_threshold': 1.0/10.0,
+            # 'edge_threshold': 1.0/10.0,
+            'edge_threshold': 10000000000,
             'lmds': False,
+            'iteration': 0,
+            'iteration_distance_filter_value': 0.6
         }
         
         # matches_pruned = self.load_pruned_matches(data, spl=2, options=options)
@@ -123,7 +126,11 @@ class Command:
         data.save_tracks_graph(tracks_graph_all, 'tracks-all-matches.csv')
         # data.save_tracks_graph(tracks_graph_thresholded, 'tracks-thresholded-matches.csv')
         # data.save_tracks_graph(tracks_graph_pruned_thresholded, 'tracks-pruned-thresholded-matches.csv')
-        data.save_tracks_graph(tracks_graph_distance_thresholded, 'tracks-distance-thresholded-matches-{}.csv'.format(data.config['distance_threshold_value']))
+        
+        # data.save_tracks_graph(tracks_graph_distance_thresholded, 'tracks-distance-thresholded-matches-{}.csv'.format(data.config['distance_threshold_value']))
+        data.save_tracks_graph(tracks_graph_distance_thresholded, 'tracks-mkcip-{}-mkcimin-{}-mkcimax-{}.csv'.format(data.config['mds_k_closest_images_percentage'], data.config['mds_k_closest_images_min'], data.config['mds_k_closest_images_max']))
+
+
         # data.save_tracks_graph(tracks_graph_distance_w_seq_pruned_thresholded, 'tracks-distance-w-seq-pruned-thresholded-matches.csv')
         # data.save_tracks_graph(tracks_graph_all_weighted, 'tracks-all-weighted-matches.csv')
         # data.save_tracks_graph(tracks_graph_thresholded_weighted, 'tracks-thresholded-weighted-matches.csv')
@@ -154,7 +161,7 @@ class Command:
         logging.info('reading features')
         features = {}
         colors = {}
-        for im in data.images():
+        for im in sorted(data.all_feature_maps()):
             p, f, c = data.load_features(im)
             features[im] = p[:, :2]
             colors[im] = c
@@ -164,7 +171,7 @@ class Command:
     def load_matches(self, data, options):
         matches = {}
         robust_matching_min_match = data.config['robust_matching_min_match']
-        for im1 in data.images():
+        for im1 in sorted(data.all_feature_maps()):
             try:
                 im1_matches = data.load_matches(im1)
             except IOError:
@@ -178,7 +185,7 @@ class Command:
         matches = {}
         shortest_path_rmatches_threshold = data.config['shortest_path_rmatches_threshold']
         im_matching_results = data.load_image_matching_results(options['robust_matches_threshold'])
-        for im1 in data.images():
+        for im1 in sorted(data.all_feature_maps()):
             try:
                 im1_matches = data.load_matches(im1)
             except IOError:
@@ -193,17 +200,17 @@ class Command:
     def get_top_k(self, data, closest_images_top_k_option):
         k = 10
         if closest_images_top_k_option == 'A':
-            k = min(len(data.images()) - 1, max(20, len(data.images()) * 0.2))
+            k = min(len(sorted(data.all_feature_maps())) - 1, max(20, len(sorted(data.all_feature_maps())) * 0.2))
         elif closest_images_top_k_option == 'B':
-            k = min(len(data.images()) - 1, max(20, len(data.images()) * 0.1))
+            k = min(len(sorted(data.all_feature_maps())) - 1, max(20, len(sorted(data.all_feature_maps())) * 0.1))
         elif closest_images_top_k_option == 'C':
-            k = min(len(data.images()) - 1, max(10, len(data.images()) * 0.2))
+            k = min(len(sorted(data.all_feature_maps())) - 1, max(10, len(sorted(data.all_feature_maps())) * 0.2))
         elif closest_images_top_k_option == 'D':
-            k = min(len(data.images()) - 1, max(10, len(data.images()) * 0.1))
+            k = min(len(sorted(data.all_feature_maps())) - 1, max(10, len(sorted(data.all_feature_maps())) * 0.1))
         elif closest_images_top_k_option == 'E':
-            k = min(len(data.images()) - 1, len(data.images()) * 0.2)
+            k = min(len(sorted(data.all_feature_maps())) - 1, len(sorted(data.all_feature_maps())) * 0.2)
         elif closest_images_top_k_option == 'F':
-            k = min(len(data.images()) - 1, len(data.images()) * 0.1)
+            k = min(len(sorted(data.all_feature_maps())) - 1, len(sorted(data.all_feature_maps())) * 0.1)
         elif closest_images_top_k_option == 'G':
             k = 20
         elif closest_images_top_k_option == 'H':
@@ -215,7 +222,7 @@ class Command:
         closest_images_top_k = self.get_top_k(data, data.config['closest_images_top_k'])
         im_matching_results = data.load_image_matching_results(options['robust_matches_threshold'])
         im_closest_images = data.load_closest_images('rm-cost')
-        for im1 in data.images():
+        for im1 in sorted(data.all_feature_maps()):
             try:
                 im1_matches = data.load_matches(im1)
             except IOError:
@@ -235,7 +242,7 @@ class Command:
         im_matching_results = data.load_image_matching_results(options['robust_matches_threshold'])
         seq_cost_factor = 1.0
         im_closest_images = data.load_closest_images('rm-seq-cost-{}'.format(seq_cost_factor))
-        for im1 in data.images():
+        for im1 in sorted(data.all_feature_maps()):
             try:
                 im1_matches = data.load_matches(im1)
             except IOError:
@@ -254,7 +261,7 @@ class Command:
         closest_images_top_k = self.get_top_k(data, data.config['closest_images_top_k'])
         im_matching_results = data.load_image_matching_results(options['robust_matches_threshold'])
         im_closest_images = data.load_closest_images('gt')
-        for im1 in data.images():
+        for im1 in sorted(data.all_feature_maps()):
             try:
                 im1_matches = data.load_matches(im1)
             except IOError:
@@ -270,7 +277,7 @@ class Command:
 
     def load_all_matches(self, data, options):
         matches = {}
-        for im1 in data.images():
+        for im1 in sorted(data.all_feature_maps()):
             try:
                 _, _, im1_matches = data.load_all_matches(im1)
             except IOError:
@@ -284,7 +291,7 @@ class Command:
         image_matching_classifier_threshold = data.config.get('image_matching_classifier_threshold')
         image_matching_classifier_range = data.config.get('image_matching_classifier_range')
         im_matching_results = data.load_image_matching_results(options['robust_matches_threshold'])
-        for im1 in data.images():
+        for im1 in sorted(data.all_feature_maps()):
             try:
                 _, _, im1_matches = data.load_all_matches(im1)
             except IOError:
@@ -308,7 +315,7 @@ class Command:
         shortest_path_rmatches_threshold = data.config['shortest_path_rmatches_threshold']
         image_matching_classifier_threshold = data.config.get('image_matching_classifier_threshold')
         im_matching_results = data.load_image_matching_results(options['robust_matches_threshold'])
-        for im1 in data.images():
+        for im1 in sorted(data.all_feature_maps()):
             try:
                 _, _, im1_matches = data.load_all_matches(im1)
             except IOError:
@@ -329,15 +336,18 @@ class Command:
     def load_distance_thresholded_matches(self, data, options):
         matches = {}
         robust_matching_min_match = data.config['robust_matching_min_match']
-        mds_positions = data.load_mds_positions(label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}'.format(options['shortest_path_label'], options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds']))
-        for im1 in data.images():
+        mds_positions = data.load_mds_positions(label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-idfv-{}'.format(options['shortest_path_label'], options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds'], options['iteration'], options['iteration_distance_filter_value']))
+        for im1 in sorted(data.all_feature_maps()):
+            closest_images = data.load_closest_images(im1, label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-idfv-{}'.format(options['shortest_path_label'], options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds'], options['iteration'], options['iteration_distance_filter_value']))
             try:
                 im1_matches = data.load_matches(im1)
             except IOError:
                 continue
             for im2 in im1_matches:
-                distance_matrix = euclidean_distances([mds_positions[im1], mds_positions[im2]])
-                if len(im1_matches[im2]) >= robust_matching_min_match and distance_matrix[0,1] <= data.config['distance_threshold_value']:
+                #distance_matrix = euclidean_distances([mds_positions[im1], mds_positions[im2]])
+                # if len(im1_matches[im2]) >= robust_matching_min_match and distance_matrix[0,1] <= data.config['distance_threshold_value']:
+                
+                if len(im1_matches[im2]) >= robust_matching_min_match and closest_images.index(im2) <= min(max(data.config['mds_k_closest_images_min'], len(data.all_feature_maps()) * data.config['mds_k_closest_images_percentage']), data.config['mds_k_closest_images_max']):
                     matches[im1, im2] = im1_matches[im2]
         return matches
 
@@ -348,7 +358,7 @@ class Command:
         im_matching_results = data.load_image_matching_results(options['robust_matches_threshold'])
         seq_cost_factor = 1.0
         im_closest_images = data.load_closest_images('rm-seq-cost-{}'.format(seq_cost_factor))
-        for im1 in data.images():
+        for im1 in sorted(data.all_feature_maps()):
             try:
                 _, _, im1_matches = data.load_all_matches(im1)
             except IOError:
@@ -376,7 +386,7 @@ class Command:
         closest_images_top_k = self.get_top_k(data, data.config['closest_images_top_k'])
         im_matching_results = data.load_image_matching_results(options['robust_matches_threshold'])
         im_closest_images = data.load_closest_images('gt')
-        for im1 in data.images():
+        for im1 in sorted(data.all_feature_maps()):
             try:
                 _, _, im1_matches = data.load_all_matches(im1)
             except IOError:
@@ -400,7 +410,7 @@ class Command:
 
     def load_all_weighted_matches(self, data, options):
         matches = {}
-        for im1 in data.images():
+        for im1 in sorted(data.all_feature_maps()):
             try:
                 im1_matches = data.load_weighted_matches(im1)
             except IOError:
@@ -413,7 +423,7 @@ class Command:
         matches = {}
         image_matching_classifier_threshold = data.config.get('image_matching_classifier_threshold')
         im_matching_results = data.load_image_matching_results(options['robust_matches_threshold'])
-        for im1 in data.images():
+        for im1 in sorted(data.all_feature_maps()):
             try:
                 im1_matches = data.load_weighted_matches(im1)
             except IOError:
@@ -433,7 +443,7 @@ class Command:
         shortest_path_rmatches_threshold = data.config['shortest_path_rmatches_threshold']
         image_matching_classifier_threshold = data.config.get('image_matching_classifier_threshold')
         im_matching_results = data.load_image_matching_results(options['robust_matches_threshold'])
-        for im1 in data.images():
+        for im1 in sorted(data.all_feature_maps()):
             try:
                 im1_matches = data.load_weighted_matches(im1)
             except IOError:
@@ -454,7 +464,7 @@ class Command:
     def load_gt_matches(self, data, options):
         matches = {}
         im_matching_results = data.load_groundtruth_image_matching_results(options['robust_matches_threshold'])
-        for im1 in data.images():
+        for im1 in sorted(data.all_feature_maps()):
             try:
                 _, _, im1_matches = data.load_all_matches(im1)
             except IOError:
@@ -472,7 +482,7 @@ class Command:
         matches = {}
         gt_matches_selective_threshold = data.config.get('gt_matches_selective_threshold')
         im_matching_results = data.load_groundtruth_image_matching_results(options['robust_matches_threshold'])
-        for im1 in data.images():
+        for im1 in sorted(data.all_feature_maps()):
             try:
                 im1_matches = data.load_matches(im1)
                 _, _, im1_all_matches = data.load_all_matches(im1)
@@ -496,7 +506,7 @@ class Command:
         matches = {}
         shortest_path_rmatches_threshold = data.config['shortest_path_rmatches_threshold']
         im_matching_results = data.load_groundtruth_image_matching_results(options['robust_matches_threshold'])
-        for im1 in data.images():
+        for im1 in sorted(data.all_feature_maps()):
             try:
                 _, _, im1_matches = data.load_all_matches(im1)
             except IOError:
@@ -519,8 +529,8 @@ class Command:
         tracks, images = matching.tracks_and_images(graph)
         image_graph = bipartite.weighted_projected_graph(graph, images)
         view_graph = []
-        for im1 in data.images():
-            for im2 in data.images():
+        for im1 in sorted(data.all_feature_maps()):
+            for im2 in sorted(data.all_feature_maps()):
                 if im1 in image_graph and im2 in image_graph[im1]:
                     weight = image_graph[im1][im2]['weight']
                     view_graph.append((im1, im2, weight))

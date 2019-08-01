@@ -462,8 +462,8 @@ class DataSet:
     def __rmatches_secondary_file(self, image):
         return os.path.join(self.__rmatches_secondary_path(), '{}_rmatches_secondary.pkl.gz'.format(image))
 
-    def __graph_file(self, graph_label, edge_threshold, iteration, dfv):
-        return os.path.join(self.__classifier_features_graph_path(), 'graph-{}-et-{}-it-{}-dfv-{}.gpickle'.format(graph_label, edge_threshold, iteration, dfv))
+    def __graph_file(self, graph_label, edge_threshold, iteration, idfv):
+        return os.path.join(self.__classifier_features_graph_path(), 'graph-{}-et-{}-it-{}-idfv-{}.gpickle'.format(graph_label, edge_threshold, iteration, idfv))
 
     def __all_matches_file(self, image):
         """File for all matches for an image"""
@@ -622,30 +622,30 @@ class DataSet:
     def __non_iconic_image_list_file(self, ext):
         return os.path.join(self.__yan_path(), 'non_iconic_images.{}'.format(ext))
 
-    def graph_exists(self, graph_label, edge_threshold, iteration, dfv):
-        return os.path.isfile(self.__graph_file(graph_label, edge_threshold, iteration, dfv))
+    def graph_exists(self, graph_label, edge_threshold, iteration, idfv):
+        return os.path.isfile(self.__graph_file(graph_label, edge_threshold, iteration, idfv))
 
-    def load_graph(self, graph_label, edge_threshold, iteration, dfv):
-        return nx.read_gpickle(self.__graph_file(graph_label, edge_threshold, iteration, dfv))
+    def load_graph(self, graph_label, edge_threshold, iteration, idfv):
+        return nx.read_gpickle(self.__graph_file(graph_label, edge_threshold, iteration, idfv))
 
-    def save_graph(self, G, graph_label, edge_threshold, iteration, dfv):
+    def save_graph(self, G, graph_label, edge_threshold, iteration, idfv):
         io.mkdir_p(self.__classifier_features_graph_path())
-        nx.write_gpickle(G, self.__graph_file(graph_label, edge_threshold, iteration, dfv))
+        nx.write_gpickle(G, self.__graph_file(graph_label, edge_threshold, iteration, idfv))
 
-    def save_shortest_paths(self, im, shortest_paths, label, edge_threshold, iteration, dfv):
+    def save_shortest_paths(self, im, shortest_paths, label, edge_threshold, iteration, idfv):
         io.mkdir_p(self.__classifier_features_shortest_paths_path())
-        with gzip.open(self.__feature_shortest_paths_file(im, label='{}-edge_threshold-{}-it-{}-dfv-{}'.format(label, edge_threshold, iteration, dfv), ext='pkl.gz'), 'wb') as fout:
+        with gzip.open(self.__feature_shortest_paths_file(im, label='{}-edge_threshold-{}-it-{}-idfv-{}'.format(label, edge_threshold, iteration, idfv), ext='pkl.gz'), 'wb') as fout:
             pickle.dump(shortest_paths, fout)
-        with open(self.__feature_shortest_paths_file(im, label='{}-edge_threshold-{}-it-{}-dfv-{}'.format(label, edge_threshold, iteration, dfv), ext='json'), 'w') as fout:
+        with open(self.__feature_shortest_paths_file(im, label='{}-edge_threshold-{}-it-{}-idfv-{}'.format(label, edge_threshold, iteration, idfv), ext='json'), 'w') as fout:
             json.dump(shortest_paths, fout, sort_keys=True, indent=4, separators=(',', ': '))
 
-    def load_shortest_paths(self, im, label, edge_threshold, iteration, dfv):
-        with gzip.open(self.__feature_shortest_paths_file(im, label='{}-edge_threshold-{}-it-{}-dfv-{}'.format(label, edge_threshold, iteration, dfv)), 'rb') as fin:
+    def load_shortest_paths(self, im, label, edge_threshold, iteration, idfv):
+        with gzip.open(self.__feature_shortest_paths_file(im, label='{}-edge_threshold-{}-it-{}-idfv-{}'.format(label, edge_threshold, iteration, idfv)), 'rb') as fin:
             shortest_paths = pickle.load(fin)
         return shortest_paths
     
-    def shortest_paths_exists(self, im, label, edge_threshold, iteration, dfv):
-        return os.path.isfile(self.__feature_shortest_paths_file(im, label='{}-edge_threshold-{}-it-{}-dfv-{}'.format(label, edge_threshold, iteration, dfv)))
+    def shortest_paths_exists(self, im, label, edge_threshold, iteration, idfv):
+        return os.path.isfile(self.__feature_shortest_paths_file(im, label='{}-edge_threshold-{}-it-{}-idfv-{}'.format(label, edge_threshold, iteration, idfv)))
 
     def matches_exists(self, image):
         return os.path.isfile(self.__matches_file(image))
@@ -985,6 +985,58 @@ class DataSet:
         with gzip.open(self.__feature_image_matching_results_file(ext='pkl.gz', suffix='{}-{}'.format(robust_matches_threshold, classifier)), 'rb') as fin:
             results = pickle.load(fin)
         return results
+    
+    def load_matches_using_tracks_graph(self, max_track_length=None):
+        graph = self.load_tracks_graph()
+        im_matches = {}
+        im_matches_scores = {}
+        
+        for im1 in sorted(self.all_feature_maps()):
+            if im1 not in im_matches:
+                im_matches[im1] = {}
+            # import pdb; pdb.set_trace()
+
+            for t in graph[im1].keys():
+                if len(graph[t].keys()) > max_track_length:
+                    continue
+
+                for im2 in graph[t].keys():
+                    if im1 == im2:
+                        continue
+
+                    # if im2 not in im_matches:
+                    #     im_matches[im2] = {}
+                    if im2 not in im_matches[im1]:
+                        im_matches[im1][im2] = 0
+                    # if im1 not in im_matches[im2]:
+                    #     im_matches[im2][im1] = 0
+
+                    im_matches[im1][im2] += 1
+                    # im_matches[im2][im1] += 1
+        # print (json.dumps(im_matches, sort_keys=True, indent=4, separators=(',', ': ')))
+        # import pdb; pdb.set_trace()
+
+        for im1 in sorted(self.all_feature_maps()):
+            for im2 in sorted(self.all_feature_maps()):
+                if im1 == im2:
+                    continue
+                # try:
+                if im1 not in im_matches_scores:
+                    im_matches_scores[im1] = {}
+                if im2 not in im_matches_scores[im1]:
+                    im_matches_scores[im1][im2] = {}
+
+                try:
+                    # im_matches_scores[im1][im2] = {'score': min(15, im_matches[im1][im2]) }
+                    im_matches_scores[im1][im2] = {'score': im_matches[im1][im2] }
+                    # im_matches_scores[im1][im2] = {'score': np.power(im_matches[im1][im2], 0.5) }
+                    # im_matches_scores[im1][im2] = {'score': np.log(im_matches[im1][im2]) }
+                except:
+                    # im_matches_scores[im1][im2] = {'score': 0.0000000001}
+                    im_matches_scores[im1][im2] = {'score': 0.01}
+
+        # print (json.dumps(im_matches, sort_keys=True, indent=4, separators=(',', ': ')))
+        return im_matches_scores
 
     def load_histogram_track_classifier(self, matching_classifier):
         inliers_histogram = np.load(self.__histogram_track_classifier_file(histogram_type='inliers', matching_classifier=matching_classifier))

@@ -295,8 +295,11 @@ def main():
     # im2_filters = ['DSC_1283.JPG']
 
     # oats
-    im1_filters = ['P1010141.jpg', 'P1010145.jpg']
-    im2_filters = ['P1010145.jpg', 'P1010159.jpg']
+    im1_filters = ['0006.jpg', '0006.jpg', '0006.jpg', '0011.jpg', '0012.jpg']
+    im2_filters = ['0007.jpg', '0018.jpg', '0019.jpg', '0012.jpg', '0013.jpg']
+    # exhibition_hall
+    im1_filters = ['DSC_1807.JPG', 'DSC_1806.JPG', 'DSC_1806.JPG']
+    im2_filters = ['DSC_1808.JPG', 'DSC_1807.JPG', 'DSC_1808.JPG']
     if parser_options.groundtruth:
       iterate_gt_matches_(parser_options.dataset, im1_filters, im2_filters)
     iterate_matches_(parser_options.dataset, im1_filters, im2_filters)

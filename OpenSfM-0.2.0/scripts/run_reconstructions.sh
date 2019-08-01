@@ -1,7 +1,8 @@
 dataset=$1
 c_reconstruction_counter=${2:-0}
 
-mode="reconstruction"
+mode="calculate_features"
+# mode="reconstruction"
 
 echo "############################################################################################################"
 echo "############################################################################################################"
@@ -11,65 +12,59 @@ echo "##########################################################################
 
 # Baseline + original resectioning
 declare -A run99=(
-	[use_gt_matches]='false'                    [use_gt_selective_matches]='false'        	[use_image_matching_classifier]='false'
+	[use_image_matching_classifier]='false'
 	[use_weighted_resectioning]='original'										         	[use_weighted_feature_matches]='false'
 	[use_image_matching_thresholding]='false'   [use_distance_threshold]='false'       		[image_matching_classifier_threshold]='0.5'
 	[use_closest_images_pruning]='false'		[closest_images_top_k]='H'					[use_gt_closest_images_pruning]='false'
-	[resectioning_config]='NA'					[distance_threshold_value]='0.5'
+	[resectioning_config]='NA'					[distance_threshold_value]='0.6'
+    [mds_k_closest_images_percentage]='0.15'    [mds_k_closest_images_min]='7'              [mds_k_closest_images_max]='12'
 	)
 
 # Baseline + colmap
 declare -A run100=(
-	[use_gt_matches]='false'                    [use_gt_selective_matches]='false'        	[use_image_matching_classifier]='false'
+	[use_image_matching_classifier]='false'
 	[use_weighted_resectioning]='colmap'        											[use_weighted_feature_matches]='false'
 	[use_image_matching_thresholding]='false'   [use_distance_threshold]='false'       		[image_matching_classifier_threshold]='0.5'
 	[use_closest_images_pruning]='false'		[closest_images_top_k]='H'					[use_gt_closest_images_pruning]='false'
-	[resectioning_config]='NA'					[distance_threshold_value]='0.5'
+	[resectioning_config]='NA'					[distance_threshold_value]='0.6'
+    [mds_k_closest_images_percentage]='0.15'    [mds_k_closest_images_min]='7'              [mds_k_closest_images_max]='12'
 	)
 
-# Distance thresholded(0.5) + colmap
+# MDS + colmap + udt (7-12 at 15%)
 declare -A run101=(
-	[use_gt_matches]='false'                    [use_gt_selective_matches]='false'        	[use_image_matching_classifier]='false'
-	[use_weighted_resectioning]='colmap'        											[use_weighted_feature_matches]='false'
-	[use_image_matching_thresholding]='false'   [use_distance_threshold]='true'       		[image_matching_classifier_threshold]='0.5'
-	[use_closest_images_pruning]='false'		[closest_images_top_k]='H'					[use_gt_closest_images_pruning]='false'
-	[resectioning_config]='NA'					[distance_threshold_value]='0.5'
-	)
+    [use_image_matching_classifier]='false'
+    [use_weighted_resectioning]='colmap'                                                    [use_weighted_feature_matches]='false'
+    [use_image_matching_thresholding]='false'   [use_distance_threshold]='false'            [image_matching_classifier_threshold]='0.5'
+    [use_closest_images_pruning]='false'        [closest_images_top_k]='H'                  [use_gt_closest_images_pruning]='false'
+    [resectioning_config]='NA'                  [distance_threshold_value]='0.6'
+    [mds_k_closest_images_percentage]='0.15'    [mds_k_closest_images_min]='7'              [mds_k_closest_images_max]='12'
+    )
 
-# Distance thresholded(0.75) + colmap
+# MDS + colmap + udt (6-14 at 20%)
 declare -A run102=(
-	[use_gt_matches]='false'                    [use_gt_selective_matches]='false'        	[use_image_matching_classifier]='false'
-	[use_weighted_resectioning]='colmap'        											[use_weighted_feature_matches]='false'
-	[use_image_matching_thresholding]='false'   [use_distance_threshold]='true'       		[image_matching_classifier_threshold]='0.5'
-	[use_closest_images_pruning]='false'		[closest_images_top_k]='H'					[use_gt_closest_images_pruning]='false'
-	[resectioning_config]='NA'					[distance_threshold_value]='0.75'
-	)
+    [use_image_matching_classifier]='false'
+    [use_weighted_resectioning]='colmap'                                                    [use_weighted_feature_matches]='false'
+    [use_image_matching_thresholding]='false'   [use_distance_threshold]='false'            [image_matching_classifier_threshold]='0.5'
+    [use_closest_images_pruning]='false'        [closest_images_top_k]='H'                  [use_gt_closest_images_pruning]='false'
+    [resectioning_config]='NA'                  [distance_threshold_value]='0.6'
+    [mds_k_closest_images_percentage]='0.15'    [mds_k_closest_images_min]='6'              [mds_k_closest_images_max]='14'
+    )
 
-# Distance thresholded(1.0) + colmap
+# MDS + colmap + udt (6-14 at 20%)
 declare -A run103=(
-	[use_gt_matches]='false'                    [use_gt_selective_matches]='false'        	[use_image_matching_classifier]='false'
-	[use_weighted_resectioning]='colmap'        											[use_weighted_feature_matches]='false'
-	[use_image_matching_thresholding]='false'   [use_distance_threshold]='true'       		[image_matching_classifier_threshold]='0.5'
-	[use_closest_images_pruning]='false'		[closest_images_top_k]='H'					[use_gt_closest_images_pruning]='false'
-	[resectioning_config]='NA'					[distance_threshold_value]='0.3'
-	)
+    [use_image_matching_classifier]='false'
+    [use_weighted_resectioning]='colmap'                                                    [use_weighted_feature_matches]='false'
+    [use_image_matching_thresholding]='false'   [use_distance_threshold]='false'            [image_matching_classifier_threshold]='0.5'
+    [use_closest_images_pruning]='false'        [closest_images_top_k]='H'                  [use_gt_closest_images_pruning]='false'
+    [resectioning_config]='NA'                  [distance_threshold_value]='0.6'
+    [mds_k_closest_images_percentage]='0.20'    [mds_k_closest_images_min]='6'              [mds_k_closest_images_max]='14'
+    )
 
-# Distance thresholded(1.25) + colmap
-declare -A run104=(
-	[use_gt_matches]='false'                    [use_gt_selective_matches]='false'        	[use_image_matching_classifier]='false'
-	[use_weighted_resectioning]='colmap'        											[use_weighted_feature_matches]='false'
-	[use_image_matching_thresholding]='false'   [use_distance_threshold]='true'       		[image_matching_classifier_threshold]='0.5'
-	[use_closest_images_pruning]='false'		[closest_images_top_k]='H'					[use_gt_closest_images_pruning]='false'
-	[resectioning_config]='NA'					[distance_threshold_value]='0.4'
-	)
-
-all_runs=(run99 run100 run101 run102 run103 run104)
+all_runs=(run99 run100 run101 run102 run103)
 
 for run_name in "${all_runs[@]}"; do
     declare -n run_ref="$run_name"
-
-    c_use_gt_matches="${run_ref[use_gt_matches]}"
-    c_use_gt_selective_matches="${run_ref[use_gt_selective_matches]}"
+    
     c_use_image_matching_classifier="${run_ref[use_image_matching_classifier]}"
     c_use_weighted_resectioning="${run_ref[use_weighted_resectioning]}"
     c_use_weighted_feature_matches="${run_ref[use_weighted_feature_matches]}"
@@ -81,9 +76,12 @@ for run_name in "${all_runs[@]}"; do
     c_use_gt_closest_images_pruning="${run_ref[use_gt_closest_images_pruning]}"
     c_resectioning_config="${run_ref[resectioning_config]}"
     c_distance_threshold_value="${run_ref[distance_threshold_value]}"
+
+    c_mds_k_closest_images_percentage="${run_ref[mds_k_closest_images_percentage]}"
+    c_mds_k_closest_images_min="${run_ref[mds_k_closest_images_min]}"
+    c_mds_k_closest_images_max="${run_ref[mds_k_closest_images_max]}"
     
-    sed -i "s/use_gt_matches: .*/use_gt_matches: ${c_use_gt_matches}/g" $dataset/config.yaml
-    sed -i "s/use_gt_selective_matches: .*/use_gt_selective_matches: ${c_use_gt_selective_matches}/g" $dataset/config.yaml
+    
     sed -i "s/use_image_matching_classifier: .*/use_image_matching_classifier: ${c_use_image_matching_classifier}/g" $dataset/config.yaml
     sed -i "s/use_weighted_resectioning: .*/use_weighted_resectioning: ${c_use_weighted_resectioning}/g" $dataset/config.yaml
     sed -i "s/use_weighted_feature_matches: .*/use_weighted_feature_matches: ${c_use_weighted_feature_matches}/g" $dataset/config.yaml
@@ -96,11 +94,12 @@ for run_name in "${all_runs[@]}"; do
     sed -i "s/resectioning_config: .*/resectioning_config: ${c_resectioning_config}/g" $dataset/config.yaml
     sed -i "s/reconstruction_counter: .*/reconstruction_counter: ${c_reconstruction_counter}/g" $dataset/config.yaml
     sed -i "s/distance_threshold_value: .*/distance_threshold_value: ${c_distance_threshold_value}/g" $dataset/config.yaml
+    sed -i "s/mds_k_closest_images_percentage: .*/mds_k_closest_images_percentage: ${c_mds_k_closest_images_percentage}/g" $dataset/config.yaml
+    sed -i "s/mds_k_closest_images_min: .*/mds_k_closest_images_min: ${c_mds_k_closest_images_min}/g" $dataset/config.yaml
+    sed -i "s/mds_k_closest_images_max: .*/mds_k_closest_images_max: ${c_mds_k_closest_images_max}/g" $dataset/config.yaml
 
 	grep "use_image_matching_classifier:" $dataset/config.yaml
 	grep "use_weighted_resectioning:" $dataset/config.yaml
-	grep "use_gt_matches:" $dataset/config.yaml
-	grep "use_gt_selective_matches:" $dataset/config.yaml
 	grep "use_weighted_feature_matches:" $dataset/config.yaml
 	grep "use_image_matching_thresholding:" $dataset/config.yaml
 	grep "use_distance_threshold:" $dataset/config.yaml
@@ -111,6 +110,9 @@ for run_name in "${all_runs[@]}"; do
 	grep "resectioning_config:" $dataset/config.yaml
 	grep "reconstruction_counter:" $dataset/config.yaml
 	grep "distance_threshold_value:" $dataset/config.yaml
+    grep "mds_k_closest_images_percentage:" $dataset/config.yaml
+    grep "mds_k_closest_images_min:" $dataset/config.yaml
+    grep "mds_k_closest_images_max:" $dataset/config.yaml
 
 	# if [ "$count" -eq -1 ]
 	# then
@@ -126,6 +128,10 @@ for run_name in "${all_runs[@]}"; do
 	# 	# ./bin/opensfm calculate_features $dataset
 	# 	# ./bin/opensfm classify_images $dataset
 	# fi
+
+    if [ "$mode" == "calculate_features" ];then
+        ./bin/opensfm calculate_features $dataset
+    fi
 
 	if [ "$mode" == "reconstruction" ];then
 		# ./bin/opensfm yan $dataset

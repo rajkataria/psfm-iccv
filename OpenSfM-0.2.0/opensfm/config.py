@@ -141,11 +141,20 @@ use_image_matching_classifier: no
 use_feature_matching_classifier: no
 use_image_matching_thresholding: no
 use_weighted_feature_matches: no
-use_weighted_resectioning: original             # colmap, tc, tws, original
+use_weighted_resectioning: original             # colmap, tc, tws, original, mds
+# use_weighted_resectioning: colmap               # colmap, tc, tws, original, mds
+# use_weighted_resectioning: mds               # colmap, tc, tws, original, mds
+mds_k_closest_images_percentage: 0.15
+mds_k_closest_images_min: 7
+mds_k_closest_images_max: 12
 resectioning_config: NA                         # NA, im, fm, th, depth
 reconstruction_counter: 0
 use_distance_threshold: no
-distance_threshold_value: 0.5
+use_distance_threshold: yes
+distance_threshold_value: 0.6
+# distance_threshold_value: 0.5
+# distance_threshold_value: 0.4
+# distance_threshold_value: 0.3
 use_gt_closest_images_pruning: no
 use_closest_images_pruning: no
 use_yan_disambiguation: no

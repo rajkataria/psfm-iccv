@@ -209,10 +209,9 @@ def calculate_spatial_entropy(image_coordinates, grid_size):
     entropy = np.sum(prob_map * np.log2(prob_map))
     return round(-entropy/np.log2(np.sum(dmap_entropy)),4), dmap.reshape((grid_size, grid_size))
 
-def next_best_view_score(image_coordinates):
+def next_best_view_score(image_coordinates, grid_sizes=[2, 4, 8]):
   # Based on the paper Structure-from-Motion Revisited - https://demuc.de/papers/schoenberger2016sfm.pdf
   # Get a score based on number of common tracks and spatial distribution of the tracks in the image
-  grid_sizes = [2, 4, 8]
   score = 0
 
   for grid_size in grid_sizes:
@@ -224,6 +223,22 @@ def next_best_view_score(image_coordinates):
     indy = denormalized_image_coordinates[:,1].astype(np.int32)
     dmap[indy*grid_size + indx] = 1
     score += np.sum(dmap) * grid_size * grid_size
+  return score
+
+def next_best_view_score_im(image_coordinates, grid_sizes=[2, 4, 8]):
+  # Based on the paper Structure-from-Motion Revisited - https://demuc.de/papers/schoenberger2016sfm.pdf
+  # Get a score based on number of common tracks and spatial distribution of the tracks in the image
+  score = 0
+
+  for grid_size in grid_sizes:
+    dmap = np.zeros((grid_size*grid_size,1))
+    # indx = ((image_coordinates[:,0] + 1)/2 * grid_size).astype(np.int32)
+    # indy = ((image_coordinates[:,1] + 1)/2 * grid_size).astype(np.int32)
+    denormalized_image_coordinates = features.denormalized_image_coordinates(image_coordinates, grid_size, grid_size)
+    indx = denormalized_image_coordinates[:,0].astype(np.int32)
+    indy = denormalized_image_coordinates[:,1].astype(np.int32)
+    dmap[indy*grid_size + indx] = 1
+    score += np.sum(dmap) * (1.0/(grid_size * grid_size))
   return score
 
 def next_best_view_score_weighted(image_coordinates, weights):
@@ -1382,16 +1397,21 @@ def calculate_image_nbvs(arg):
         p1_ = p1[rmatches[:, 0].astype(int)]
         p2_ = p2[rmatches[:, 1].astype(int)]
 
-        nbvs_im1 = next_best_view_score(p1_)
-        nbvs_im2 = next_best_view_score(p2_)
+        # nbvs_im1 = next_best_view_score(p1_, [64, 128])
+        # nbvs_im2 = next_best_view_score(p2_, [64, 128])
+        # nbvs_im1 = next_best_view_score(p1_, [4, 8, 16, 32])
+        # nbvs_im2 = next_best_view_score(p2_, [4, 8, 16, 32])
+        nbvs_im1 = next_best_view_score_im(p1_, [16, 32, 64])
+        nbvs_im2 = next_best_view_score_im(p2_, [16, 32, 64])
 
-        nbvs[im2] = {'nbvs_im1': nbvs_im1, 'nbvs_im2': nbvs_im2}
+        nbvs[im2] = {'nbvs_im1': nbvs_im1, 'p1': len(p1), 'nbvs_im2': nbvs_im2, 'p2': len(p2)}
     data.save_nbvs(im1, nbvs)
 
 def calculate_nbvs(ctx):
     data = ctx.data
     cameras = data.load_camera_models()
-    images = data.images()
+    # images = data.images()
+    images = sorted(data.all_feature_maps())
     exifs = ctx.exifs
     config = data.config
     processes = config['processes']
@@ -1405,8 +1425,8 @@ def calculate_nbvs(ctx):
 
     for im1 in sorted(images):
         valid_candidates = []
-        if data.nbvs_exists(im1):
-            continue
+        # if data.nbvs_exists(im1):
+        #     continue
 
         im1_all_matches, im1_valid_rmatches, im1_all_robust_matches = data.load_all_matches(im1)
         for im2 in im1_all_robust_matches:
@@ -1756,11 +1776,11 @@ def filter_rmatches_cost(ctx, graph_label, num_rmatches_cost, options):
     if options['iteration'] == 0:
         return num_rmatches_cost
     else:
-        mds_positions = data.load_mds_positions(label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-dfv-{}'.format(options['sp_label'], options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds'], options['iteration'] - 1, ctx.distance_filter_value))
+        mds_positions = data.load_mds_positions(label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-idfv-{}'.format(options['sp_label'], options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds'], options['iteration'] - 1, ctx.iteration_distance_filter_value))
         for im1 in num_rmatches_cost:
             for im2 in num_rmatches_cost[im1]:
                 dist = euclidean_distances([mds_positions[im1], mds_positions[im2]])[0,1]
-                if dist > ctx.distance_filter_value:
+                if dist > ctx.iteration_distance_filter_value:
                     num_rmatches_cost[im1][im2] = ctx.edge_thresholds[graph_label]
 
     return num_rmatches_cost
@@ -1770,11 +1790,11 @@ def filter_classifier_scores(ctx, graph_label, classifier_scores, options):
     if options['iteration'] == 0:
         return classifier_scores
     else:
-        mds_positions = data.load_mds_positions(label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-dfv-{}'.format(options['sp_label'], options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds'], options['iteration'] - 1, ctx.distance_filter_value))
+        mds_positions = data.load_mds_positions(label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-idfv-{}'.format(options['sp_label'], options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds'], options['iteration'] - 1, ctx.iteration_distance_filter_value))
         for im1 in classifier_scores:
             for im2 in classifier_scores[im1]:
                 dist = euclidean_distances([mds_positions[im1], mds_positions[im2]])[0,1]
-                if dist > ctx.distance_filter_value:
+                if dist > ctx.iteration_distance_filter_value:
                     classifier_scores[im1][im2] = ctx.edge_thresholds[graph_label]
 
     return classifier_scores
@@ -1815,13 +1835,14 @@ def shortest_path_per_image(arg):
 
         shortest_paths[im2] = {'rmatches': rmatches, 'path': path, 'shortest_path': shortest_path, 'cost': edge_cost}
 
-    data.save_shortest_paths(im1, shortest_paths, label=label, edge_threshold=np.round(edge_threshold,2), iteration=iteration, dfv=ctx.distance_filter_value)
+    data.save_shortest_paths(im1, shortest_paths, label=label, edge_threshold=np.round(edge_threshold,2), iteration=iteration, idfv=ctx.iteration_distance_filter_value)
     # return im1, shortest_paths
 
 def calculate_shortest_paths(ctx):
     data = ctx.data
     processes = ctx.data.config['processes']
-    images = sorted(data.images())
+    # images = sorted(data.images())
+    images = sorted(data.all_feature_maps())
     shortest_paths = {}
     # edge_threshold = ctx.edge_threshold
     # edge_threshold = 1.0/1.0
@@ -1829,9 +1850,9 @@ def calculate_shortest_paths(ctx):
     # edge_threshold = 1.0/20.0
     configurations = []
     # for graph_label in ['rm-cost', 'rm-seq-cost', 'inlier-logp']:
-    for graph_label in ['rm-cost', 'inlier-logp']:
+    for graph_label in ['rm-cost']:#, 'inlier-logp']:
         # graph_label = 'rm-cost'
-        options = {'sp_label': graph_label, 'PCA-n_components': 2, 'MDS-n_components': 2, 'edge_threshold': ctx.edge_thresholds[graph_label], 'lmds': False, 'iteration': ctx.iteration, 'debug': False}
+        options = {'sp_label': graph_label, 'PCA-n_components': 2, 'MDS-n_components': 2, 'edge_threshold': ctx.edge_thresholds[graph_label], 'lmds': False, 'iteration': ctx.iteration, 'debug': False if 'aws' in os.uname()[2] else True}
         if 'rm-seq-cost' in graph_label:
             seq_cost_factor = ctx.sequence_cost_factor
             graph_label = 'rm-seq-cost-{}'.format(seq_cost_factor)
@@ -1856,7 +1877,10 @@ def calculate_shortest_paths(ctx):
         # else:
         # import pdb; pdb.set_trace()
         G = opensfm.commands.formulate_graphs.formulate_graph([data, images, criteria, graph_label, options['edge_threshold']])
-        data.save_graph(G, graph_label, options['edge_threshold'], options['iteration'], ctx.distance_filter_value)
+        if options['debug']:
+            opensfm.commands.formulate_graphs.draw_graph(G, os.path.join(data.data_path, 'results', 'graph-{}-it-{}-idfv-{}.png'.format(graph_label, options['iteration'], ctx.iteration_distance_filter_value)), highlighted_nodes=[], layout='spring', title=None)
+
+        data.save_graph(G, graph_label, options['edge_threshold'], options['iteration'], ctx.iteration_distance_filter_value)
         configurations.append([G, graph_label, options['edge_threshold']])
         # if options['apply_sequence_ranks']:
         #     G_ = opensfm.commands.formulate_graphs.formulate_graph([data, images, im_num_rmatches_cost_with_sequences, graph_label_with_sequences, edge_threshold])
@@ -2227,9 +2251,11 @@ def rmatches_adapter(data, options={}, debug=False):
     im_classifier_scores = {}
     im_num_rmatches_cost = {}
     im_num_rmatches_cost_with_sequences = {}
-    image_matching_results = data.load_image_matching_results(robust_matches_threshold=15, classifier='BASELINE')
+    # image_matching_results = data.load_image_matching_results(robust_matches_threshold=15, classifier='BASELINE')
+    image_matching_results = data.load_matches_using_tracks_graph(max_track_length=2)
 
-    for img in data.images():
+    # for img in data.images():
+    for img in sorted(data.all_feature_maps()):
         _, _, rmatches = data.load_all_matches(img)
         im_all_rmatches[img] = rmatches
 
@@ -2290,13 +2316,30 @@ def rmatches_adapter(data, options={}, debug=False):
 
             im_num_rmatches[im1][im2] = len(im_all_rmatches[im1][im2])
             im_num_rmatches[im2][im1] = im_num_rmatches[im1][im2]
-            im_classifier_scores[im1][im2] = image_matching_results[im1][im2]['score']
+            try:
+                im_classifier_scores[im1][im2] = image_matching_results[im1][im2]['score']
+            except:
+                import pdb; pdb.set_trace()
             im_classifier_scores[im2][im1] = im_classifier_scores[im1][im2]
 
             if len(im_all_rmatches[im1][im2]) == 0:
                 im_num_rmatches_cost[im1][im2] = 100000000.0
             else:
-                im_num_rmatches_cost[im1][im2] = 1.0 / im_num_rmatches[im1][im2]
+                # import pdb; pdb.set_trace()
+                nbvs = data.load_nbvs(im1)
+                nbvs_score = min(nbvs[im2]['nbvs_im1'], nbvs[im2]['nbvs_im2'])
+                # p = 1.0 * min(nbvs[im2]['p1'], nbvs[im2]['p2'])
+
+                # nbvs_score = max(nbvs[im2]['nbvs_im1'], nbvs[im2]['nbvs_im2'])
+                # nbvs_score = (nbvs[im2]['nbvs_im1'] + nbvs[im2]['nbvs_im2']) / 2.0
+                
+                # im_num_rmatches_cost[im1][im2] = 1.0 / nbvs_score
+                # im_num_rmatches_cost[im1][im2] = 1.0 / im_num_rmatches[im1][im2]
+                # im_num_rmatches_cost[im1][im2] = 1.0 / np.power(im_num_rmatches[im1][im2], 0.5)
+                try:
+                    im_num_rmatches_cost[im1][im2] = 1.0 / im_classifier_scores[im1][im2]
+                except:
+                    import pdb; pdb.set_trace()
 
             im_num_rmatches_cost[im2][im1] = im_num_rmatches_cost[im1][im2]
             if 'apply_sequence_ranks' in options and options['apply_sequence_ranks'] is True:
@@ -2490,9 +2533,11 @@ def get_cmap(n, name='hsv'):
     colormaps = ['Accent', 'Accent_r', 'Blues', 'Blues_r', 'BrBG', 'BrBG_r', 'BuGn', 'BuGn_r', 'BuPu', 'BuPu_r', 'CMRmap', 'CMRmap_r', 'Dark2', 'Dark2_r', 'GnBu', 'GnBu_r', 'Greens', 'Greens_r', 'Greys', 'Greys_r', 'OrRd', 'OrRd_r', 'Oranges', 'Oranges_r', 'PRGn', 'PRGn_r', 'Paired', 'Paired_r', 'Pastel1', 'Pastel1_r', 'Pastel2', 'Pastel2_r', 'PiYG', 'PiYG_r', 'PuBu', 'PuBuGn', 'PuBuGn_r', 'PuBu_r', 'PuOr', 'PuOr_r', 'PuRd', 'PuRd_r', 'Purples', 'Purples_r', 'RdBu', 'RdBu_r', 'RdGy', 'RdGy_r', 'RdPu', 'RdPu_r', 'RdYlBu', 'RdYlBu_r', 'RdYlGn', 'RdYlGn_r', 'Reds', 'Reds_r', 'Set1', 'Set1_r', 'Set2', 'Set2_r', 'Set3', 'Set3_r', 'Spectral', 'Spectral_r', 'Wistia', 'Wistia_r', 'YlGn', 'YlGnBu', 'YlGnBu_r', 'YlGn_r', 'YlOrBr', 'YlOrBr_r', 'YlOrRd', 'YlOrRd_r']
     return plt.get_cmap(colormaps[n])
 
-def plot_mds(data, pos_gt, pos, iteration, opts):
+def plot_mds(ctx, data, pos_gt, pos, iteration, opts):
     fig = plt.figure(1)
     ax = plt.axes([0., 0., 1., 1.])
+    colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k']
+    groups = ['G1', 'G2', 'G3', 'G4', 'G5', 'G6', 'G7']
 
     s = 50
     cmap = get_cmap(opts['max_iterations'] + 1)
@@ -2506,7 +2551,7 @@ def plot_mds(data, pos_gt, pos, iteration, opts):
                         label='True Position')
         results_folder = os.path.join(data.data_path, 'results')
         mkdir_p(results_folder)
-        plt.savefig(os.path.join(data.data_path, 'results', 'path-gt-lmds-{}-i-{}-PCA-n_components-{}-MDS-n_components-{}-it-{}.png'.format(opts['lmds'], iteration, opts['PCA-n_components'], opts['MDS-n_components'], opts['iteration'])),dpi=90)
+        plt.savefig(os.path.join(data.data_path, 'results', 'path-gt-lmds-{}-i-{}-PCA-n_components-{}-MDS-n_components-{}-it-{}-idfv-{}.png'.format(opts['lmds'], iteration, opts['PCA-n_components'], opts['MDS-n_components'], opts['iteration'], ctx.iteration_distance_filter_value)),dpi=90)
     
     if pos_gt is None and (iteration + 1) % opts['solve_mds_plot_freq'] == 0:
         for i in range(0,len(pos)):
@@ -2514,15 +2559,24 @@ def plot_mds(data, pos_gt, pos, iteration, opts):
                 color = 'b'
             else:
                 color = 'r'
-            plt.scatter(pos[i, 0], pos[i, 1], c=color, s=s, lw=0, label='MDS - Iteration {}'.format(iteration))
+            # if i > 52 and i < 60:
+            plt.scatter(pos[i, 0], pos[i, 1], c=colors[i%len(colors)], label=sorted(data.all_feature_maps())[i], s=s+20*i, lw=0)#, label='MDS - Iteration {}'.format(iteration))
+            # else:
+            #     plt.scatter(pos[i, 0], pos[i, 1], c='r', label=sorted(data.all_feature_maps())[i], s=s+20*i, lw=0)#, label='MDS - Iteration {}'.format(iteration))
         #     index = (len(pos)-opts['triangulated-indices'])
         #     plt.scatter(pos[0:index, 0], pos[0:index, 1], c='r', s=s, lw=0, label='MDS - Iteration {}'.format(iteration))
         #     plt.scatter(pos[index:, 0], pos[index:, 1], c='b', s=s, lw=0, label='MDS - Iteration {}'.format(iteration))
         # else:
         #     plt.scatter(pos[:, 0], pos[:, 1], c='r', s=s, lw=0, label='MDS - Iteration {}'.format(iteration))
+        plt.legend(loc=2)
         results_folder = os.path.join(data.data_path, 'results')
         mkdir_p(results_folder)
-        plt.savefig(os.path.join(results_folder, 'path-inferred-{}-lmds-{}-PCA-n_components-{}-MDS-n_components-{}-it-{}.png'.format(opts['shortest_path_label'], opts['lmds'], opts['PCA-n_components'], opts['MDS-n_components'], opts['iteration'])),dpi=90)
+        # fig.set_size_inches(20.8, 11.8)
+        plt.axis('equal')
+        plt.grid()
+
+        fig.set_size_inches(41.6, 23.6)
+        plt.savefig(os.path.join(results_folder, 'path-inferred-{}-lmds-{}-PCA-n_components-{}-MDS-n_components-{}-it-{}-idfv-{}.png'.format(opts['shortest_path_label'], opts['lmds'], opts['PCA-n_components'], opts['MDS-n_components'], opts['iteration'], ctx.iteration_distance_filter_value)),dpi=90)
         
 
     if False:
@@ -2545,7 +2599,7 @@ def plot_mds(data, pos_gt, pos, iteration, opts):
     plt.clf()
 
 
-def solve_mds(data, distances_gt, distances, num_fns, opts, debug):
+def solve_mds(ctx, data, distances_gt, distances, num_fns, opts, debug):
     if debug:
         logger.info('#'*100)
         logger.info('#'*40 + ' Solving MDS problem... ' + '#'*40)
@@ -2587,8 +2641,8 @@ def solve_mds(data, distances_gt, distances, num_fns, opts, debug):
 
     if debug:
         if distances_gt is not None:
-            plot_mds(data=data, pos_gt=pos_gt, pos=None, iteration=0, opts=opts)
-        plot_mds(data=data, pos_gt=None, pos=inferred_positions, iteration=1, opts=opts)
+            plot_mds(ctx=ctx, data=data, pos_gt=pos_gt, pos=None, iteration=0, opts=opts)
+        plot_mds(ctx=ctx, data=data, pos_gt=None, pos=inferred_positions, iteration=1, opts=opts)
     updated_distances = euclidean_distances(inferred_positions)
 
     if distances_gt is not None:
@@ -2830,9 +2884,9 @@ def infer_cleaner_positions(ctx):
         if data.reconstruction_exists('reconstruction_gt.json'):
             # distances_gt_pruned_sq = np.multiply(distances_gt_pruned, distances_gt_pruned)
             # distances_baseline_pruned_sq = np.multiply(distances_baseline_pruned, distances_baseline_pruned)
-            mds_embedding_positions, mds_embedding_positions_gt, positions_inferred, positions_inferred_gt, _ = solve_mds(data=data, distances_gt=distances_gt_pruned, distances=distances_baseline_pruned, num_fns=len(mds_images), opts=options, debug=options['debug'])
+            mds_embedding_positions, mds_embedding_positions_gt, positions_inferred, positions_inferred_gt, _ = solve_mds(ctx=ctx, data=data, distances_gt=distances_gt_pruned, distances=distances_baseline_pruned, num_fns=len(mds_images), opts=options, debug=options['debug'])
         else:
-            mds_embedding_positions, positions_inferred, _ = solve_mds(data=data, distances_gt=None, distances=distances_baseline_pruned, num_fns=len(mds_images), opts=options, debug=options['debug'])
+            mds_embedding_positions, positions_inferred, _ = solve_mds(ctx=ctx, data=data, distances_gt=None, distances=distances_baseline_pruned, num_fns=len(mds_images), opts=options, debug=options['debug'])
 
         # print (mds_embedding_positions)
         # import sys; sys.exit(1)
@@ -2895,9 +2949,9 @@ def infer_cleaner_positions(ctx):
         # print (all_positions_inferred)
         updated_distances = euclidean_distances(all_positions_inferred)
         if debug:
-            plot_mds(data=data, pos_gt=None, pos=all_positions_inferred, iteration=1, opts=options)
+            plot_mds(ctx=ctx, data=data, pos_gt=None, pos=all_positions_inferred, iteration=1, opts=options)
             if data.reconstruction_exists('reconstruction_gt.json'):
-                plot_mds(data=data, pos_gt=all_positions_inferred_gt, pos=None, iteration=-1, opts=options)
+                plot_mds(ctx=ctx, data=data, pos_gt=all_positions_inferred_gt, pos=None, iteration=-1, opts=options)
 
         for i in range(0,num_fns):
             order = np.argsort(np.array(updated_distances[:,i]))
@@ -2991,7 +3045,8 @@ def mds_errors(ctx):
 def infer_positions(ctx):
     logger.info('Inferring camera positions using shortest paths...')
     data = ctx.data
-    images = sorted(data.images())
+    # images = sorted(data.images())
+    images = sorted(data.all_feature_maps())
     np_images = np.array(images)
     num_fns = len(images)
     seq_cost_factor = ctx.sequence_cost_factor
@@ -3011,7 +3066,7 @@ def infer_positions(ctx):
     for run_config in [
         # {'sp_label': 'rm-cost', 'pca_n_components': 2, 'mds_n_components': 2, 'edge_threshold': 1.0/1.0},
         {'sp_label': 'rm-cost', 'pca_n_components': 2, 'mds_n_components': 2, 'edge_threshold': ctx.edge_thresholds['rm-cost'], 'iteration': ctx.iteration},
-        {'sp_label': 'inlier-logp', 'pca_n_components': 2, 'mds_n_components': 2, 'edge_threshold': ctx.edge_thresholds['inlier-logp'], 'iteration': ctx.iteration},
+        # {'sp_label': 'inlier-logp', 'pca_n_components': 2, 'mds_n_components': 2, 'edge_threshold': ctx.edge_thresholds['inlier-logp'], 'iteration': ctx.iteration},
         # {'sp_label': 'rm-cost', 'pca_n_components': 2, 'mds_n_components': 2, 'edge_threshold': 1.0/20.0},
 
         # {'sp_label': 'rm-cost', 'pca_n_components': 2, 'mds_n_components': 3},
@@ -3032,7 +3087,7 @@ def infer_positions(ctx):
 
         for i,im1 in enumerate(images):
             # if sp_label == 'rm-cost':
-            im_shortest_paths = data.load_shortest_paths(im1, label=sp_label, edge_threshold=np.round(edge_threshold,2), iteration=iteration, dfv=ctx.distance_filter_value)
+            im_shortest_paths = data.load_shortest_paths(im1, label=sp_label, edge_threshold=np.round(edge_threshold,2), iteration=iteration, idfv=ctx.iteration_distance_filter_value)
             image_mapping[im1] = i
             reverse_image_mapping[i] = im1
 
@@ -3049,7 +3104,7 @@ def infer_positions(ctx):
                         path = im_shortest_paths[im2]['path']
                         entry = im_shortest_paths[im2]
                     else:
-                        im_shortest_paths = data.load_shortest_paths(im2, label=sp_label, edge_threshold=np.round(edge_threshold,2), iteration=iteration, dfv=ctx.distance_filter_value)
+                        im_shortest_paths = data.load_shortest_paths(im2, label=sp_label, edge_threshold=np.round(edge_threshold,2), iteration=iteration, idfv=ctx.iteration_distance_filter_value)
                         path = im_shortest_paths[im1]['path']
                         entry = im_shortest_paths[im1]
                     for k,p in enumerate(path):
@@ -3100,27 +3155,27 @@ def infer_positions(ctx):
         #     import pdb; pdb.set_trace();
         options = {'solve_mds_plot_freq': 1, 'max_iterations': 20, 'shortest_path_label': sp_label, 'lmds': False, 'PCA-n_components': pca_n_components, 'MDS-n_components': mds_n_components, 'edge_threshold': edge_threshold, 'iteration': iteration, 'debug': False if 'aws' in os.uname()[2] else True}
         if data.reconstruction_exists('reconstruction_gt.json'):
-            mds_embedding_positions, mds_embedding_positions_gt, positions_inferred, positions_inferred_gt, updated_distances = solve_mds(data=data, distances_gt=distances_gt, distances=distances_baseline, num_fns=num_fns, opts=options, debug=options['debug'])
+            mds_embedding_positions, mds_embedding_positions_gt, positions_inferred, positions_inferred_gt, updated_distances = solve_mds(ctx=ctx, data=data, distances_gt=distances_gt, distances=distances_baseline, num_fns=num_fns, opts=options, debug=options['debug'])
         else:
-            mds_embedding_positions, positions_inferred, updated_distances = solve_mds(data=data, distances_gt=None, distances=distances_baseline, num_fns=num_fns, opts=options, debug=options['debug'])
+            mds_embedding_positions, positions_inferred, updated_distances = solve_mds(ctx=ctx, data=data, distances_gt=None, distances=distances_baseline, num_fns=num_fns, opts=options, debug=options['debug'])
 
         for i in range(0,num_fns):
             order = np.argsort(np.array(updated_distances[:,i]))
             im_closest_images[reverse_image_mapping[i]] = np_images[order].tolist()
 
         for im in im_closest_images:
-            data.save_closest_images(im, im_closest_images[im], label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-dfv-{}'.format(sp_label, options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds'], options['iteration'], ctx.distance_filter_value))
+            data.save_closest_images(im, im_closest_images[im], label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-idfv-{}'.format(sp_label, options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds'], options['iteration'], ctx.iteration_distance_filter_value))
 
         im_mds_position = {}
         for i in range(0,num_fns):
             im_mds_position[reverse_image_mapping[i]] = positions_inferred[i].tolist()
-        data.save_mds_positions(im_mds_position, label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-dfv-{}'.format(sp_label, options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds'], options['iteration'], ctx.distance_filter_value))
+        data.save_mds_positions(im_mds_position, label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-idfv-{}'.format(sp_label, options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds'], options['iteration'], ctx.iteration_distance_filter_value))
 
         if data.reconstruction_exists('reconstruction_gt.json'):
             im_mds_position_gt = {}
             for i in range(0, len(positions_inferred_gt)):
                 im_mds_position_gt[reverse_image_mapping_gt[i]] = positions_inferred_gt[i].tolist()
-            data.save_mds_positions(im_mds_position_gt, label='gt-{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-dfv-{}'.format(sp_label, options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds'], options['iteration'], ctx.distance_filter_value))
+            data.save_mds_positions(im_mds_position_gt, label='gt-{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-idfv-{}'.format(sp_label, options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds'], options['iteration'], ctx.iteration_distance_filter_value))
 
 
         if data.reconstruction_exists('reconstruction_gt.json'):
@@ -3130,7 +3185,7 @@ def infer_positions(ctx):
                 order_gt = np.argsort(np.array(distances_gt[:,i]))
                 im_closest_images_gt[reverse_image_mapping_gt[i]] = np_images_gt[order_gt].tolist()
             for im in im_closest_images_gt:
-                data.save_closest_images(im, im_closest_images_gt[im], label='gt-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-dfv-{}'.format(options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds'], options['iteration'], ctx.distance_filter_value))
+                data.save_closest_images(im, im_closest_images_gt[im], label='gt-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-idfv-{}'.format(options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds'], options['iteration'], ctx.iteration_distance_filter_value))
 
         # recon_inferred = create_inferred_reconstruction(positions_inferred, reverse_image_mapping)
         # relevant_reconstructions = [[recon_gt, recon_inferred, 'path']]

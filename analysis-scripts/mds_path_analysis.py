@@ -41,6 +41,8 @@ def plot_iris(num_rmatches, labels, counts):
     
     plt.subplot(2,2,1)
     plt.title('Filtered matches - inliers/outliers: {}/{}'.format(counts['inliers'], counts['outliers']))
+    plt.xlim([0, 1500])
+    plt.ylim([0, 18000])
     nbins = int((num_rmatches[labels >= 1].max() - num_rmatches[labels >= 1].min() + 1)/2.0)
     plt.xlabel('Number of rmatches')
     plt.ylabel('Count(inliers)={}'.format(len(np.where(labels >= 1)[0])))
@@ -48,6 +50,8 @@ def plot_iris(num_rmatches, labels, counts):
     
     plt.subplot(2,2,2)
     plt.title('Filtered matches - inliers/outliers: {}/{}'.format(counts['inliers'], counts['outliers']))
+    plt.xlim([0, 1500])
+    plt.ylim([0, 18000])
     nbins = int((num_rmatches[labels <= 0].max() - num_rmatches[labels <= 0].min() + 1)/2.0)
     plt.xlabel('Number of rmatches')
     plt.ylabel('Count (outliers)={}'.format(len(np.where(labels <= 0)[0])))
@@ -55,7 +59,9 @@ def plot_iris(num_rmatches, labels, counts):
 
     plt.subplot(2,2,3)
     plt.ylim([0.0, 100.0])
-    plt.title('Filtered matches - inliers/outliers: {}/{}'.format(counts['inliers'], counts['outliers']))
+    plt.title('Filtered matches(zoomed) - inliers/outliers: {}/{}'.format(counts['inliers'], counts['outliers']))
+    plt.xlim([0, 1000])
+    plt.ylim([0, 80])
     nbins = int((num_rmatches[labels >= 1].max() - num_rmatches[labels >= 1].min() + 1)/2.0)
     plt.xlabel('Number of rmatches')
     plt.ylabel('Count(inliers)={}'.format(len(np.where(labels >= 1)[0])))
@@ -63,7 +69,9 @@ def plot_iris(num_rmatches, labels, counts):
     
     plt.subplot(2,2,4)
     plt.ylim([0.0, 100.0])
-    plt.title('Filtered matches - inliers/outliers: {}/{}'.format(counts['inliers'], counts['outliers']))
+    plt.title('Filtered matches(zoomed) - inliers/outliers: {}/{}'.format(counts['inliers'], counts['outliers']))
+    plt.xlim([0, 1000])
+    plt.ylim([0, 80])
     nbins = int((num_rmatches[labels <= 0].max() - num_rmatches[labels <= 0].min() + 1)/2.0)
     plt.xlabel('Number of rmatches')
     plt.ylabel('Count (outliers)={}'.format(len(np.where(labels <= 0)[0])))
@@ -76,7 +84,7 @@ def plot_iris(num_rmatches, labels, counts):
     return fig, fig_np
 
 
-def distance_based_filter(dsets, fns, options, iteration):
+def distance_based_filter(dsets, fns, options, sp_label, iteration):
     current_dset = None
     ris = []
     iris = []
@@ -86,7 +94,7 @@ def distance_based_filter(dsets, fns, options, iteration):
             data = dataset.DataSet(dset)
             images = sorted(data.images())
             current_dset = dset
-            mds_positions = data.load_mds_positions(label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-dfv-{}'.format(options['shortest_path_label'], options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold']['rm-cost'], options['lmds'], iteration, options['distance_filter_value']))
+            mds_positions = data.load_mds_positions(label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-dfv-{}'.format(sp_label, options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'][sp_label], options['lmds'], iteration, options['distance_filter_value']))
 
         distance_matrix = euclidean_distances([mds_positions[fns[i][0]], mds_positions[fns[i][1]]])
         all_distances.append(distance_matrix[0,1])
@@ -97,7 +105,7 @@ def distance_based_filter(dsets, fns, options, iteration):
         
     return np.array(ris), np.array(iris), np.array(all_distances)
 
-def distance_thresholded_matching_results(datasets, options):
+def distance_thresholded_matching_results(datasets, sp_label, options):
     mds_data_folder = options['mds_data_folder']
     mkdir_p(mds_data_folder)
     for i,t in enumerate(datasets):
@@ -217,8 +225,8 @@ def distance_thresholded_matching_results(datasets, options):
 
     labels_tr[labels_tr < 0] = 0
 
-    ris_it_0, iris_it_0, all_distances_it_0 = distance_based_filter(dsets_tr, fns_tr, options, 0)
-    ris_it_1, iris_it_1, all_distances_it_1 = distance_based_filter(dsets_tr, fns_tr, options, 0)
+    ris_it_0, iris_it_0, all_distances_it_0 = distance_based_filter(dsets_tr, fns_tr, options, sp_label, 0)
+    ris_it_1, iris_it_1, all_distances_it_1 = distance_based_filter(dsets_tr, fns_tr, options, sp_label, 1)
     # import pdb; pdb.set_trace()
     # f1 = plt.figure(1)
     # plt.ylabel('Precision')
@@ -255,27 +263,27 @@ def distance_thresholded_matching_results(datasets, options):
     #     ))
 
     fig_prs_it_0, _ = matching_classifiers.plot_prs(pr_distance_thresholded_it_0, pr_baseline, auc_pr_distance_thresholded_it_0, auc_pr_baseline, markers=[15, 16, 20], markers_baseline=[15, 16, 20])
-    fig_prs_it_0.savefig(os.path.join(mds_data_folder, 'distance-thresholded-image-matching-PR-{}-tuples-{}-{}-it-{}-dfv-{}.png'.format(options['distance_threshold'], len(ris_it_0), len(labels_tr), 0, options['distance_filter_value'])))
+    fig_prs_it_0.savefig(os.path.join(mds_data_folder, 'image-matching-PR-{}-{}-tuples-{}-{}-it-{}-dfv-{}.png'.format(sp_label, options['distance_threshold'], len(ris_it_0), len(labels_tr), 0, options['distance_filter_value'])))
     fig_prs_it_1, _ = matching_classifiers.plot_prs(pr_distance_thresholded_it_1, pr_baseline, auc_pr_distance_thresholded_it_1, auc_pr_baseline, markers=[15, 16, 20], markers_baseline=[15, 16, 20])
-    fig_prs_it_1.savefig(os.path.join(mds_data_folder, 'distance-thresholded-image-matching-PR-{}-tuples-{}-{}-it-{}-dfv-{}.png'.format(options['distance_threshold'], len(ris_it_1), len(labels_tr), 1, options['distance_filter_value'])))
+    fig_prs_it_1.savefig(os.path.join(mds_data_folder, 'image-matching-PR-{}-{}-tuples-{}-{}-it-{}-dfv-{}.png'.format(sp_label, options['distance_threshold'], len(ris_it_1), len(labels_tr), 1, options['distance_filter_value'])))
 
     fig_prs_zeroed_it_0, _ = matching_classifiers.plot_prs(pr_zeroed_it_0, pr_baseline, auc_pr_zeroed_it_0, auc_pr_baseline, markers=[15, 16, 20], markers_baseline=[15, 16, 20])
-    fig_prs_zeroed_it_0.savefig(os.path.join(mds_data_folder, 'distance-thresholded-image-matching-PR-zeroed-{}-tuples-{}-{}-it-{}-dfv-{}.png'.format(options['distance_threshold'], len(labels_zeroed_it_0), len(labels_tr), 0, options['distance_filter_value'])))
+    fig_prs_zeroed_it_0.savefig(os.path.join(mds_data_folder, 'image-matching-PR-{}-{}-zeroed-tuples-{}-{}-it-{}-dfv-{}.png'.format(sp_label, options['distance_threshold'], len(labels_zeroed_it_0), len(labels_tr), 0, options['distance_filter_value'])))
     fig_prs_zeroed_it_1, _ = matching_classifiers.plot_prs(pr_zeroed_it_1, pr_baseline, auc_pr_zeroed_it_1, auc_pr_baseline, markers=[15, 16, 20], markers_baseline=[15, 16, 20])
-    fig_prs_zeroed_it_1.savefig(os.path.join(mds_data_folder, 'distance-thresholded-image-matching-PR-zeroed-{}-tuples-{}-{}-it-{}-dfv-{}.png'.format(options['distance_threshold'], len(labels_zeroed_it_1), len(labels_tr), 1, options['distance_filter_value'])))
+    fig_prs_zeroed_it_1.savefig(os.path.join(mds_data_folder, 'image-matching-PR-{}-{}-zeroed-tuples-{}-{}-it-{}-dfv-{}.png'.format(sp_label, options['distance_threshold'], len(labels_zeroed_it_1), len(labels_tr), 1, options['distance_filter_value'])))
 
     counts = {'inliers': len(np.where(labels_tr >= 1)[0]), 'outliers': len(np.where(labels_tr <= 0)[0])}
     fig_prs_iris_it_0, _ = plot_iris(num_rmatches_tr[iris_it_0], labels_tr[iris_it_0], counts)
-    fig_prs_iris_it_0.savefig(os.path.join(mds_data_folder, 'distance-thresholded-image-matching-PR-iris-{}-tuples-{}-{}-it-{}-dfv-{}.png'.format(options['distance_threshold'], len(iris_it_0), len(labels_tr), 0, options['distance_filter_value'])))
+    fig_prs_iris_it_0.savefig(os.path.join(mds_data_folder, 'image-matching-PR-{}-{}-iris-tuples-{}-{}-it-{}-dfv-{}.png'.format(sp_label, options['distance_threshold'], len(iris_it_0), len(labels_tr), 0, options['distance_filter_value'])))
     fig_prs_iris_it_1, _ = plot_iris(num_rmatches_tr[iris_it_1], labels_tr[iris_it_1], counts)
-    fig_prs_iris_it_1.savefig(os.path.join(mds_data_folder, 'distance-thresholded-image-matching-PR-iris-{}-tuples-{}-{}-it-{}-dfv-{}.png'.format(options['distance_threshold'], len(iris_it_1), len(labels_tr), 1, options['distance_filter_value'])))
+    fig_prs_iris_it_1.savefig(os.path.join(mds_data_folder, 'image-matching-PR-{}-{}-iris-tuples-{}-{}-it-{}-dfv-{}.png'.format(sp_label, options['distance_threshold'], len(iris_it_1), len(labels_tr), 1, options['distance_filter_value'])))
 
     auc_pr_distances_it_0, auc_roc_distances_it_0, pr_distances_it_0, roc_distances_it_0 = matching_classifiers.calculate_dataset_auc(-1.0 * all_distances_it_0 + 2.0, labels_tr)#, color='green', ls='dashed', markers=[15, 16, 20])
     fig_prs_distances_it_0, _ = matching_classifiers.plot_prs(pr_distances_it_0, pr_baseline, auc_pr_distances_it_0, auc_pr_baseline, markers=[1.0, 1.1, 1.2], markers_baseline=[15, 16, 20])
-    fig_prs_distances_it_0.savefig(os.path.join(mds_data_folder, 'distance-thresholded-image-matching-PR-distances-it-{}-dfv-{}.png'.format(0, options['distance_filter_value'])))
+    fig_prs_distances_it_0.savefig(os.path.join(mds_data_folder, 'image-matching-PR-distances-{}-it-{}-dfv-{}.png'.format(sp_label, 0, options['distance_filter_value'])))
     auc_pr_distances_it_1, auc_roc_distances_it_1, pr_distances_it_1, roc_distances_it_1 = matching_classifiers.calculate_dataset_auc(-1.0 * all_distances_it_1 + 2.0, labels_tr)#, color='green', ls='dashed', markers=[15, 16, 20])
     fig_prs_distances_it_1, _ = matching_classifiers.plot_prs(pr_distances_it_1, pr_baseline, auc_pr_distances_it_1, auc_pr_baseline, markers=[1.0, 1.1, 1.2], markers_baseline=[15, 16, 20])
-    fig_prs_distances_it_1.savefig(os.path.join(mds_data_folder, 'distance-thresholded-image-matching-PR-distances-it-{}-dfv-{}.png'.format(1, options['distance_filter_value'])))
+    fig_prs_distances_it_1.savefig(os.path.join(mds_data_folder, 'image-matching-PR-distances-{}-it-{}-dfv-{}.png'.format(sp_label, 1, options['distance_filter_value'])))
 
 
 def path_results(data, options):
@@ -296,10 +304,10 @@ def path_results(data, options):
     mean_precisions_rm_cost_it_2 = np.zeros((max_k,))
     mean_precisions_rm_cost_it_3 = np.zeros((max_k,))
 
-    mean_precisions_outlier_logp_it_0 = np.zeros((max_k,))
-    mean_precisions_outlier_logp_it_1 = np.zeros((max_k,))
-    mean_precisions_outlier_logp_it_2 = np.zeros((max_k,))
-    mean_precisions_outlier_logp_it_3 = np.zeros((max_k,))
+    mean_precisions_inlier_logp_it_0 = np.zeros((max_k,))
+    mean_precisions_inlier_logp_it_1 = np.zeros((max_k,))
+    mean_precisions_inlier_logp_it_2 = np.zeros((max_k,))
+    mean_precisions_inlier_logp_it_3 = np.zeros((max_k,))
 
     mean_precisions_baseline = np.zeros((max_k,))
     
@@ -314,10 +322,10 @@ def path_results(data, options):
             # mean_precisions_rm_cost_it_2 = cache['mean_precisions_rm_cost_it_2']
             # mean_precisions_rm_cost_it_3 = cache['mean_precisions_rm_cost_it_3']
 
-            mean_precisions_outlier_logp_it_0 = cache['mean_precisions_outlier_logp_it_0']
-            mean_precisions_outlier_logp_it_1 = cache['mean_precisions_outlier_logp_it_1']
-            # mean_precisions_outlier_logp_it_2 = cache['mean_precisions_outlier_logp_it_2']
-            # mean_precisions_outlier_logp_it_3 = cache['mean_precisions_outlier_logp_it_3']
+            mean_precisions_inlier_logp_it_0 = cache['mean_precisions_inlier_logp_it_0']
+            mean_precisions_inlier_logp_it_1 = cache['mean_precisions_inlier_logp_it_1']
+            # mean_precisions_inlier_logp_it_2 = cache['mean_precisions_inlier_logp_it_2']
+            # mean_precisions_inlier_logp_it_3 = cache['mean_precisions_inlier_logp_it_3']
 
             # mean_precisions_with_sequences[k] = np.mean(precisions_with_sequences)
             mean_precisions_baseline = cache['mean_precisions_baseline']
@@ -334,10 +342,10 @@ def path_results(data, options):
         cache_closest_images_rm_cost_it_2 = {}
         cache_closest_images_rm_cost_it_3 = {}
 
-        cache_closest_images_outlier_logp_it_0 = {}
-        cache_closest_images_outlier_logp_it_1 = {}
-        cache_closest_images_outlier_logp_it_2 = {}
-        cache_closest_images_outlier_logp_it_3 = {}
+        cache_closest_images_inlier_logp_it_0 = {}
+        cache_closest_images_inlier_logp_it_1 = {}
+        cache_closest_images_inlier_logp_it_2 = {}
+        cache_closest_images_inlier_logp_it_3 = {}
 
         cache_closest_images_gt = {}
 
@@ -361,10 +369,10 @@ def path_results(data, options):
             precisions_rm_cost_it_2 = []
             precisions_rm_cost_it_3 = []
 
-            precisions_outlier_logp_it_0 = []
-            precisions_outlier_logp_it_1 = []
-            precisions_outlier_logp_it_2 = []
-            precisions_outlier_logp_it_3 = []
+            precisions_inlier_logp_it_0 = []
+            precisions_inlier_logp_it_1 = []
+            precisions_inlier_logp_it_2 = []
+            precisions_inlier_logp_it_3 = []
 
             precisions_baseline = []
             # precisions_with_sequences = []
@@ -373,16 +381,16 @@ def path_results(data, options):
             #         not data.closest_images_exists(im, label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-dfv-{}'.format('rm-cost', options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold']['rm-cost'], options['lmds'], 1, options['distance_filter_value'])) or \
             #         not data.closest_images_exists(im, label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-dfv-{}'.format('rm-cost', options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold']['rm-cost'], options['lmds'], 2, options['distance_filter_value'])) or \
             #         not data.closest_images_exists(im, label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-dfv-{}'.format('rm-cost', options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold']['rm-cost'], options['lmds'], 3, options['distance_filter_value'])) or \
-            #         not data.closest_images_exists(im, label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-dfv-{}'.format('outlier-logp', options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold']['outlier-logp'], options['lmds'], 0, options['distance_filter_value'])) or \
-            #         not data.closest_images_exists(im, label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-dfv-{}'.format('outlier-logp', options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold']['outlier-logp'], options['lmds'], 1, options['distance_filter_value'])) or \
-            #         not data.closest_images_exists(im, label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-dfv-{}'.format('outlier-logp', options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold']['outlier-logp'], options['lmds'], 2, options['distance_filter_value'])) or \
-            #         not data.closest_images_exists(im, label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-dfv-{}'.format('outlier-logp', options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold']['outlier-logp'], options['lmds'], 3, options['distance_filter_value'])) or \
+            #         not data.closest_images_exists(im, label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-dfv-{}'.format('inlier-logp', options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold']['inlier-logp'], options['lmds'], 0, options['distance_filter_value'])) or \
+            #         not data.closest_images_exists(im, label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-dfv-{}'.format('inlier-logp', options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold']['inlier-logp'], options['lmds'], 1, options['distance_filter_value'])) or \
+            #         not data.closest_images_exists(im, label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-dfv-{}'.format('inlier-logp', options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold']['inlier-logp'], options['lmds'], 2, options['distance_filter_value'])) or \
+            #         not data.closest_images_exists(im, label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-dfv-{}'.format('inlier-logp', options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold']['inlier-logp'], options['lmds'], 3, options['distance_filter_value'])) or \
             #         not data.closest_images_exists(im, label='gt-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-dfv-{}'.format(options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold']['gt'], options['lmds'], options['iteration'], options['distance_filter_value'])):
             for im in images:
                 if not data.closest_images_exists(im, label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-dfv-{}'.format('rm-cost', options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold']['rm-cost'], options['lmds'], 0, options['distance_filter_value'])) or \
                     not data.closest_images_exists(im, label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-dfv-{}'.format('rm-cost', options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold']['rm-cost'], options['lmds'], 1, options['distance_filter_value'])) or \
-                    not data.closest_images_exists(im, label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-dfv-{}'.format('outlier-logp', options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold']['outlier-logp'], options['lmds'], 0, options['distance_filter_value'])) or \
-                    not data.closest_images_exists(im, label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-dfv-{}'.format('outlier-logp', options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold']['outlier-logp'], options['lmds'], 1, options['distance_filter_value'])) or \
+                    not data.closest_images_exists(im, label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-dfv-{}'.format('inlier-logp', options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold']['inlier-logp'], options['lmds'], 0, options['distance_filter_value'])) or \
+                    not data.closest_images_exists(im, label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-dfv-{}'.format('inlier-logp', options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold']['inlier-logp'], options['lmds'], 1, options['distance_filter_value'])) or \
                     not data.closest_images_exists(im, label='gt-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-dfv-{}'.format(options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold']['gt'], options['lmds'], options['iteration'], options['distance_filter_value'])):
                     continue
 
@@ -395,10 +403,10 @@ def path_results(data, options):
                     # cache_closest_images_rm_cost_it_2[im] = data.load_closest_images(im, label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-dfv-{}'.format('rm-cost', options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold']['rm-cost'], options['lmds'], 2, options['distance_filter_value']))
                     # cache_closest_images_rm_cost_it_3[im] = data.load_closest_images(im, label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-dfv-{}'.format('rm-cost', options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold']['rm-cost'], options['lmds'], 3, options['distance_filter_value']))
 
-                    cache_closest_images_outlier_logp_it_0[im] = data.load_closest_images(im, label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-dfv-{}'.format('outlier-logp', options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold']['outlier-logp'], options['lmds'], 0, options['distance_filter_value']))
-                    cache_closest_images_outlier_logp_it_1[im] = data.load_closest_images(im, label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-dfv-{}'.format('outlier-logp', options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold']['outlier-logp'], options['lmds'], 1, options['distance_filter_value']))
-                    # cache_closest_images_outlier_logp_it_2[im] = data.load_closest_images(im, label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-dfv-{}'.format('outlier-logp', options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold']['outlier-logp'], options['lmds'], 2, options['distance_filter_value']))
-                    # cache_closest_images_outlier_logp_it_3[im] = data.load_closest_images(im, label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-dfv-{}'.format('outlier-logp', options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold']['outlier-logp'], options['lmds'], 3, options['distance_filter_value']))
+                    cache_closest_images_inlier_logp_it_0[im] = data.load_closest_images(im, label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-dfv-{}'.format('inlier-logp', options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold']['inlier-logp'], options['lmds'], 0, options['distance_filter_value']))
+                    cache_closest_images_inlier_logp_it_1[im] = data.load_closest_images(im, label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-dfv-{}'.format('inlier-logp', options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold']['inlier-logp'], options['lmds'], 1, options['distance_filter_value']))
+                    # cache_closest_images_inlier_logp_it_2[im] = data.load_closest_images(im, label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-dfv-{}'.format('inlier-logp', options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold']['inlier-logp'], options['lmds'], 2, options['distance_filter_value']))
+                    # cache_closest_images_inlier_logp_it_3[im] = data.load_closest_images(im, label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-dfv-{}'.format('inlier-logp', options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold']['inlier-logp'], options['lmds'], 3, options['distance_filter_value']))
 
                     cache_closest_images_gt[im] = data.load_closest_images(im, label='gt-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-dfv-{}'.format(options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold']['gt'], options['lmds'], options['iteration'], options['distance_filter_value']))
 
@@ -409,10 +417,10 @@ def path_results(data, options):
                 # closest_images_rm_cost_it_2 = data.load_closest_images(im, label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}'.format('rm-cost', options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold']['rm-cost'], options['lmds'], 2))
                 # closest_images_rm_cost_it_3 = data.load_closest_images(im, label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}'.format('rm-cost', options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold']['rm-cost'], options['lmds'], 3))
 
-                # closest_images_outlier_logp_it_0 = data.load_closest_images(im, label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}'.format('outlier-logp', options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold']['outlier-logp'], options['lmds'], 0))
-                # closest_images_outlier_logp_it_1 = data.load_closest_images(im, label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}'.format('outlier-logp', options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold']['outlier-logp'], options['lmds'], 1))
-                # closest_images_outlier_logp_it_2 = data.load_closest_images(im, label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}'.format('outlier-logp', options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold']['outlier-logp'], options['lmds'], 2))
-                # closest_images_outlier_logp_it_3 = data.load_closest_images(im, label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}'.format('outlier-logp', options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold']['outlier-logp'], options['lmds'], 3))
+                # closest_images_inlier_logp_it_0 = data.load_closest_images(im, label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}'.format('inlier-logp', options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold']['inlier-logp'], options['lmds'], 0))
+                # closest_images_inlier_logp_it_1 = data.load_closest_images(im, label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}'.format('inlier-logp', options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold']['inlier-logp'], options['lmds'], 1))
+                # closest_images_inlier_logp_it_2 = data.load_closest_images(im, label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}'.format('inlier-logp', options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold']['inlier-logp'], options['lmds'], 2))
+                # closest_images_inlier_logp_it_3 = data.load_closest_images(im, label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}'.format('inlier-logp', options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold']['inlier-logp'], options['lmds'], 3))
 
                 # closest_images_gt = data.load_closest_images(im, label='gt-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}'.format(options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold']['gt'], options['lmds'], options['iteration']))
                 closest_images_rm_cost_it_0 = cache_closest_images_rm_cost_it_0[im]
@@ -420,10 +428,10 @@ def path_results(data, options):
                 # closest_images_rm_cost_it_2 = cache_closest_images_rm_cost_it_2[im]
                 # closest_images_rm_cost_it_3 = cache_closest_images_rm_cost_it_3[im]
 
-                closest_images_outlier_logp_it_0 = cache_closest_images_outlier_logp_it_0[im]
-                closest_images_outlier_logp_it_1 = cache_closest_images_outlier_logp_it_1[im]
-                # closest_images_outlier_logp_it_2 = cache_closest_images_outlier_logp_it_2[im]
-                # closest_images_outlier_logp_it_3 = cache_closest_images_outlier_logp_it_3[im]
+                closest_images_inlier_logp_it_0 = cache_closest_images_inlier_logp_it_0[im]
+                closest_images_inlier_logp_it_1 = cache_closest_images_inlier_logp_it_1[im]
+                # closest_images_inlier_logp_it_2 = cache_closest_images_inlier_logp_it_2[im]
+                # closest_images_inlier_logp_it_3 = cache_closest_images_inlier_logp_it_3[im]
 
                 closest_images_gt = cache_closest_images_gt[im]
 
@@ -436,10 +444,10 @@ def path_results(data, options):
                 # common_images_rm_cost_it_2 = set(closest_images_rm_cost_it_2[1:k+1]).intersection(set(closest_images_gt[1:k+1]))
                 # common_images_rm_cost_it_3 = set(closest_images_rm_cost_it_3[1:k+1]).intersection(set(closest_images_gt[1:k+1]))
 
-                common_images_outlier_logp_it_0 = set(closest_images_outlier_logp_it_0[1:k+1]).intersection(set(closest_images_gt[1:k+1]))
-                common_images_outlier_logp_it_1 = set(closest_images_outlier_logp_it_1[1:k+1]).intersection(set(closest_images_gt[1:k+1]))
-                # common_images_outlier_logp_it_2 = set(closest_images_outlier_logp_it_2[1:k+1]).intersection(set(closest_images_gt[1:k+1]))
-                # common_images_outlier_logp_it_3 = set(closest_images_outlier_logp_it_3[1:k+1]).intersection(set(closest_images_gt[1:k+1]))
+                common_images_inlier_logp_it_0 = set(closest_images_inlier_logp_it_0[1:k+1]).intersection(set(closest_images_gt[1:k+1]))
+                common_images_inlier_logp_it_1 = set(closest_images_inlier_logp_it_1[1:k+1]).intersection(set(closest_images_gt[1:k+1]))
+                # common_images_inlier_logp_it_2 = set(closest_images_inlier_logp_it_2[1:k+1]).intersection(set(closest_images_gt[1:k+1]))
+                # common_images_inlier_logp_it_3 = set(closest_images_inlier_logp_it_3[1:k+1]).intersection(set(closest_images_gt[1:k+1]))
                 # common_images_with_sequences = set(closest_images_with_sequences[im][1:k+1]).intersection(set(closest_images_gt[im][1:k+1]))
 
                 precisions_baseline.append(1.0* len(common_images_baseline) / (k+1))
@@ -448,10 +456,10 @@ def path_results(data, options):
                 # precisions_rm_cost_it_2.append(1.0* len(common_images_rm_cost_it_2) / (k+1))
                 # precisions_rm_cost_it_3.append(1.0* len(common_images_rm_cost_it_3) / (k+1))
 
-                precisions_outlier_logp_it_0.append(1.0* len(common_images_outlier_logp_it_0) / (k+1))
-                precisions_outlier_logp_it_1.append(1.0* len(common_images_outlier_logp_it_1) / (k+1))
-                # precisions_outlier_logp_it_2.append(1.0* len(common_images_outlier_logp_it_2) / (k+1))
-                # precisions_outlier_logp_it_3.append(1.0* len(common_images_outlier_logp_it_3) / (k+1))
+                precisions_inlier_logp_it_0.append(1.0* len(common_images_inlier_logp_it_0) / (k+1))
+                precisions_inlier_logp_it_1.append(1.0* len(common_images_inlier_logp_it_1) / (k+1))
+                # precisions_inlier_logp_it_2.append(1.0* len(common_images_inlier_logp_it_2) / (k+1))
+                # precisions_inlier_logp_it_3.append(1.0* len(common_images_inlier_logp_it_3) / (k+1))
 
                 # precisions_with_sequences.append(1.0* len(common_images_with_sequences) / (k+1))
             mean_precisions_rm_cost_it_0[k] = np.mean(precisions_rm_cost_it_0)
@@ -459,10 +467,10 @@ def path_results(data, options):
             # mean_precisions_rm_cost_it_2[k] = np.mean(precisions_rm_cost_it_2)
             # mean_precisions_rm_cost_it_3[k] = np.mean(precisions_rm_cost_it_3)
 
-            mean_precisions_outlier_logp_it_0[k] = np.mean(precisions_outlier_logp_it_0)
-            mean_precisions_outlier_logp_it_1[k] = np.mean(precisions_outlier_logp_it_1)
-            # mean_precisions_outlier_logp_it_2[k] = np.mean(precisions_outlier_logp_it_2)
-            # mean_precisions_outlier_logp_it_3[k] = np.mean(precisions_outlier_logp_it_3)
+            mean_precisions_inlier_logp_it_0[k] = np.mean(precisions_inlier_logp_it_0)
+            mean_precisions_inlier_logp_it_1[k] = np.mean(precisions_inlier_logp_it_1)
+            # mean_precisions_inlier_logp_it_2[k] = np.mean(precisions_inlier_logp_it_2)
+            # mean_precisions_inlier_logp_it_3[k] = np.mean(precisions_inlier_logp_it_3)
             # mean_precisions_with_sequences[k] = np.mean(precisions_with_sequences)
             mean_precisions_baseline[k] = np.mean(precisions_baseline)
 
@@ -471,10 +479,10 @@ def path_results(data, options):
         # cache['mean_precisions_rm_cost_it_2'] = mean_precisions_rm_cost_it_2.tolist()
         # cache['mean_precisions_rm_cost_it_3'] = mean_precisions_rm_cost_it_3.tolist()
 
-        cache['mean_precisions_outlier_logp_it_0'] = mean_precisions_outlier_logp_it_0.tolist()
-        cache['mean_precisions_outlier_logp_it_1'] = mean_precisions_outlier_logp_it_1.tolist()
-        # cache['mean_precisions_outlier_logp_it_2'] = mean_precisions_outlier_logp_it_2.tolist()
-        # cache['mean_precisions_outlier_logp_it_3'] = mean_precisions_outlier_logp_it_3.tolist()
+        cache['mean_precisions_inlier_logp_it_0'] = mean_precisions_inlier_logp_it_0.tolist()
+        cache['mean_precisions_inlier_logp_it_1'] = mean_precisions_inlier_logp_it_1.tolist()
+        # cache['mean_precisions_inlier_logp_it_2'] = mean_precisions_inlier_logp_it_2.tolist()
+        # cache['mean_precisions_inlier_logp_it_3'] = mean_precisions_inlier_logp_it_3.tolist()
         cache['mean_precisions_baseline'] = mean_precisions_baseline.tolist()
 
         with open(cache_fn, 'w') as fout:
@@ -486,10 +494,10 @@ def path_results(data, options):
     # plt.plot(np.linspace(1,max_k,max_k), mean_precisions_rm_cost_it_2, linewidth=1.5, color='k', linestyle=':')
     # plt.plot(np.linspace(1,max_k,max_k), mean_precisions_rm_cost_it_3, linewidth=1, color='b', linestyle=':')
 
-    plt.plot(np.linspace(1,max_k,max_k), mean_precisions_outlier_logp_it_0, linewidth=2.5, color='k', linestyle='-.')
-    plt.plot(np.linspace(1,max_k,max_k), mean_precisions_outlier_logp_it_1, linewidth=2, color='b', linestyle='-.')
-    # plt.plot(np.linspace(1,max_k,max_k), mean_precisions_outlier_logp_it_2, linewidth=1.5, color='k', linestyle='-.')
-    # plt.plot(np.linspace(1,max_k,max_k), mean_precisions_outlier_logp_it_3, linewidth=1, color='b', linestyle='-.')
+    plt.plot(np.linspace(1,max_k,max_k), mean_precisions_inlier_logp_it_0, linewidth=2.5, color='k', linestyle='-.')
+    plt.plot(np.linspace(1,max_k,max_k), mean_precisions_inlier_logp_it_1, linewidth=2, color='b', linestyle='-.')
+    # plt.plot(np.linspace(1,max_k,max_k), mean_precisions_inlier_logp_it_2, linewidth=1.5, color='k', linestyle='-.')
+    # plt.plot(np.linspace(1,max_k,max_k), mean_precisions_inlier_logp_it_3, linewidth=1, color='b', linestyle='-.')
 
     plt.title('Ranking score of 2d embedding ({})'.format(data.data_path.split('/')[-2]), fontsize=options['fontsize'])
     plt.xlabel('Top k closest distances', fontsize=options['fontsize'])
@@ -517,7 +525,7 @@ def path_results(data, options):
 
     legend = ['Baseline (rmatches)', \
         'rmatches cost (Iteration 0)', 'rmatches cost (Iteration 1)',#, 'rmatches cost (Iteration 2)', 'rmatches cost (Iteration 3)', \
-        'outlier p (Iteration 0)', 'outlier p (Iteration 1)' #, 'outlier p (Iteration 2)', 'outlier p (Iteration 3)', \
+        'inlier p (Iteration 0)', 'inlier p (Iteration 1)' #, 'inlier p (Iteration 2)', 'inlier p (Iteration 3)', \
         ]
     # legend.extend(sequence_legends)
     plt.legend(legend,  loc='lower right',  shadow=True, fontsize=options['fontsize'])
@@ -638,26 +646,28 @@ def main():
     ]
 
     options = {
-        'datasets': 'TanksAndTemples',
+        # 'datasets': 'TanksAndTemples',
         # 'datasets': 'ETH3D',
         # 'datasets': 'UIUCTag',
+        'datasets': 'All',
         'plot': 'distance-based-thresholding',
         # 'plot': 'ranks',
         'image_matching_gt_threshold': 15,
         'balance': False,
         'mds_data_folder': 'data/mds-path-analysis',
-        'distance_thresholds': [0.3, 0.4, 0.5, 0.75, 1.0, 1.25],
+        'distance_thresholds': [0.3, 0.5, 0.75],
         # distance_thresholds': [0.5],
         # 'distance_thresholds': [ 0.75 ],
-        'shortest_path_label': 'rm-cost',
+        # 'sp_label': 'rm-cost',
+        'sp_label': 'inlier-logp',
         'PCA-n_components': 2,
         'MDS-n_components': 2,
         # 'edge_threshold': 10000000000,#1.0/10.0,
-        'distance_filter_value': 0.45,
+        'distance_filter_value': 0.5,
         'edge_threshold': {
             'rm-cost': '10000000000',
             'gt': '10000000000',
-            'outlier-logp': '1e-10',
+            'inlier-logp': '1e-10',
         },
         'lmds': False,
         'iteration': 0,
@@ -679,21 +689,24 @@ def main():
         # '/hdd/Research/psfm-iccv/data/temp-recons/ece_floor3_loop_ccw',
     ]
 
+    mkdir_p(options['mds_data_folder'])
     if options['datasets'] == 'UIUCTag':
         datasets = uiuctag_datasets #eth3d_datasets #datasets#tanks_and_temples_datasets
     elif options['datasets'] == 'TanksAndTemples':
         datasets = tanks_and_temples_datasets
     elif options['datasets'] == 'ETH3D':
         datasets = eth3d_datasets
+    elif options['datasets'] == 'All':
+        datasets = eth3d_datasets + tanks_and_temples_datasets + uiuctag_datasets
 
     if options['plot'] == 'distance-based-thresholding' and options['aggregate']:
-        mkdir_p(options['mds_data_folder'])
+        # mkdir_p(options['mds_data_folder'])
         for d in options['distance_thresholds']:
             options['distance_threshold'] = d
-            distance_thresholded_matching_results(datasets, options)
+            distance_thresholded_matching_results(datasets, options['sp_label'], options)
     elif options['plot'] == 'distance-based-thresholding':
-        mkdir_p(options['mds_data_folder'])
-        distance_thresholded_matching_results([parser_options.dataset], options)
+        # mkdir_p(options['mds_data_folder'])
+        distance_thresholded_matching_results([parser_options.dataset], options['sp_label'], options)
     elif options['aggregate']:
         for i,d in enumerate(datasets):
             data = dataset.DataSet(d)
