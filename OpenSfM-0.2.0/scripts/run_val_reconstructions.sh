@@ -18,5 +18,6 @@ for i in "${datasets[@]}"; do
       # c=$(echo "/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/$root/$sequence/");
       # echo $c
       bash ./scripts/run_reconstructions.sh $c $j $k > $c/output-$j.log 2>&1;
+    done;
   done;
 done
