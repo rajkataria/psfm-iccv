@@ -62,6 +62,13 @@ declare -A run103=(
 
 all_runs=(run99 run100 run101 run102 run103)
 
+for j in `seq 0 0`; do
+    if [ "$mode" == "calculate_features" ];then
+        ./bin/opensfm create_tracks $dataset
+        ./bin/opensfm calculate_features $dataset
+    fi
+done
+
 for run_name in "${all_runs[@]}"; do
     declare -n run_ref="$run_name"
     
@@ -114,44 +121,14 @@ for run_name in "${all_runs[@]}"; do
     grep "mds_k_closest_images_min:" $dataset/config.yaml
     grep "mds_k_closest_images_max:" $dataset/config.yaml
 
-	# if [ "$count" -eq -1 ]
-	# then
-
-	# ./bin/opensfm extract_metadata $dataset
-	# ./bin/opensfm detect_features $dataset
-	# ./bin/opensfm evaluate_vt_rankings $dataset
-	# ./bin/opensfm match_features $dataset
-	# ./bin/opensfm create_tracks $dataset
-
-	# 	# ./bin/opensfm classify_features $dataset
-	# 	# ./bin/opensfm match_fm_classifier_features $dataset
-	# 	# ./bin/opensfm calculate_features $dataset
-	# 	# ./bin/opensfm classify_images $dataset
-	# fi
-
-    if [ "$mode" == "calculate_features" ];then
-        ./bin/opensfm create_tracks $dataset
-        ./bin/opensfm calculate_features $dataset
-    fi
-
 	if [ "$mode" == "reconstruction" ];then
-		# ./bin/opensfm yan $dataset
-		./bin/opensfm create_tracks $dataset
 		./bin/opensfm create_tracks_classifier $dataset
 		./bin/opensfm reconstruct $dataset
 	fi
 
 	echo "************************************************************************************************************"
 	echo "************************************************************************************************************"
-	# (( count++ ));
 done
 
 # ./bin/opensfm convert_colmap $dataset
 ./bin/opensfm validate_results $dataset
-
-# for run in "${runs[@]}"
-# do
-# 	cmd="google-chrome"
-# 	url="http://localhost:8888/viewer/reconstruction.html#file="$dataset
-# 	echo $cmd" "$url"/"$run >> $dataset/chrome-commands.sh
-# done
