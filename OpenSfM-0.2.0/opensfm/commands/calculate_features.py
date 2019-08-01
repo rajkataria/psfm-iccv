@@ -40,6 +40,9 @@ class Command:
         ctx.blurred = True
         ctx.debug = False
         ctx.edge_thresholds = {'rm-cost': 10000000000, 'rm-seq-cost': 10000000000, 'inlier-logp': 0.0000000001}
+        # ctx.edge_thresholds = {'rm-cost': 0.0015, 'rm-seq-cost': 10000000000, 'inlier-logp': 0.0000000001}
+        # ctx.edge_thresholds = {'rm-cost': 0.0014, 'rm-seq-cost': 10000000000, 'inlier-logp': 0.0000000001}
+
         # classifier.calculate_consistency_errors(ctx)
         # classifier.create_image_matching_dataset(ctx)
         # import sys; sys.exit(1)
@@ -50,13 +53,16 @@ class Command:
         # classifier.create_image_matching_dataset(ctx)
 
         # classifier.calculate_multiple_motion_maps(ctx)
-        # classifier.calculate_image_keypoints(ctx)
+        classifier.calculate_image_keypoints(ctx)
         # import sys; sys.exit(1)
-
-        # classifier.calculate_sequence_ranks(ctx)
-        for dfv in [0.3, 0.45, 0.5]:
-            ctx.distance_filter_value = dfv
-            for i in range(0, 2):
+        classifier.calculate_nbvs(ctx)
+        classifier.calculate_sequence_ranks(ctx)
+        # for idfv in [0.5, 0.6, 0.7]:
+        for idfv in [0.6]:
+        # for idfv in [0.6, 0.7, 0.8, 0.9]:
+        # for idfv in [0.6]:
+            ctx.iteration_distance_filter_value = idfv
+            for i in range(0, 1):
                 ctx.iteration = i
                 logger.info('\tCalculating shortest paths...')
                 classifier.calculate_shortest_paths(ctx)

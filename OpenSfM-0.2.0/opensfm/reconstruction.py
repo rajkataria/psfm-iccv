@@ -23,6 +23,7 @@ from opensfm import matching
 from opensfm import multiview
 from opensfm import types
 from opensfm.context import parallel_map, current_memory_usage
+from sklearn.metrics import euclidean_distances
 
 
 logger = logging.getLogger(__name__)
@@ -893,6 +894,55 @@ def resectioning_using_classifier_weights(data, graph, reconstruction, images, f
             res.append((image, nbvs))
     return sorted(res, key=lambda x: -x[1])
 
+def resectioning_using_mds(data, graph, reconstruction, images):
+    options = data.mds_options
+    im_matching_results = data.load_image_matching_results(robust_matches_threshold=15, classifier='BASELINE')
+    im_mapping = {}
+    im_reverse_mapping = {}
+    reconstructed_images_indices = []
+    reconstructed_images = []
+    res = []
+
+    mds_positions = data.load_mds_positions(label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-idfv-{}'.format(options['sp_label'], options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'][options['sp_label']], options['lmds'], options['iteration'], options['iteration_distance_filter_value']))
+    mds_distance_matrix = euclidean_distances([mds_positions[im] for im in sorted(mds_positions.keys())])
+    for i,im in enumerate(sorted(mds_positions.keys())):
+        im_mapping[im] = i
+        im_reverse_mapping[i] = im
+
+    # Determine the indices of images that are already reconstructed
+    for i, image in enumerate(sorted(mds_positions.keys())):
+        if image in reconstruction.shots.keys():
+            reconstructed_images.append(image)
+            reconstructed_images_indices.append(i)
+
+    reconstructed_images_indices = np.array(reconstructed_images_indices)
+    reconstructed_images = np.array(reconstructed_images)
+    
+    # logger.info('*****************************************************************************************************************************************************************************')
+    # logger.info(reconstruction.shots.keys())
+    # logger.info('*****************************************************************************************************************************************************************************')
+    for image in images:
+        if image in reconstruction.shots.keys():
+            continue
+        # import pdb; pdb.set_trace()
+        # if image == 'DSC_1810.JPG':
+        #     import pdb; pdb.set_trace()
+
+        try:
+            distance_to_reconstructed_images = np.sum(np.sum(mds_distance_matrix[im_mapping[image], reconstructed_images_indices]))
+        except:
+            import pdb; pdb.set_trace()
+
+        res.append([image, distance_to_reconstructed_images])
+    #     logger.info('#######################################################################################################################')
+    #     logger.info('{} : {}'.format(image, distance_to_reconstructed_images))
+    #     for reconstructed_image in reconstructed_images:
+    #         logger.info('\t\t{} / {} : {} : {}'.format(image, reconstructed_images, im_matching_results[image][reconstructed_image]['score'], im_matching_results[image][reconstructed_image]['num_rmatches']))
+    #     logger.info('#######################################################################################################################')
+    # import sys; sys.exit(1)
+    # import pdb; pdb.set_trace()
+    return sorted(res, key=lambda x: x[1])
+
 def reconstructed_weighted_points_for_images(data, graph, reconstruction, images):#, im_matches, im_match_scores):
     """Number of reconstructed points visible on each image.
 
@@ -1029,7 +1079,101 @@ def resect(data, graph, reconstruction, shot_id):
     else:
         return False, report
 
+def resect_mds(data, graph, reconstruction, shot_id):
+    """Try resecting and adding a shot to the reconstruction.
 
+    Return:
+        True on success.
+    """
+    exif = data.load_exif(shot_id)
+    camera = reconstruction.cameras[exif['camera']]
+    options = data.mds_options
+    im_mapping = {}
+    im_reverse_mapping = {}
+    reconstructed_images_indices = []
+    reconstructed_images = []
+
+    mds_positions = data.load_mds_positions(label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-idfv-{}'.format(options['sp_label'], options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'][options['sp_label']], options['lmds'], options['iteration'], options['iteration_distance_filter_value']))
+    mds_distance_matrix = euclidean_distances([mds_positions[im] for im in sorted(mds_positions.keys())])
+
+    for i,im in enumerate(sorted(mds_positions.keys())):
+        im_mapping[im] = i
+        im_reverse_mapping[i] = im
+
+    # Determine the indices of images that are already reconstructed
+    for i, image in enumerate(sorted(mds_positions.keys())):
+        if image in reconstruction.shots:
+            reconstructed_images.append(image)
+            reconstructed_images_indices.append(i)
+
+    reconstructed_images_indices = np.array(reconstructed_images_indices)
+    reconstructed_images = np.array(reconstructed_images)
+
+    distance_from_shot = mds_distance_matrix[im_mapping[shot_id], reconstructed_images_indices]
+    order = np.argsort(distance_from_shot)
+    
+    closest_distances = distance_from_shot[order][:data.config['mds_k_closest_images']]
+    closest_images = reconstructed_images[order][:data.config['mds_k_closest_images']]
+
+    bs = []
+    Xs = []
+    bs_original = []
+    Xs_original = []
+    for track in graph[shot_id]:
+        if track in reconstruction.points and set(graph[track].keys()).intersection(set(closest_images)) >= 1:
+            x = graph[track][shot_id]['feature']
+            b = camera.pixel_bearing(x)
+            bs.append(b)
+            Xs.append(reconstruction.points[track].coordinates)
+
+        if track in reconstruction.points:
+            x_original = graph[track][shot_id]['feature']
+            b_original = camera.pixel_bearing(x_original)
+            bs_original.append(b_original)
+            Xs_original.append(reconstruction.points[track].coordinates)
+
+    # if len(bs_original) >= 40:
+    #     import pdb; pdb.set_trace()
+
+    bs = np.array(bs)
+    Xs = np.array(Xs)
+    if len(bs) < 5:
+        return False, {'num_common_points': len(bs)}
+
+    threshold = data.config['resection_threshold']
+    T = pyopengv.absolute_pose_ransac(
+        bs, Xs, "KNEIP", 1 - np.cos(threshold), 10000)
+
+    R = T[:, :3]
+    t = T[:, 3]
+
+    reprojected_bs = R.T.dot((Xs - t).T).T
+    reprojected_bs /= np.linalg.norm(reprojected_bs, axis=1)[:, np.newaxis]
+
+    inliers = np.linalg.norm(reprojected_bs - bs, axis=1) < threshold
+    ninliers = int(sum(inliers))
+
+    logger.info("{} resection inliers: {} / {}".format(
+        shot_id, ninliers, len(bs)))
+    report = {
+        'num_common_points': len(bs),
+        'num_inliers': ninliers,
+    }
+    if ninliers >= data.config['resection_min_inliers']:
+        R = T[:, :3].T
+        t = -R.dot(T[:, 3])
+        shot = types.Shot()
+        shot.id = shot_id
+        shot.camera = camera
+        shot.pose = types.Pose()
+        shot.pose.set_rotation_matrix(R)
+        shot.pose.translation = t
+        shot.metadata = get_image_metadata(data, shot_id)
+        reconstruction.add_shot(shot)
+        bundle_single_view(graph, reconstruction, shot_id, data.config)
+        return True, report
+    else:
+        return False, report
 class TrackTriangulator:
     """Triangulate tracks in a reconstruction.
 
@@ -1425,6 +1569,20 @@ def grow_reconstruction(data, graph, reconstruction, images, gcp):
     }
     fm_cache = {}
 
+    data.mds_options = {
+        'sp_label': 'rm-cost',
+        'PCA-n_components': 2,
+        'MDS-n_components': 2,
+        'iteration_distance_filter_value': 0.6,
+        'edge_threshold': {
+            'rm-cost': '10000000000',
+            'gt': '10000000000',
+            'inlier-logp': '1e-10',
+        },
+        'lmds': False,
+        'iteration': 0,
+        'debug': True
+    }
     while True:
         if data.config['save_partial_reconstructions']:
             paint_reconstruction(data, graph, reconstruction)
@@ -1441,6 +1599,9 @@ def grow_reconstruction(data, graph, reconstruction, images, gcp):
         elif data.config.get('use_weighted_resectioning', 'colmap') == 'tws':
             logger.info('Using weighted resectioning using tracks weighted score')
             common_tracks = resectioning_using_classifier_weights(data, graph, reconstruction, images, fm_cache)
+        elif data.config.get('use_weighted_resectioning', 'colmap') == 'mds':
+            logger.info('Using weighted resectioning using MDS embedding')
+            common_tracks = resectioning_using_mds(data, graph, reconstruction, images)
         else:
             logger.info('Using original resectioning')
             common_tracks = reconstructed_points_for_images(graph, reconstruction, images)
@@ -1451,7 +1612,10 @@ def grow_reconstruction(data, graph, reconstruction, images, gcp):
 
         logger.info("-------------------------------------------------------")
         for image, num_tracks in common_tracks:
-            ok, resrep = resect(data, graph, reconstruction, image)
+            if data.config.get('use_weighted_resectioning', 'colmap') == 'mds':
+                ok, resrep = resect_mds(data, graph, reconstruction, image)
+            else:
+                ok, resrep = resect(data, graph, reconstruction, image)
             resectioning_order_attempted.append(image)
             if ok:
                 logger.info("Adding {0} to the reconstruction".format(image))
@@ -1512,13 +1676,16 @@ def grow_reconstruction(data, graph, reconstruction, images, gcp):
     #     data.config['closest_images_top_k'], \
     #     data.config['use_yan_disambiguation']
     #     )
-    run_name = 'imc-{}-fm-{}-wr-{}-resc-{}-udt-{}-dt-{}-recc-{}.json'.format(\
+    run_name = 'imc-{}-fm-{}-wr-{}-resc-{}-udt-{}-dt-{}-mkcip-{}-mkcimin-{}-mkcimax-{}-recc-{}.json'.format(\
         data.config['use_image_matching_classifier'], \
         data.config['use_feature_matching_classifier'], \
         data.config['use_weighted_resectioning'], \
         data.config['resectioning_config'], \
         data.config['use_distance_threshold'], \
         data.config['distance_threshold_value'], \
+        data.config['mds_k_closest_images_percentage'], \
+        data.config['mds_k_closest_images_min'], \
+        data.config['mds_k_closest_images_max'], \
         data.config['reconstruction_counter'], \
         )
     data.save_resectioning_order(resectioning_order, run=run_name)
@@ -1546,7 +1713,7 @@ def incremental_reconstruction(data):
     #     graph = data.load_tracks_graph('tracks-all-matches.csv')
     
     if data.config.get('use_distance_threshold', False):
-        graph = data.load_tracks_graph('tracks-distance-thresholded-matches-{}.csv'.format(data.config['distance_threshold_value']))
+        graph = data.load_tracks_graph('tracks-mkcip-{}-mkcimin-{}-mkcimax-{}.csv'.format(data.config['mds_k_closest_images_percentage'], data.config['mds_k_closest_images_min'], data.config['mds_k_closest_images_max']))
     else:
         graph = data.load_tracks_graph('tracks.csv')
 
@@ -1599,6 +1766,7 @@ def incremental_reconstruction(data):
     reconstructions = []
     if data.config.get('use_weighted_resectioning', 'colmap') == 'tws' or \
         data.config.get('use_weighted_resectioning', 'colmap') == 'tc' or \
+        data.config.get('use_weighted_resectioning', 'colmap') == 'mds' or \
         data.config.get('use_weighted_resectioning', 'colmap') == 'colmap':
 
         pairs = compute_image_pairs_colmap(common_tracks, data)
@@ -1639,13 +1807,16 @@ def incremental_reconstruction(data):
                 #     data.config['closest_images_top_k'], \
                 #     data.config['use_yan_disambiguation']
                 #     )
-                reconstruction_fn = 'reconstruction-imc-{}-fm-{}-wr-{}-resc-{}-udt-{}-dt-{}-recc-{}.json'.format(\
+                reconstruction_fn = 'reconstruction-imc-{}-fm-{}-wr-{}-resc-{}-udt-{}-dt-{}-mkcip-{}-mkcimin-{}-mkcimax-{}-recc-{}.json'.format(\
                     data.config['use_image_matching_classifier'], \
                     data.config['use_feature_matching_classifier'], \
                     data.config['use_weighted_resectioning'], \
                     data.config['resectioning_config'], \
                     data.config['use_distance_threshold'], \
                     data.config['distance_threshold_value'], \
+                    data.config['mds_k_closest_images_percentage'], \
+                    data.config['mds_k_closest_images_min'], \
+                    data.config['mds_k_closest_images_max'], \
                     data.config['reconstruction_counter'], \
                     )
                 data.save_reconstruction(reconstructions, filename=reconstruction_fn)

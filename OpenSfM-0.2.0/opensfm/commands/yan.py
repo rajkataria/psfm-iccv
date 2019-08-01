@@ -28,6 +28,12 @@ class Command:
         tracks_graph = data.load_tracks_graph('tracks.csv')
 
         G, iconic_images, non_iconic_images = network_construction(data, tracks_graph) # path network
+        # print ('*'*100)
+        # print ('Iconic images: {}'.format(iconic_images))
+        # print ('#'*100)
+        # print ('Non-iconic images: {}'.format(non_iconic_images))
+        # print ('='*100)
+        # import sys; sys.exit(1)
         tracks_graph_regenerated = track_regeneration(data, G, tracks_graph, iconic_images, non_iconic_images)
         data.save_tracks_graph(tracks_graph_regenerated, 'tracks-yan.csv')
         
