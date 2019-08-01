@@ -319,6 +319,8 @@ def calculate_reconstruction_results(data, graph, reconstruction, options, comma
         for key in times:
             total_time = total_time + times[key]
 
+    if count == 0:
+        count = 0.0001
 
     results = {
         'dataset': os.path.basename(os.path.normpath(data.data_path)),
