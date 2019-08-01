@@ -1,7 +1,8 @@
 dataset=$1
 c_reconstruction_counter=${2:-0}
 
-mode="calculate_features"
+mode=$3
+# mode="calculate_features"
 # mode="reconstruction"
 
 echo "############################################################################################################"

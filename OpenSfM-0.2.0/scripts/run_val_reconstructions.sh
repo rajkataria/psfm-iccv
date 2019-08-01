@@ -6,15 +6,17 @@ declare -a duplicate_structures_datasets=("DuplicateStructures/alexander_nevsky_
 declare -a tanksandtemples_datasets=("TanksAndTemples/Ballroom" "TanksAndTemples/Barn" "TanksAndTemples/Meetingroom" "TanksAndTemples/Museum")
 
 datasets=( "${yan_datasets[@]}" "${eth3d_datasets[@]}" "${uiuctag_datasets[@]}" "${duplicate_structures_datasets[@]}" "${tanksandtemples_datasets[@]}" )
+modes=( "calculate_features" "reconstruction" )
 
 for i in "${datasets[@]}"; do
   for j in `seq 0 0`; do
-    dset=(${i//// });
-    root=${dset[0]};
-    sequence=${dset[1]};
-    c=$(echo "/home/ubuntu/Results/completed-classifier-datasets-bruteforce/$root/$sequence/");
-    # c=$(echo "/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/$root/$sequence/");
-    # echo $c
-    bash ./scripts/run_reconstructions.sh $c $j > $c/output-$j.log 2>&1;
+    for k in "${modes[@]}"; do
+      dset=(${i//// });
+      root=${dset[0]};
+      sequence=${dset[1]};
+      c=$(echo "/home/ubuntu/Results/completed-classifier-datasets-bruteforce/$root/$sequence/");
+      # c=$(echo "/hdd/Research/psfm-iccv/data/classifier-datasets-bruteforce/$root/$sequence/");
+      # echo $c
+      bash ./scripts/run_reconstructions.sh $c $j $k > $c/output-$j.log 2>&1;
   done;
 done
