@@ -150,7 +150,7 @@ mds_k_closest_images_max: 12
 resectioning_config: NA                         # NA, im, fm, th, depth
 reconstruction_counter: 0
 use_distance_threshold: no
-use_distance_threshold: yes
+#use_distance_threshold: yes
 distance_threshold_value: 0.6
 # distance_threshold_value: 0.5
 # distance_threshold_value: 0.4

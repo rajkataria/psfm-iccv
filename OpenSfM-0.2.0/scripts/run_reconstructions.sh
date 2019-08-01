@@ -130,6 +130,7 @@ for run_name in "${all_runs[@]}"; do
 	# fi
 
     if [ "$mode" == "calculate_features" ];then
+        ./bin/opensfm create_tracks $dataset
         ./bin/opensfm calculate_features $dataset
     fi
 
