@@ -137,36 +137,36 @@ def get_gt_results(data, options):
     relevant_reconstructions = []
 
     if data.image_matching_dataset_exists(options['robust_matches_threshold']):
-        _fns, [_R11s, _R12s, _R13s, _R21s, _R22s, _R23s, _R31s, _R32s, _R33s, _num_rmatches, _num_matches, _spatial_entropy_1_8x8, \
-            _spatial_entropy_2_8x8, _spatial_entropy_1_16x16, _spatial_entropy_2_16x16, _pe_histogram, _pe_polygon_area_percentage, \
-            _nbvs_im1, _nbvs_im2, _te_histogram, _ch_im1, _ch_im2, _vt_rank_percentage_im1_im2, _vt_rank_percentage_im2_im1, \
-            _sq_rank_scores_mean, _sq_rank_scores_min, _sq_rank_scores_max, _sq_distance_scores, \
-            _lcc_im1_15, _lcc_im2_15, _min_lcc_15, _max_lcc_15, \
-            _lcc_im1_20, _lcc_im2_20, _min_lcc_20, _max_lcc_20, \
-            _lcc_im1_25, _lcc_im2_25, _min_lcc_25, _max_lcc_25, \
-            _lcc_im1_30, _lcc_im2_30, _min_lcc_30, _max_lcc_30, \
-            _lcc_im1_35, _lcc_im2_35, _min_lcc_35, _max_lcc_35, \
-            _lcc_im1_40, _lcc_im2_40, _min_lcc_40, _max_lcc_40, \
-            _shortest_path_length, \
-            _mds_rank_percentage_im1_im2, _mds_rank_percentage_im2_im1, \
-            _distance_rank_percentage_im1_im2_gt, _distance_rank_percentage_im2_im1_gt, \
-            _num_gt_inliers, _labels] \
-            = data.load_image_matching_dataset(robust_matches_threshold=options['robust_matches_threshold'])
-        image_matching_results = data.load_image_matching_results(options['robust_matches_threshold'], 'BASELINE')
-
-        fns = []
-        y_gt = []
-        y = []
-        num_rmatches = []
-        for im1 in image_matching_results:
-            for im2 in image_matching_results[im1]:
-                fns.append([im1,im2])
-                y.append(image_matching_results[im1][im2]['score'])
-                ri = np.where((_fns[:,0] == im1) & (_fns[:,1] == im2) | (_fns[:,1] == im1) & (_fns[:,0] == im2))
-                y_gt.append(_labels[ri])
-                num_rmatches.append(_num_rmatches[ri])
-
         try:
+            _fns, [_R11s, _R12s, _R13s, _R21s, _R22s, _R23s, _R31s, _R32s, _R33s, _num_rmatches, _num_matches, _spatial_entropy_1_8x8, \
+                _spatial_entropy_2_8x8, _spatial_entropy_1_16x16, _spatial_entropy_2_16x16, _pe_histogram, _pe_polygon_area_percentage, \
+                _nbvs_im1, _nbvs_im2, _te_histogram, _ch_im1, _ch_im2, _vt_rank_percentage_im1_im2, _vt_rank_percentage_im2_im1, \
+                _sq_rank_scores_mean, _sq_rank_scores_min, _sq_rank_scores_max, _sq_distance_scores, \
+                _lcc_im1_15, _lcc_im2_15, _min_lcc_15, _max_lcc_15, \
+                _lcc_im1_20, _lcc_im2_20, _min_lcc_20, _max_lcc_20, \
+                _lcc_im1_25, _lcc_im2_25, _min_lcc_25, _max_lcc_25, \
+                _lcc_im1_30, _lcc_im2_30, _min_lcc_30, _max_lcc_30, \
+                _lcc_im1_35, _lcc_im2_35, _min_lcc_35, _max_lcc_35, \
+                _lcc_im1_40, _lcc_im2_40, _min_lcc_40, _max_lcc_40, \
+                _shortest_path_length, \
+                _mds_rank_percentage_im1_im2, _mds_rank_percentage_im2_im1, \
+                _distance_rank_percentage_im1_im2_gt, _distance_rank_percentage_im2_im1_gt, \
+                _num_gt_inliers, _labels] \
+                = data.load_image_matching_dataset(robust_matches_threshold=options['robust_matches_threshold'])
+            image_matching_results = data.load_image_matching_results(options['robust_matches_threshold'], 'BASELINE')
+
+            fns = []
+            y_gt = []
+            y = []
+            num_rmatches = []
+            for im1 in image_matching_results:
+                for im2 in image_matching_results[im1]:
+                    fns.append([im1,im2])
+                    y.append(image_matching_results[im1][im2]['score'])
+                    ri = np.where((_fns[:,0] == im1) & (_fns[:,1] == im2) | (_fns[:,1] == im1) & (_fns[:,0] == im2))
+                    y_gt.append(_labels[ri])
+                    num_rmatches.append(_num_rmatches[ri])
+
             auc, auc_roc, pr, roc = classifier.calculate_dataset_auc(np.array(y), np.array(y_gt), debug=False)
             _, _, f_auc, _ = classifier.calculate_per_image_mean_auc(np.array(fns), np.array(y), np.array(y_gt), debug=False)
 
