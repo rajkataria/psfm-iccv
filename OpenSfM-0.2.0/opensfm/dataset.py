@@ -462,8 +462,8 @@ class DataSet:
     def __rmatches_secondary_file(self, image):
         return os.path.join(self.__rmatches_secondary_path(), '{}_rmatches_secondary.pkl.gz'.format(image))
 
-    def __graph_file(self, graph_label, edge_threshold, iteration, idfv):
-        return os.path.join(self.__classifier_features_graph_path(), 'graph-{}-et-{}-it-{}-idfv-{}.gpickle'.format(graph_label, edge_threshold, iteration, idfv))
+    def __graph_file(self, graph_label, edge_threshold, iteration, idfv, ust):
+        return os.path.join(self.__classifier_features_graph_path(), 'graph-{}-et-{}-it-{}-idfv-{}-ust-{}.gpickle'.format(graph_label, edge_threshold, iteration, idfv, ust))
 
     def __all_matches_file(self, image):
         """File for all matches for an image"""
@@ -622,30 +622,30 @@ class DataSet:
     def __non_iconic_image_list_file(self, ext):
         return os.path.join(self.__yan_path(), 'non_iconic_images.{}'.format(ext))
 
-    def graph_exists(self, graph_label, edge_threshold, iteration, idfv):
-        return os.path.isfile(self.__graph_file(graph_label, edge_threshold, iteration, idfv))
+    def graph_exists(self, graph_label, edge_threshold, iteration, idfv, ust):
+        return os.path.isfile(self.__graph_file(graph_label, edge_threshold, iteration, idfv, ust))
 
-    def load_graph(self, graph_label, edge_threshold, iteration, idfv):
-        return nx.read_gpickle(self.__graph_file(graph_label, edge_threshold, iteration, idfv))
+    def load_graph(self, graph_label, edge_threshold, iteration, idfv, ust):
+        return nx.read_gpickle(self.__graph_file(graph_label, edge_threshold, iteration, idfv, ust))
 
-    def save_graph(self, G, graph_label, edge_threshold, iteration, idfv):
+    def save_graph(self, G, graph_label, edge_threshold, iteration, idfv, ust):
         io.mkdir_p(self.__classifier_features_graph_path())
-        nx.write_gpickle(G, self.__graph_file(graph_label, edge_threshold, iteration, idfv))
+        nx.write_gpickle(G, self.__graph_file(graph_label, edge_threshold, iteration, idfv, ust))
 
-    def save_shortest_paths(self, im, shortest_paths, label, edge_threshold, iteration, idfv):
+    def save_shortest_paths(self, im, shortest_paths, label, edge_threshold, iteration, idfv, ust):
         io.mkdir_p(self.__classifier_features_shortest_paths_path())
-        with gzip.open(self.__feature_shortest_paths_file(im, label='{}-edge_threshold-{}-it-{}-idfv-{}'.format(label, edge_threshold, iteration, idfv), ext='pkl.gz'), 'wb') as fout:
+        with gzip.open(self.__feature_shortest_paths_file(im, label='{}-edge_threshold-{}-it-{}-idfv-{}-ust-{}'.format(label, edge_threshold, iteration, idfv, ust), ext='pkl.gz'), 'wb') as fout:
             pickle.dump(shortest_paths, fout)
-        with open(self.__feature_shortest_paths_file(im, label='{}-edge_threshold-{}-it-{}-idfv-{}'.format(label, edge_threshold, iteration, idfv), ext='json'), 'w') as fout:
+        with open(self.__feature_shortest_paths_file(im, label='{}-edge_threshold-{}-it-{}-idfv-{}-ust-{}'.format(label, edge_threshold, iteration, idfv, ust), ext='json'), 'w') as fout:
             json.dump(shortest_paths, fout, sort_keys=True, indent=4, separators=(',', ': '))
 
-    def load_shortest_paths(self, im, label, edge_threshold, iteration, idfv):
-        with gzip.open(self.__feature_shortest_paths_file(im, label='{}-edge_threshold-{}-it-{}-idfv-{}'.format(label, edge_threshold, iteration, idfv)), 'rb') as fin:
+    def load_shortest_paths(self, im, label, edge_threshold, iteration, idfv, ust):
+        with gzip.open(self.__feature_shortest_paths_file(im, label='{}-edge_threshold-{}-it-{}-idfv-{}-ust-{}'.format(label, edge_threshold, iteration, idfv, ust)), 'rb') as fin:
             shortest_paths = pickle.load(fin)
         return shortest_paths
     
-    def shortest_paths_exists(self, im, label, edge_threshold, iteration, idfv):
-        return os.path.isfile(self.__feature_shortest_paths_file(im, label='{}-edge_threshold-{}-it-{}-idfv-{}'.format(label, edge_threshold, iteration, idfv)))
+    def shortest_paths_exists(self, im, label, edge_threshold, iteration, idfv, ust):
+        return os.path.isfile(self.__feature_shortest_paths_file(im, label='{}-edge_threshold-{}-it-{}-idfv-{}-ust-{}'.format(label, edge_threshold, iteration, idfv. ust)))
 
     def matches_exists(self, image):
         return os.path.isfile(self.__matches_file(image))
@@ -986,7 +986,7 @@ class DataSet:
             results = pickle.load(fin)
         return results
     
-    def load_matches_using_tracks_graph(self, max_track_length=None):
+    def load_matches_using_tracks_graph(self, soft_track_scores, max_track_length=None):
         graph = self.load_tracks_graph()
         im_matches = {}
         im_matches_scores = {}
@@ -997,7 +997,7 @@ class DataSet:
             # import pdb; pdb.set_trace()
 
             for t in graph[im1].keys():
-                if len(graph[t].keys()) > max_track_length:
+                if max_track_length is not None and len(graph[t].keys()) > max_track_length:
                     continue
 
                 for im2 in graph[t].keys():
@@ -1011,7 +1011,10 @@ class DataSet:
                     # if im1 not in im_matches[im2]:
                     #     im_matches[im2][im1] = 0
 
-                    im_matches[im1][im2] += 1
+                    if soft_track_scores:
+                        im_matches[im1][im2] += np.power(0.5, len(graph[t].keys()) - 2)
+                    else:
+                        im_matches[im1][im2] += 1
                     # im_matches[im2][im1] += 1
         # print (json.dumps(im_matches, sort_keys=True, indent=4, separators=(',', ': ')))
         # import pdb; pdb.set_trace()

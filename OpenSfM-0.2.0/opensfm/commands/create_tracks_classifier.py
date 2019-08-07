@@ -1,4 +1,8 @@
 import logging
+import networkx as nx
+import numpy as np
+import os
+import opensfm 
 from timeit import default_timer as timer
 
 from networkx.algorithms import bipartite
@@ -33,16 +37,27 @@ class Command:
             'edge_threshold': 10000000000,
             'lmds': False,
             'iteration': 0,
-            'iteration_distance_filter_value': 0.6
+            'iteration_distance_filter_value': 0.6,
+            'use_soft_tracks': data.config['use_soft_tracks'],
+            'debug': False if 'aws' in os.uname()[2] else True
         }
         
         # matches_pruned = self.load_pruned_matches(data, spl=2, options=options)
         # matches_distance_pruned = self.load_distance_pruned_matches(data, options=options)
         # matches_distance_w_seq_pruned = self.load_distance_w_seq_pruned_matches(data, options=options)
+        
+
         matches_all = self.load_all_matches(data, options=options)
         # matches_thresholded = self.load_thresholded_matches(data, options=options)
         # matches_pruned_thresholded = self.load_pruned_thresholded_matches(data, spl=2, options=options)
+        matches_closest_images_thresholded = self.load_closest_images_thresholded_matches(data, options=options)
         matches_distance_thresholded = self.load_distance_thresholded_matches(data, options=options)
+        matches_distance_ratio_thresholded = self.load_distance_ratio_thresholded_matches(data, options=options)
+        matches_mst_adaptive_distance_thresholded = self.load_mst_adaptive_distance_thresholded_matches(data, options=options)
+       
+        
+        
+
         # matches_distance_w_seq_pruned_thresholded = self.load_distance_w_seq_pruned_thresholded_matches(data, options=options)
         # matches_all_weighted = self.load_all_weighted_matches(data, options=options)
         # matches_thresholded_weighted = self.load_thresholded_weighted_matches(data, options=options)
@@ -78,9 +93,24 @@ class Command:
         # logger.info('Creating tracks graph using pruned thresholded matches')
         # tracks_graph_pruned_thresholded = matching.create_tracks_graph(features, colors, matches_pruned_thresholded,
         #                                             data.config)
+        logger.info('Creating tracks graph using closest images thresholded matches')
+        tracks_graph_closest_images_thresholded = matching.create_tracks_graph(features, colors, matches_closest_images_thresholded,
+                                                    data.config)
+
         logger.info('Creating tracks graph using distance thresholded matches')
         tracks_graph_distance_thresholded = matching.create_tracks_graph(features, colors, matches_distance_thresholded,
                                                     data.config)
+
+        logger.info('Creating tracks graph using distance ratio thresholded matches')
+        tracks_graph_distance_ratio_thresholded = matching.create_tracks_graph(features, colors, matches_distance_ratio_thresholded,
+                                                    data.config)
+        
+        logger.info('Creating tracks graph using MST and adaptive distance thresholded matches')
+        tracks_graph_mst_adaptive_distance_thresholded = matching.create_tracks_graph(features, colors, matches_mst_adaptive_distance_thresholded,
+                                                    data.config)
+        
+        # tracks_graph_distance_ratio_thresholded = self.create_distance_ratio_thresholded_tracks_graph(data, options=options)
+
         # logger.info('Creating tracks graph using distance with sequences pruned thresholded matches')
         # tracks_graph_distance_w_seq_pruned_thresholded = matching.create_tracks_graph(features, colors, matches_distance_w_seq_pruned_thresholded,
         #                                             data.config)
@@ -128,8 +158,29 @@ class Command:
         # data.save_tracks_graph(tracks_graph_pruned_thresholded, 'tracks-pruned-thresholded-matches.csv')
         
         # data.save_tracks_graph(tracks_graph_distance_thresholded, 'tracks-distance-thresholded-matches-{}.csv'.format(data.config['distance_threshold_value']))
-        data.save_tracks_graph(tracks_graph_distance_thresholded, 'tracks-mkcip-{}-mkcimin-{}-mkcimax-{}.csv'.format(data.config['mds_k_closest_images_percentage'], data.config['mds_k_closest_images_min'], data.config['mds_k_closest_images_max']))
+        data.save_tracks_graph(tracks_graph_closest_images_thresholded, 'tracks-mdstc-closest-images-mdstv-{}-mkcip-{}-mkcimin-{}-mkcimax-{}-ust-{}.csv'.format( \
+            data.config['mds_threshold_value'], data.config['mds_k_closest_images_percentage'], data.config['mds_k_closest_images_min'], data.config['mds_k_closest_images_max'], \
+            data.config['use_soft_tracks']
+            )
+        )
 
+        data.save_tracks_graph(tracks_graph_distance_thresholded, 'tracks-mdstc-distance-mdstv-{}-mkcip-{}-mkcimin-{}-mkcimax-{}-ust-{}.csv'.format( \
+            data.config['mds_threshold_value'], data.config['mds_k_closest_images_percentage'], data.config['mds_k_closest_images_min'], data.config['mds_k_closest_images_max'], \
+            data.config['use_soft_tracks']
+            )
+        )
+
+        data.save_tracks_graph(tracks_graph_distance_ratio_thresholded, 'tracks-mdstc-distance-ratio-mdstv-{}-mkcip-{}-mkcimin-{}-mkcimax-{}-ust-{}.csv'.format( \
+            data.config['mds_threshold_value'], data.config['mds_k_closest_images_percentage'], data.config['mds_k_closest_images_min'], data.config['mds_k_closest_images_max'], \
+            data.config['use_soft_tracks']
+            )
+        )
+
+        data.save_tracks_graph(tracks_graph_mst_adaptive_distance_thresholded, 'tracks-mdstc-mst-adaptive-distance-mdstv-{}-mkcip-{}-mkcimin-{}-mkcimax-{}-ust-{}.csv'.format( \
+            data.config['mds_threshold_value'], data.config['mds_k_closest_images_percentage'], data.config['mds_k_closest_images_min'], data.config['mds_k_closest_images_max'], \
+            data.config['use_soft_tracks']
+            )
+        )
 
         # data.save_tracks_graph(tracks_graph_distance_w_seq_pruned_thresholded, 'tracks-distance-w-seq-pruned-thresholded-matches.csv')
         # data.save_tracks_graph(tracks_graph_all_weighted, 'tracks-all-weighted-matches.csv')
@@ -333,12 +384,12 @@ class Command:
                     matches[im1, im2] = im1_matches[im2]
         return matches    
 
-    def load_distance_thresholded_matches(self, data, options):
+    def load_closest_images_thresholded_matches(self, data, options):
         matches = {}
         robust_matching_min_match = data.config['robust_matching_min_match']
-        mds_positions = data.load_mds_positions(label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-idfv-{}'.format(options['shortest_path_label'], options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds'], options['iteration'], options['iteration_distance_filter_value']))
+        mds_positions = data.load_mds_positions(label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-idfv-{}-ust-{}'.format(options['shortest_path_label'], options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds'], options['iteration'], options['iteration_distance_filter_value'], options['use_soft_tracks']))
         for im1 in sorted(data.all_feature_maps()):
-            closest_images = data.load_closest_images(im1, label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-idfv-{}'.format(options['shortest_path_label'], options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds'], options['iteration'], options['iteration_distance_filter_value']))
+            closest_images = data.load_closest_images(im1, label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-idfv-{}-ust-{}'.format(options['shortest_path_label'], options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds'], options['iteration'], options['iteration_distance_filter_value'], options['use_soft_tracks']))
             try:
                 im1_matches = data.load_matches(im1)
             except IOError:
@@ -350,6 +401,245 @@ class Command:
                 if len(im1_matches[im2]) >= robust_matching_min_match and closest_images.index(im2) <= min(max(data.config['mds_k_closest_images_min'], len(data.all_feature_maps()) * data.config['mds_k_closest_images_percentage']), data.config['mds_k_closest_images_max']):
                     matches[im1, im2] = im1_matches[im2]
         return matches
+
+    def load_mst_adaptive_distance_thresholded_matches(self, data, options):
+        im_mapping = {}
+        im_reverse_mapping = {}
+        mds_pairwise_distances = {}
+        matches = {}
+        robust_matching_min_match = data.config['robust_matching_min_match']
+
+        mds_positions = data.load_mds_positions(label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-idfv-{}-ust-{}'.format(options['shortest_path_label'], options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds'], options['iteration'], options['iteration_distance_filter_value'], options['use_soft_tracks']))
+        mds_distance_matrix = euclidean_distances([mds_positions[im] for im in sorted(mds_positions.keys())])
+        for i,im in enumerate(sorted(mds_positions.keys())):
+            im_mapping[im] = i
+            im_reverse_mapping[i] = im
+
+        for i, im1 in enumerate(sorted(mds_positions.keys())):
+            try:
+                im1_matches = data.load_matches(im1)
+            except IOError:
+                continue
+            for j, im2 in enumerate(sorted(mds_positions.keys())):
+                if j <= i:
+                    continue
+
+                if im1 not in mds_pairwise_distances:
+                    mds_pairwise_distances[im1] = {}
+                if im2 not in mds_pairwise_distances:
+                    mds_pairwise_distances[im2] = {}
+
+                if im2 in im1_matches and len(im1_matches[im2]) >= robust_matching_min_match:
+                    mds_pairwise_distances[im1][im2] = mds_distance_matrix[im_mapping[im1], im_mapping[im2]]
+                    mds_pairwise_distances[im2][im1] = mds_distance_matrix[im_mapping[im2], im_mapping[im1]]
+
+        G = opensfm.commands.formulate_graphs.formulate_graph([data, sorted(mds_positions.keys()), mds_pairwise_distances, 'mds-distances', 0.000000001])
+        G = nx.minimum_spanning_tree(G)
+        if options['debug']:
+            opensfm.commands.formulate_graphs.draw_graph(G, os.path.join(data.data_path, 'results', 'graph-{}-it-{}-idfv-{}.png'.format('mds-distances', 'NA', 'NA')), highlighted_nodes=[], layout='spring', title=None)
+
+        mean_edge_weight = 1.0 * np.mean([e['weight'] for im1, im2, e in G.edges(data=True)])
+        max_edge_weight = 1.0 * max([e['weight'] for im1, im2, e in G.edges(data=True)])
+        median_edge_weight = 1.0 * np.median([e['weight'] for im1, im2, e in G.edges(data=True)])
+
+        print ('median weight: {}  mean weight: {}  max weight: {}'.format(median_edge_weight, mean_edge_weight, max_edge_weight))
+        # import pdb; pdb.set_trace()
+        for im1 in sorted(data.all_feature_maps()):
+            # closest_images = data.load_closest_images(im1, label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-idfv-{}-ust-{}'.format(options['shortest_path_label'], options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds'], options['iteration'], options['iteration_distance_filter_value'], options['use_soft_tracks']))
+            try:
+                im1_matches = data.load_matches(im1)
+            except IOError:
+                continue
+            for im2 in im1_matches:
+                pairwise_distance_matrix = euclidean_distances([mds_positions[im1], mds_positions[im2]])
+                if len(im1_matches[im2]) >= robust_matching_min_match and (pairwise_distance_matrix[0,1] <= float(data.config['mds_threshold_value']) * max_edge_weight or G.has_edge(im1, im2)):
+                # if len(im1_matches[im2]) >= robust_matching_min_match and closest_images.index(im2) <= min(max(data.config['mds_k_closest_images_min'], len(data.all_feature_maps()) * data.config['mds_k_closest_images_percentage']), data.config['mds_k_closest_images_max']):
+                    matches[im1, im2] = im1_matches[im2]
+
+
+        # print ('#'*100)
+        # print ('#'*100)
+        # print ('load_mst_adaptive_distance_thresholded_matches')
+        # print ('#'*100)
+        # print ('#'*100)
+        # for im1, im2 in sorted(matches):
+        #     if im1 == '0006.jpg' and im2 == '0012.jpg' or im2 == '0006.jpg' and im1 == '0012.jpg':
+        #         print ('*'*100)
+        #     if im1 == '0007.jpg' and im2 == '0012.jpg' or im2 == '0007.jpg' and im1 == '0012.jpg':
+        #         print ('*'*100)
+
+        #     print ('{} - {} : {}'.format(im1, im2, len(matches[im1,im2])))
+
+
+        return matches
+
+        # import pdb; pdb.set_trace()
+        # import sys; sys.exit(1)
+
+    def load_distance_thresholded_matches(self, data, options):
+        matches = {}
+        robust_matching_min_match = data.config['robust_matching_min_match']
+        mds_positions = data.load_mds_positions(label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-idfv-{}-ust-{}'.format(options['shortest_path_label'], options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds'], options['iteration'], options['iteration_distance_filter_value'], options['use_soft_tracks']))
+        for im1 in sorted(data.all_feature_maps()):
+            # closest_images = data.load_closest_images(im1, label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-idfv-{}-ust-{}'.format(options['shortest_path_label'], options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds'], options['iteration'], options['iteration_distance_filter_value'], options['use_soft_tracks']))
+            try:
+                im1_matches = data.load_matches(im1)
+            except IOError:
+                continue
+            for im2 in im1_matches:
+                distance_matrix = euclidean_distances([mds_positions[im1], mds_positions[im2]])
+                if len(im1_matches[im2]) >= robust_matching_min_match and distance_matrix[0,1] <= data.config['mds_threshold_value']:
+                # if len(im1_matches[im2]) >= robust_matching_min_match and closest_images.index(im2) <= min(max(data.config['mds_k_closest_images_min'], len(data.all_feature_maps()) * data.config['mds_k_closest_images_percentage']), data.config['mds_k_closest_images_max']):
+                    matches[im1, im2] = im1_matches[im2]
+        return matches
+
+    def load_distance_ratio_thresholded_matches(self, data, options):
+        matches = {}
+        im_mapping = {}
+        im_reverse_mapping = {}
+        outlier_matches = {}
+        outlier_match_distances = {}
+        outlier_match_count = {}
+        outlier_percentages = {}
+        epsilon = 0.00000001
+        graph = data.load_tracks_graph('tracks.csv')
+
+        mds_positions = data.load_mds_positions(label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-idfv-{}-ust-{}'.format(options['shortest_path_label'], options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds'], options['iteration'], options['iteration_distance_filter_value'], options['use_soft_tracks']))
+        mds_distance_matrix = euclidean_distances([mds_positions[im] for im in sorted(mds_positions.keys())])
+        for i,im in enumerate(sorted(mds_positions.keys())):
+            im_mapping[im] = i
+            im_reverse_mapping[i] = im
+
+        for im1 in sorted(data.all_feature_maps()):
+            try:
+                im1_matches = data.load_matches(im1)
+            except IOError:
+                continue
+            for im2 in sorted(data.all_feature_maps()):
+                if im1 == im2:
+                    continue
+                if im2 not in im1_matches or len(im1_matches[im2]) == 0:
+                    try:
+                        im2_matches = data.load_matches(im2)
+                    except IOError:
+                        continue
+                    if im1 not in im2_matches or len(im2_matches[im1]) == 0:
+                        continue
+                common_tracks = set(graph[im1]).intersection(set(graph[im2]))
+                for t in common_tracks:
+                    track_images = sorted(graph[t].keys())
+                    track_im_indices = np.array([im_mapping[im] for im in track_images])
+                    im1_distances = mds_distance_matrix[im_mapping[im1], track_im_indices]
+                    im2_distances = mds_distance_matrix[im_mapping[im2], track_im_indices]
+
+                    closest_im1_distance = np.min(im1_distances[im1_distances > 0])
+                    closest_im2_distance = np.min(im2_distances[im2_distances > 0])
+                    im1_im2_distance = mds_distance_matrix[im_mapping[im1], im_mapping[im2]]
+                    # if im1 == '0012.jpg' and im2 == '0015.jpg':
+                    #     import pdb; pdb.set_trace()
+                    if im1 not in outlier_matches:
+                        outlier_matches[im1] = {}
+                        outlier_match_distances[im1] = {}
+                        outlier_match_count[im1] = {}
+                    if im2 not in outlier_matches[im1]:
+                        outlier_matches[im1][im2] = 0
+                        outlier_match_distances[im1][im2] = 0.0
+                        outlier_match_count[im1][im2] = 0
+
+                    # graph.remove_node(t)
+                    if im2 in im1_matches and len(im1_matches[im2]) > 0:
+                        try:
+                            match_index = np.where((graph[t][im1]['feature_id'] == im1_matches[im2][:,0]) & (graph[t][im2]['feature_id'] == im1_matches[im2][:,1]))[0]
+                        except:
+                            import pdb; pdb.set_trace()
+                    elif im1 in im2_matches:
+                        try:
+                            match_index = np.where((graph[t][im2]['feature_id'] == im2_matches[im1][:,0]) & (graph[t][im1]['feature_id'] == im2_matches[im1][:,1]))[0]
+                        except:
+                            import pdb; pdb.set_trace()
+
+                    if len(match_index) == 0:
+                        continue
+                    # if im1 == '0006.jpg' and im2 == '0012.jpg':
+                    #     import pdb; pdb.set_trace()
+                    if (1.0 * im1_im2_distance / min(closest_im1_distance, closest_im2_distance)) > data.config['mds_threshold_value']:
+                        outlier_matches[im1][im2] += 1
+
+                    outlier_match_distances[im1][im2] += im1_im2_distance
+                    outlier_match_count[im1][im2] += 1
+        # import pdb; pdb.set_trace()
+
+        for i, im1 in enumerate(sorted(data.all_feature_maps())):
+            # if im1 == '0012.jpg':
+            #     print (outlier_matches['0012.jpg']['0015.jpg'])
+            #     import pdb; pdb.set_trace()
+            try:
+                im1_matches = data.load_matches(im1)
+            except IOError:
+                continue
+            for j, im2 in enumerate(sorted(data.all_feature_maps())):
+                # if im1 == '0012.jpg' and im2 == '0015.jpg':
+                #     import pdb; pdb.set_trace()
+
+                if j <= i:
+                    continue
+
+
+                if im2 not in im1_matches:
+                    try:
+                        im2_matches = data.load_matches(im2)
+                    except IOError:
+                        continue
+                    im1_im2_matches = len(im2_matches[im1])
+                else:
+                    im1_im2_matches = len(im1_matches[im2])
+                # try:
+                
+                if im1 not in outlier_percentages:
+                    outlier_percentages[im1] = {}
+                if im2 not in outlier_percentages:
+                    outlier_percentages[im2] = {}
+
+                # if im1 == '0012.jpg' and im2 == '0015.jpg':
+                #     import pdb; pdb.set_trace()
+                if im1 in outlier_matches and im2 in outlier_matches[im1]:
+                    outlier_percentages[im1][im2] = 1.0 * outlier_matches[im1][im2] / (im1_im2_matches + epsilon)
+                    outlier_percentages[im2][im1] = 1.0 * outlier_matches[im1][im2] / (im1_im2_matches + epsilon)
+
+                    print ('Outliers: {} / {}     :     {} / {} = {}          |          {} / {} = {}'.format(im1, im2, outlier_matches[im1][im2], im1_im2_matches, outlier_percentages[im1][im2], outlier_match_distances[im1][im2], outlier_match_count[im1][im2], 1.0*outlier_match_distances[im1][im2] / (outlier_match_count[im1][im2] + epsilon) ))
+                # except:
+                    # import pdb; pdb.set_trace()                    
+
+        for im1 in sorted(data.all_feature_maps()):
+            # closest_images = data.load_closest_images(im1, label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-idfv-{}-ust-{}'.format(options['shortest_path_label'], options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds'], options['iteration'], options['iteration_distance_filter_value'], options['use_soft_tracks']))
+            try:
+                im1_matches = data.load_matches(im1)
+            except IOError:
+                continue
+            for im2 in im1_matches:
+                # distance_matrix = euclidean_distances([mds_positions[im1], mds_positions[im2]])
+                # if len(im1_matches[im2]) >= robust_matching_min_match and distance_matrix[0,1] <= data.config['mds_threshold_value']:
+                if im1 not in outlier_percentages or im2 not in outlier_percentages[im1] or outlier_percentages[im1][im2] <= 0.4:
+                # if 1.0*outlier_match_distances[im1][im2] / outlier_match_count[im1][im2] < 0.5:
+                    # if im1 == '0012.jpg' and im2 == '0015.jpg':
+                    #     import pdb; pdb.set_trace()
+                # if len(im1_matches[im2]) >= robust_matching_min_match and closest_images.index(im2) <= min(max(data.config['mds_k_closest_images_min'], len(data.all_feature_maps()) * data.config['mds_k_closest_images_percentage']), data.config['mds_k_closest_images_max']):
+                    matches[im1, im2] = im1_matches[im2]
+        
+        for im1, im2 in sorted(matches):
+            if im1 == '0006.jpg' and im2 == '0012.jpg' or im2 == '0006.jpg' and im1 == '0012.jpg':
+                print ('*'*100)
+            if im1 == '0007.jpg' and im2 == '0012.jpg' or im2 == '0007.jpg' and im1 == '0012.jpg':
+                print ('*'*100)
+
+            print ('{} - {} : {}'.format(im1, im2, len(matches[im1,im2])))
+
+        # import pdb; pdb.set_trace()
+        return matches
+        # import pdb; pdb.set_trace()
+        # tracks, images = matching.tracks_and_images(graph)
+        # logger.debug('Good tracks: {}'.format(len(tracks)))
+        # return graph
 
     def load_distance_w_seq_pruned_thresholded_matches(self, data, options):
         matches = {}

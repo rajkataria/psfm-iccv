@@ -14,8 +14,8 @@ def get_results(root_directory, experiments):
     for d in datasets:
         # if 'ETH3D' not in d or 'botanical_garden' not in d:
         #     continue
-        if 'DuplicateStructures' in d or 'Disambiguation' in d:
-            continue
+        # if 'DuplicateStructures' in d or 'Disambiguation' in d:
+        #     continue
         dataset_name = d.split('/')[-3]
         results_folder = os.path.join(d, 'results')
         ate_results_fn = '{}/ate_results.json'.format(results_folder)
@@ -157,49 +157,20 @@ def main(argv):
     parser_options = parser.parse_args()
 
     experiments = {
-        'imc-False-fm-False-wr-original-resc-NA-udt-False-dt-0.5-recc-0': \
+        'imc-False-fm-False-wr-original-resc-NA-udt-False-dt-0.6-mkcip-0.15-mkcimin-7-mkcimax-12-recc-0': \
             {'key': 1, 'desc': 'Baseline'},
-        'imc-False-fm-False-wr-colmap-resc-NA-udt-False-dt-0.5-recc-0': \
-            {'key': 2, 'desc': 'colmap'},
-        'imc-False-fm-False-wr-colmap-resc-NA-udt-True-dt-0.3-recc-0': \
-            {'key': 3, 'desc': 'colmap + dtv:0.3'},
-        'imc-False-fm-False-wr-colmap-resc-NA-udt-True-dt-0.4-recc-0': \
-            {'key': 4, 'desc': 'colmap + dtv:0.4'},
-        'imc-False-fm-False-wr-colmap-resc-NA-udt-True-dt-0.5-recc-0': \
-            {'key': 5, 'desc': 'colmap + dtv:0.5'},
-        'imc-False-fm-False-wr-colmap-resc-NA-udt-True-dt-0.75-recc-0': \
-            {'key': 6, 'desc': 'colmap + dtv:0.75'},
-        'imc-False-fm-False-wr-original-resc-NA-udt-False-dt-0.5-recc-1': \
-            {'key': 7, 'desc': 'Baseline'},
-        'imc-False-fm-False-wr-colmap-resc-NA-udt-False-dt-0.5-recc-1': \
-            {'key': 8, 'desc': 'colmap'},
-        'imc-False-fm-False-wr-colmap-resc-NA-udt-True-dt-0.3-recc-1': \
-            {'key': 9, 'desc': 'colmap + dtv:0.3'},
-        'imc-False-fm-False-wr-colmap-resc-NA-udt-True-dt-0.4-recc-1': \
-            {'key': 10, 'desc': 'colmap + dtv:0.4'},
-        'imc-False-fm-False-wr-colmap-resc-NA-udt-True-dt-0.5-recc-1': \
-            {'key': 11, 'desc': 'colmap + dtv:0.5'},
-        'imc-False-fm-False-wr-colmap-resc-NA-udt-True-dt-0.75-recc-1': \
-            {'key': 12, 'desc': 'colmap + dtv:0.75'},
-        'imc-False-fm-False-wr-original-resc-NA-udt-False-dt-0.5-recc-2': \
-            {'key': 13, 'desc': 'Baseline'},
-        'imc-False-fm-False-wr-colmap-resc-NA-udt-False-dt-0.5-recc-2': \
-            {'key': 14, 'desc': 'colmap'},
-        'imc-False-fm-False-wr-colmap-resc-NA-udt-True-dt-0.3-recc-2': \
-            {'key': 15, 'desc': 'colmap + dtv:0.3'},
-        'imc-False-fm-False-wr-colmap-resc-NA-udt-True-dt-0.4-recc-2': \
-            {'key': 16, 'desc': 'colmap + dtv:0.4'},
-        'imc-False-fm-False-wr-colmap-resc-NA-udt-True-dt-0.5-recc-2': \
-            {'key': 17, 'desc': 'colmap + dtv:0.5'},
-        'imc-False-fm-False-wr-colmap-resc-NA-udt-True-dt-0.75-recc-2': \
-            {'key': 18, 'desc': 'colmap + dtv:0.75'},
-
-        # 'imc-True-wr-sum-colmapr-False': \
-        #     {'key': 4, 'desc': 'Image matching classifier with weighted resectioning'},
-        # 'imc-True-wr-max-colmapr-False': \
-        #     {'key': 4, 'desc': 'Image matching classifier with weighted resectioning'},
-        # 'imc-True-wr-max-colmapr-False': \
-        #     {'key': 4, 'desc': 'Image matching classifier with weighted resectioning'}
+        'imc-False-fm-False-wr-colmap-resc-NA-udt-False-dt-0.6-mkcip-0.15-mkcimin-7-mkcimax-12-recc-0': \
+            {'key': 2, 'desc': 'Baseline + colmap resectioning'},
+        'imc-False-fm-False-wr-colmap-resc-NA-udt-True-dt-0.6-mkcip-0.15-mkcimin-6-mkcimax-14-recc-0': \
+            {'key': 3, 'desc': 'MDS + colmap resectioning + 6-14 @ 15%'},
+        'imc-False-fm-False-wr-colmap-resc-NA-udt-True-dt-0.6-mkcip-0.2-mkcimin-6-mkcimax-14-recc-0': \
+            {'key': 4, 'desc': 'MDS + colmap resectioning + 6-14 @ 20%'},
+        'imc-False-fm-False-wr-colmap-resc-NA-udt-True-dt-0.6-mkcip-0.15-mkcimin-7-mkcimax-12-recc-0': \
+            {'key': 5, 'desc': 'MDS + colmap resectioning + 7-12 @ 15%'},
+        'imc-False-fm-False-wr-colmap-resc-NA-mdstc-mst-adaptive-distance-mdstv-0.5-mkcip-0.15-mkcimin-6-mkcimax-14-ust-False-recc-0': \
+            {'key': 6, 'desc': 'MDS + colmap + mst-adaptive-distance (0.5 * max length)'},
+        'imc-False-fm-False-wr-colmap-resc-NA-mdstc-mst-adaptive-distance-mdstv-0.5-mkcip-0.15-mkcimin-6-mkcimax-14-ust-True-recc-0': \
+            {'key': 7, 'desc': 'MDS + colmap + soft tracks + mst-adaptive-distance (0.5 * max length)'},
     }
     metadata, results = get_results(parser_options.root_directory, experiments)
     output_csv(metadata, experiments, results)

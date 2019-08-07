@@ -39,7 +39,7 @@ class Command:
         ctx.sequence_cost_factor = 1.0
         ctx.blurred = True
         ctx.debug = False
-        ctx.edge_thresholds = {'rm-cost': 10000000000, 'rm-seq-cost': 10000000000, 'inlier-logp': 0.0000000001}
+        ctx.edge_thresholds = {'rm-cost': 10000000000, 'gm-cost': 10000000000, 'cm-cost': 10000000000, 'rm-seq-cost': 10000000000, 'inlier-logp': 0.0000000001}
         # ctx.edge_thresholds = {'rm-cost': 0.0015, 'rm-seq-cost': 10000000000, 'inlier-logp': 0.0000000001}
         # ctx.edge_thresholds = {'rm-cost': 0.0014, 'rm-seq-cost': 10000000000, 'inlier-logp': 0.0000000001}
 

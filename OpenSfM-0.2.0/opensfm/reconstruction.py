@@ -1676,16 +1676,17 @@ def grow_reconstruction(data, graph, reconstruction, images, gcp):
     #     data.config['closest_images_top_k'], \
     #     data.config['use_yan_disambiguation']
     #     )
-    run_name = 'imc-{}-fm-{}-wr-{}-resc-{}-udt-{}-dt-{}-mkcip-{}-mkcimin-{}-mkcimax-{}-recc-{}.json'.format(\
+    run_name = 'imc-{}-fm-{}-wr-{}-resc-{}-mdstc-{}-mdstv-{}-mkcip-{}-mkcimin-{}-mkcimax-{}-ust-{}-recc-{}.json'.format(\
         data.config['use_image_matching_classifier'], \
         data.config['use_feature_matching_classifier'], \
         data.config['use_weighted_resectioning'], \
         data.config['resectioning_config'], \
-        data.config['use_distance_threshold'], \
-        data.config['distance_threshold_value'], \
+        data.config['mds_threshold_config'], \
+        data.config['mds_threshold_value'], \
         data.config['mds_k_closest_images_percentage'], \
         data.config['mds_k_closest_images_min'], \
         data.config['mds_k_closest_images_max'], \
+        data.config['use_soft_tracks'], \
         data.config['reconstruction_counter'], \
         )
     data.save_resectioning_order(resectioning_order, run=run_name)
@@ -1712,8 +1713,16 @@ def incremental_reconstruction(data):
     # else:
     #     graph = data.load_tracks_graph('tracks-all-matches.csv')
     
-    if data.config.get('use_distance_threshold', False):
-        graph = data.load_tracks_graph('tracks-mkcip-{}-mkcimin-{}-mkcimax-{}.csv'.format(data.config['mds_k_closest_images_percentage'], data.config['mds_k_closest_images_min'], data.config['mds_k_closest_images_max']))
+    if data.config.get('mds_threshold_config', False) == 'closest-images' or \
+        data.config.get('mds_threshold_config', False) == 'distance-ratio' or \
+        data.config.get('mds_threshold_config', False) == 'distance' or \
+        data.config.get('mds_threshold_config', False) == 'mst-adaptive-distance':
+        
+        graph = data.load_tracks_graph('tracks-mdstc-{}-mdstv-{}-mkcip-{}-mkcimin-{}-mkcimax-{}-ust-{}.csv'.format(\
+            data.config['mds_threshold_config'], data.config['mds_threshold_value'], data.config['mds_k_closest_images_percentage'], data.config['mds_k_closest_images_min'], data.config['mds_k_closest_images_max'], \
+            data.config['use_soft_tracks']
+            )
+        )
     else:
         graph = data.load_tracks_graph('tracks.csv')
 
@@ -1807,16 +1816,17 @@ def incremental_reconstruction(data):
                 #     data.config['closest_images_top_k'], \
                 #     data.config['use_yan_disambiguation']
                 #     )
-                reconstruction_fn = 'reconstruction-imc-{}-fm-{}-wr-{}-resc-{}-udt-{}-dt-{}-mkcip-{}-mkcimin-{}-mkcimax-{}-recc-{}.json'.format(\
+                reconstruction_fn = 'reconstruction-imc-{}-fm-{}-wr-{}-resc-{}-mdstc-{}-mdstv-{}-mkcip-{}-mkcimin-{}-mkcimax-{}-ust-{}-recc-{}.json'.format(\
                     data.config['use_image_matching_classifier'], \
                     data.config['use_feature_matching_classifier'], \
                     data.config['use_weighted_resectioning'], \
                     data.config['resectioning_config'], \
-                    data.config['use_distance_threshold'], \
-                    data.config['distance_threshold_value'], \
+                    data.config['mds_threshold_config'], \
+                    data.config['mds_threshold_value'], \
                     data.config['mds_k_closest_images_percentage'], \
                     data.config['mds_k_closest_images_min'], \
                     data.config['mds_k_closest_images_max'], \
+                    data.config['use_soft_tracks'], \
                     data.config['reconstruction_counter'], \
                     )
                 data.save_reconstruction(reconstructions, filename=reconstruction_fn)
