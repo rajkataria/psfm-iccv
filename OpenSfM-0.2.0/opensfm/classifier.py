@@ -1776,7 +1776,7 @@ def filter_rmatches_cost(ctx, graph_label, num_rmatches_cost, options):
     if options['iteration'] == 0:
         return num_rmatches_cost
     else:
-        mds_positions = data.load_mds_positions(label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-idfv-{}'.format(options['sp_label'], options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds'], options['iteration'] - 1, ctx.iteration_distance_filter_value))
+        mds_positions = data.load_mds_positions(label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-idfv-{}-ust-{}'.format(options['sp_label'], options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds'], options['iteration'] - 1, ctx.iteration_distance_filter_value, options['use_soft_track_scores']))
         for im1 in num_rmatches_cost:
             for im2 in num_rmatches_cost[im1]:
                 dist = euclidean_distances([mds_positions[im1], mds_positions[im2]])[0,1]
@@ -1790,7 +1790,7 @@ def filter_classifier_scores(ctx, graph_label, classifier_scores, options):
     if options['iteration'] == 0:
         return classifier_scores
     else:
-        mds_positions = data.load_mds_positions(label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-idfv-{}'.format(options['sp_label'], options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds'], options['iteration'] - 1, ctx.iteration_distance_filter_value))
+        mds_positions = data.load_mds_positions(label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-idfv-{}-ust-{}'.format(options['sp_label'], options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds'], options['iteration'] - 1, ctx.iteration_distance_filter_value, options['use_soft_track_scores']))
         for im1 in classifier_scores:
             for im2 in classifier_scores[im1]:
                 dist = euclidean_distances([mds_positions[im1], mds_positions[im2]])[0,1]
@@ -1817,7 +1817,7 @@ def get_rmatches_and_edge_costs(G, im1, im2, num_rmatches):
 
 def shortest_path_per_image(arg):
     shortest_paths = {}
-    ctx, data, i, im1, images, G, num_rmatches, label, edge_threshold, iteration = arg
+    ctx, data, i, im1, images, G, num_rmatches, label, edge_threshold, use_soft_tracks, iteration = arg
     
     for j,im2 in enumerate(images):
         if j <= i:
@@ -1835,7 +1835,7 @@ def shortest_path_per_image(arg):
 
         shortest_paths[im2] = {'rmatches': rmatches, 'path': path, 'shortest_path': shortest_path, 'cost': edge_cost}
 
-    data.save_shortest_paths(im1, shortest_paths, label=label, edge_threshold=np.round(edge_threshold,2), iteration=iteration, idfv=ctx.iteration_distance_filter_value)
+    data.save_shortest_paths(im1, shortest_paths, label=label, edge_threshold=np.round(edge_threshold,2), iteration=iteration, idfv=ctx.iteration_distance_filter_value, ust=use_soft_tracks)
     # return im1, shortest_paths
 
 def calculate_shortest_paths(ctx):
@@ -1850,9 +1850,17 @@ def calculate_shortest_paths(ctx):
     # edge_threshold = 1.0/20.0
     configurations = []
     # for graph_label in ['rm-cost', 'rm-seq-cost', 'inlier-logp']:
-    for graph_label in ['rm-cost']:#, 'inlier-logp']:
+    # for graph_label in ['rm-cost']:#, 'inlier-logp']:
+    for datum in [
+        {'sp_label': 'rm-cost', 'use_soft_track_scores': True},
+        {'sp_label': 'rm-cost', 'use_soft_track_scores': False},
+        # {sp_label: 'cm-cost', 'use_soft_track_scores': False}, 
+        # {sp_label: 'gm-cost', 'use_soft_track_scores': False},
+        ]:#, 'inlier-logp']:
         # graph_label = 'rm-cost'
-        options = {'sp_label': graph_label, 'PCA-n_components': 2, 'MDS-n_components': 2, 'edge_threshold': ctx.edge_thresholds[graph_label], 'lmds': False, 'iteration': ctx.iteration, 'debug': False if 'aws' in os.uname()[2] else True}
+        graph_label = datum['sp_label']
+
+        options = {'sp_label': graph_label, 'PCA-n_components': 2, 'MDS-n_components': 2, 'edge_threshold': ctx.edge_thresholds[graph_label], 'lmds': False, 'iteration': ctx.iteration, 'use_soft_track_scores': datum['use_soft_track_scores'], 'debug': False if 'aws' in os.uname()[2] else True}
         if 'rm-seq-cost' in graph_label:
             seq_cost_factor = ctx.sequence_cost_factor
             graph_label = 'rm-seq-cost-{}'.format(seq_cost_factor)
@@ -1864,7 +1872,7 @@ def calculate_shortest_paths(ctx):
         
 
         num_rmatches, num_rmatches_cost, im_num_rmatches_cost_with_sequences, im_classifier_scores = rmatches_adapter(data, options, debug=options['debug'])
-        if graph_label == 'rm-cost':
+        if graph_label == 'rm-cost' or graph_label == 'gm-cost' or graph_label == 'cm-cost':
             criteria = filter_rmatches_cost(ctx, graph_label, num_rmatches_cost, options)
         elif graph_label == 'inlier-logp':
             criteria = filter_classifier_scores(ctx, graph_label, im_classifier_scores, options)
@@ -1880,8 +1888,8 @@ def calculate_shortest_paths(ctx):
         if options['debug']:
             opensfm.commands.formulate_graphs.draw_graph(G, os.path.join(data.data_path, 'results', 'graph-{}-it-{}-idfv-{}.png'.format(graph_label, options['iteration'], ctx.iteration_distance_filter_value)), highlighted_nodes=[], layout='spring', title=None)
 
-        data.save_graph(G, graph_label, options['edge_threshold'], options['iteration'], ctx.iteration_distance_filter_value)
-        configurations.append([G, graph_label, options['edge_threshold']])
+        data.save_graph(G, graph_label, options['edge_threshold'], options['iteration'], ctx.iteration_distance_filter_value, options['use_soft_track_scores'])
+        configurations.append([G, graph_label, options['edge_threshold'], options['use_soft_track_scores']])
         # if options['apply_sequence_ranks']:
         #     G_ = opensfm.commands.formulate_graphs.formulate_graph([data, images, im_num_rmatches_cost_with_sequences, graph_label_with_sequences, edge_threshold])
         #     data.save_graph(G_, graph_label_with_sequences, edge_threshold, options['iteration'])
@@ -1891,9 +1899,9 @@ def calculate_shortest_paths(ctx):
 
     for datum in configurations:
         args = []
-        graph, label, et = datum
+        graph, label, et, ust = datum
         for i,im1 in enumerate(images):
-            args.append([ctx, data, i, im1, images, graph, num_rmatches, label, et, options['iteration']])
+            args.append([ctx, data, i, im1, images, graph, num_rmatches, label, et, ust, options['iteration']])
         
         p = Pool(processes)
         p_results = []
@@ -2251,8 +2259,15 @@ def rmatches_adapter(data, options={}, debug=False):
     im_classifier_scores = {}
     im_num_rmatches_cost = {}
     im_num_rmatches_cost_with_sequences = {}
-    # image_matching_results = data.load_image_matching_results(robust_matches_threshold=15, classifier='BASELINE')
-    image_matching_results = data.load_matches_using_tracks_graph(max_track_length=2)
+
+    if options['sp_label'] == 'rm-cost':
+        if options['use_soft_track_scores']:
+            image_matching_results = data.load_matches_using_tracks_graph(soft_track_scores=True, max_track_length=None)
+        else:
+            image_matching_results = data.load_matches_using_tracks_graph(soft_track_scores=False, max_track_length=2)
+    elif options['sp_label'] == 'gm-cost' or options['sp_label'] == 'cm-cost' or options['sp_label'] == 'inlier-logp':
+        image_matching_results = data.load_image_matching_results(robust_matches_threshold=15, classifier='BASELINE')
+    
 
     # for img in data.images():
     for img in sorted(data.all_feature_maps()):
@@ -2317,7 +2332,10 @@ def rmatches_adapter(data, options={}, debug=False):
             im_num_rmatches[im1][im2] = len(im_all_rmatches[im1][im2])
             im_num_rmatches[im2][im1] = im_num_rmatches[im1][im2]
             try:
-                im_classifier_scores[im1][im2] = image_matching_results[im1][im2]['score']
+                if options['sp_label'] == 'inlier-logp':
+                    im_classifier_scores[im1][im2] = -np.log(image_matching_results[im1][im2]['score'])
+                else:
+                    im_classifier_scores[im1][im2] = image_matching_results[im1][im2]['score']
             except:
                 import pdb; pdb.set_trace()
             im_classifier_scores[im2][im1] = im_classifier_scores[im1][im2]
@@ -2332,16 +2350,25 @@ def rmatches_adapter(data, options={}, debug=False):
 
                 # nbvs_score = max(nbvs[im2]['nbvs_im1'], nbvs[im2]['nbvs_im2'])
                 # nbvs_score = (nbvs[im2]['nbvs_im1'] + nbvs[im2]['nbvs_im2']) / 2.0
-                
-                # im_num_rmatches_cost[im1][im2] = 1.0 / nbvs_score
-                # im_num_rmatches_cost[im1][im2] = 1.0 / im_num_rmatches[im1][im2]
-                # im_num_rmatches_cost[im1][im2] = 1.0 / np.power(im_num_rmatches[im1][im2], 0.5)
-                try:
+                if options['sp_label'] == 'rm-cost':
                     im_num_rmatches_cost[im1][im2] = 1.0 / im_classifier_scores[im1][im2]
-                except:
-                    import pdb; pdb.set_trace()
-
-            im_num_rmatches_cost[im2][im1] = im_num_rmatches_cost[im1][im2]
+                elif options['sp_label'] == 'gm-cost':
+                    im_num_rmatches_cost[im1][im2] = 1.0 / im_num_rmatches[im1][im2]
+                elif options['sp_label'] == 'cm-cost':
+                    im_num_rmatches_cost[im1][im2] = 1.0 / nbvs_score
+                else:
+                    im_num_rmatches_cost[im1][im2] = 1.0 / im_num_rmatches[im1][im2]
+                # elif options['sp_label'] == 'inlier-logp':
+                #     im_num_rmatches_cost[im1][im2] = 1.0 / nbvs_score
+                
+                # im_num_rmatches_cost[im1][im2] = 1.0 / np.power(im_num_rmatches[im1][im2], 0.5)
+                # try:
+                # except:
+                #     import pdb; pdb.set_trace()
+            try:
+                im_num_rmatches_cost[im2][im1] = im_num_rmatches_cost[im1][im2]
+            except:
+                import pdb; pdb.set_trace()
             if 'apply_sequence_ranks' in options and options['apply_sequence_ranks'] is True:
                 if im1 in adjacent_pairs and im2 in adjacent_pairs[im1] and adjacent_pairs[im1][im2] is True or \
                     im2 in adjacent_pairs and im1 in adjacent_pairs[im2] and adjacent_pairs[im2][im1] is True:
@@ -2551,7 +2578,7 @@ def plot_mds(ctx, data, pos_gt, pos, iteration, opts):
                         label='True Position')
         results_folder = os.path.join(data.data_path, 'results')
         mkdir_p(results_folder)
-        plt.savefig(os.path.join(data.data_path, 'results', 'path-gt-lmds-{}-i-{}-PCA-n_components-{}-MDS-n_components-{}-it-{}-idfv-{}.png'.format(opts['lmds'], iteration, opts['PCA-n_components'], opts['MDS-n_components'], opts['iteration'], ctx.iteration_distance_filter_value)),dpi=90)
+        plt.savefig(os.path.join(data.data_path, 'results', 'path-gt-lmds-{}-i-{}-PCA-n_components-{}-MDS-n_components-{}-it-{}-idfv-{}-ust-{}.png'.format(opts['lmds'], iteration, opts['PCA-n_components'], opts['MDS-n_components'], opts['iteration'], ctx.iteration_distance_filter_value, opts['use_soft_tracks'])),dpi=90)
     
     if pos_gt is None and (iteration + 1) % opts['solve_mds_plot_freq'] == 0:
         for i in range(0,len(pos)):
@@ -2576,7 +2603,7 @@ def plot_mds(ctx, data, pos_gt, pos, iteration, opts):
         plt.grid()
 
         fig.set_size_inches(41.6, 23.6)
-        plt.savefig(os.path.join(results_folder, 'path-inferred-{}-lmds-{}-PCA-n_components-{}-MDS-n_components-{}-it-{}-idfv-{}.png'.format(opts['shortest_path_label'], opts['lmds'], opts['PCA-n_components'], opts['MDS-n_components'], opts['iteration'], ctx.iteration_distance_filter_value)),dpi=90)
+        plt.savefig(os.path.join(results_folder, 'path-inferred-{}-lmds-{}-PCA-n_components-{}-MDS-n_components-{}-it-{}-idfv-{}-ust-{}.png'.format(opts['shortest_path_label'], opts['lmds'], opts['PCA-n_components'], opts['MDS-n_components'], opts['iteration'], ctx.iteration_distance_filter_value, opts['use_soft_tracks'])),dpi=90)
         
 
     if False:
@@ -3065,8 +3092,12 @@ def infer_positions(ctx):
     # for sp_label in ['rm-cost', 'rm-seq-cost-{}'.format(seq_cost_factor)]:
     for run_config in [
         # {'sp_label': 'rm-cost', 'pca_n_components': 2, 'mds_n_components': 2, 'edge_threshold': 1.0/1.0},
-        {'sp_label': 'rm-cost', 'pca_n_components': 2, 'mds_n_components': 2, 'edge_threshold': ctx.edge_thresholds['rm-cost'], 'iteration': ctx.iteration},
-        # {'sp_label': 'inlier-logp', 'pca_n_components': 2, 'mds_n_components': 2, 'edge_threshold': ctx.edge_thresholds['inlier-logp'], 'iteration': ctx.iteration},
+        {'sp_label': 'rm-cost', 'pca_n_components': 2, 'mds_n_components': 2, 'edge_threshold': ctx.edge_thresholds['rm-cost'], 'iteration': ctx.iteration, 'use_soft_tracks': False},
+        {'sp_label': 'rm-cost', 'pca_n_components': 2, 'mds_n_components': 2, 'edge_threshold': ctx.edge_thresholds['rm-cost'], 'iteration': ctx.iteration, 'use_soft_tracks': True},
+        # {'sp_label': 'gm-cost', 'pca_n_components': 2, 'mds_n_components': 2, 'edge_threshold': ctx.edge_thresholds['rm-cost'], 'iteration': ctx.iteration, 'use_soft_tracks': False},
+        # {'sp_label': 'cm-cost', 'pca_n_components': 2, 'mds_n_components': 2, 'edge_threshold': ctx.edge_thresholds['rm-cost'], 'iteration': ctx.iteration, 'use_soft_tracks': False},
+        # {'sp_label': 'inlier-logp', 'pca_n_components': 2, 'mds_n_components': 2, 'edge_threshold': ctx.edge_thresholds['inlier-logp'], 'iteration': ctx.iteration, 'use_soft_tracks': False},
+
         # {'sp_label': 'rm-cost', 'pca_n_components': 2, 'mds_n_components': 2, 'edge_threshold': 1.0/20.0},
 
         # {'sp_label': 'rm-cost', 'pca_n_components': 2, 'mds_n_components': 3},
@@ -3075,7 +3106,7 @@ def infer_positions(ctx):
         # {'sp_label': 'imc-cost', 'pca_n_components': 2, 'mds_n_components': 2, 'edge_threshold': 10.0},
         ]:
 
-        sp_label, pca_n_components, mds_n_components, edge_threshold, iteration = run_config['sp_label'], run_config['pca_n_components'], run_config['mds_n_components'], run_config['edge_threshold'], run_config['iteration']
+        sp_label, pca_n_components, mds_n_components, edge_threshold, iteration, use_soft_tracks = run_config['sp_label'], run_config['pca_n_components'], run_config['mds_n_components'], run_config['edge_threshold'], run_config['iteration'], run_config['use_soft_tracks']
 
         distances_baseline = 0.0 * np.ones((len(images), len(images)))
         cached_features = {}
@@ -3087,7 +3118,7 @@ def infer_positions(ctx):
 
         for i,im1 in enumerate(images):
             # if sp_label == 'rm-cost':
-            im_shortest_paths = data.load_shortest_paths(im1, label=sp_label, edge_threshold=np.round(edge_threshold,2), iteration=iteration, idfv=ctx.iteration_distance_filter_value)
+            im_shortest_paths = data.load_shortest_paths(im1, label=sp_label, edge_threshold=np.round(edge_threshold,2), iteration=iteration, idfv=ctx.iteration_distance_filter_value, ust=use_soft_tracks)
             image_mapping[im1] = i
             reverse_image_mapping[i] = im1
 
@@ -3104,7 +3135,7 @@ def infer_positions(ctx):
                         path = im_shortest_paths[im2]['path']
                         entry = im_shortest_paths[im2]
                     else:
-                        im_shortest_paths = data.load_shortest_paths(im2, label=sp_label, edge_threshold=np.round(edge_threshold,2), iteration=iteration, idfv=ctx.iteration_distance_filter_value)
+                        im_shortest_paths = data.load_shortest_paths(im2, label=sp_label, edge_threshold=np.round(edge_threshold,2), iteration=iteration, idfv=ctx.iteration_distance_filter_value, ust=use_soft_tracks)
                         path = im_shortest_paths[im1]['path']
                         entry = im_shortest_paths[im1]
                     for k,p in enumerate(path):
@@ -3129,7 +3160,7 @@ def infer_positions(ctx):
                         # cost += 1.0 / (1.0 * path[p]['rmatches'])
                         # except:
                         #     import pdb; pdb.set_trace()
-                        if sp_label == 'rm-cost':
+                        if sp_label == 'rm-cost' or sp_label == 'gm-cost' or sp_label == 'cm-cost':
                             cost += path[p]['cost']
                         elif sp_label == 'inlier-logp':
                             cost += path[p]['cost']
@@ -3153,7 +3184,7 @@ def infer_positions(ctx):
 
         # if sp_label == 'inlier-logp':
         #     import pdb; pdb.set_trace();
-        options = {'solve_mds_plot_freq': 1, 'max_iterations': 20, 'shortest_path_label': sp_label, 'lmds': False, 'PCA-n_components': pca_n_components, 'MDS-n_components': mds_n_components, 'edge_threshold': edge_threshold, 'iteration': iteration, 'debug': False if 'aws' in os.uname()[2] else True}
+        options = {'solve_mds_plot_freq': 1, 'max_iterations': 20, 'shortest_path_label': sp_label, 'lmds': False, 'PCA-n_components': pca_n_components, 'MDS-n_components': mds_n_components, 'edge_threshold': edge_threshold, 'iteration': iteration, 'use_soft_tracks': use_soft_tracks,'debug': False if 'aws' in os.uname()[2] else True}
         if data.reconstruction_exists('reconstruction_gt.json'):
             mds_embedding_positions, mds_embedding_positions_gt, positions_inferred, positions_inferred_gt, updated_distances = solve_mds(ctx=ctx, data=data, distances_gt=distances_gt, distances=distances_baseline, num_fns=num_fns, opts=options, debug=options['debug'])
         else:
@@ -3164,18 +3195,18 @@ def infer_positions(ctx):
             im_closest_images[reverse_image_mapping[i]] = np_images[order].tolist()
 
         for im in im_closest_images:
-            data.save_closest_images(im, im_closest_images[im], label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-idfv-{}'.format(sp_label, options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds'], options['iteration'], ctx.iteration_distance_filter_value))
+            data.save_closest_images(im, im_closest_images[im], label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-idfv-{}-ust-{}'.format(sp_label, options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds'], options['iteration'], ctx.iteration_distance_filter_value, options['use_soft_tracks']))
 
         im_mds_position = {}
         for i in range(0,num_fns):
             im_mds_position[reverse_image_mapping[i]] = positions_inferred[i].tolist()
-        data.save_mds_positions(im_mds_position, label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-idfv-{}'.format(sp_label, options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds'], options['iteration'], ctx.iteration_distance_filter_value))
+        data.save_mds_positions(im_mds_position, label='{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-idfv-{}-ust-{}'.format(sp_label, options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds'], options['iteration'], ctx.iteration_distance_filter_value, options['use_soft_tracks']))
 
         if data.reconstruction_exists('reconstruction_gt.json'):
             im_mds_position_gt = {}
             for i in range(0, len(positions_inferred_gt)):
                 im_mds_position_gt[reverse_image_mapping_gt[i]] = positions_inferred_gt[i].tolist()
-            data.save_mds_positions(im_mds_position_gt, label='gt-{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-idfv-{}'.format(sp_label, options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds'], options['iteration'], ctx.iteration_distance_filter_value))
+            data.save_mds_positions(im_mds_position_gt, label='gt-{}-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-idfv-{}-ust-{}'.format(sp_label, options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds'], options['iteration'], ctx.iteration_distance_filter_value, options['use_soft_tracks']))
 
 
         if data.reconstruction_exists('reconstruction_gt.json'):
@@ -3185,7 +3216,7 @@ def infer_positions(ctx):
                 order_gt = np.argsort(np.array(distances_gt[:,i]))
                 im_closest_images_gt[reverse_image_mapping_gt[i]] = np_images_gt[order_gt].tolist()
             for im in im_closest_images_gt:
-                data.save_closest_images(im, im_closest_images_gt[im], label='gt-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-idfv-{}'.format(options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds'], options['iteration'], ctx.iteration_distance_filter_value))
+                data.save_closest_images(im, im_closest_images_gt[im], label='gt-PCA_n_components-{}-MDS_n_components-{}-edge_threshold-{}-lmds-{}-it-{}-idfv-{}-ust-{}'.format(options['PCA-n_components'], options['MDS-n_components'], options['edge_threshold'], options['lmds'], options['iteration'], ctx.iteration_distance_filter_value, options['use_soft_tracks']))
 
         # recon_inferred = create_inferred_reconstruction(positions_inferred, reverse_image_mapping)
         # relevant_reconstructions = [[recon_gt, recon_inferred, 'path']]

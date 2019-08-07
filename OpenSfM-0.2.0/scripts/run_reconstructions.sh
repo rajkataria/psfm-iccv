@@ -61,7 +61,40 @@ declare -A run103=(
     [mds_k_closest_images_percentage]='0.20'    [mds_k_closest_images_min]='6'              [mds_k_closest_images_max]='14'
     )
 
-all_runs=(run99 run100 run101 run102 run103)
+# MDS + colmap + mst-adaptive-distance (0.5 * max length)
+declare -A run104=(
+    [use_image_matching_classifier]='false'
+    [use_weighted_resectioning]='colmap'                                                            [use_weighted_feature_matches]='false'
+    [use_image_matching_thresholding]='false'   [image_matching_classifier_threshold]='0.5'
+    [use_closest_images_pruning]='false'        [closest_images_top_k]='H'                          [use_gt_closest_images_pruning]='false'
+    [resectioning_config]='NA'                  
+    [mds_k_closest_images_percentage]='0.15'    [mds_k_closest_images_min]='6'                      [mds_k_closest_images_max]='14'
+    [use_soft_tracks]='false'                   [mds_threshold_config]='mst-adaptive-distance'      [mds_threshold_value]='0.5'
+    )
+
+# MDS + colmap + soft tracks + mst-adaptive-distance (0.5 * max length)
+declare -A run105=(
+    [use_image_matching_classifier]='false'
+    [use_weighted_resectioning]='colmap'                                                            [use_weighted_feature_matches]='false'
+    [use_image_matching_thresholding]='false'   [image_matching_classifier_threshold]='0.5'
+    [use_closest_images_pruning]='false'        [closest_images_top_k]='H'                          [use_gt_closest_images_pruning]='false'
+    [resectioning_config]='NA'                  
+    [mds_k_closest_images_percentage]='0.15'    [mds_k_closest_images_min]='6'                      [mds_k_closest_images_max]='14'
+    [use_soft_tracks]='true'                    [mds_threshold_config]='mst-adaptive-distance'      [mds_threshold_value]='0.5'
+    )
+
+# all_runs=(run99 run100 run101 run102 run103)
+all_runs=(run104 run105)
+
+for j in `seq 0 0`; do
+    if [ "$mode" == "setup+matching" ];then
+        ./bin/opensfm extract_metadata $dataset
+        ./bin/opensfm detect_features $dataset
+        ./bin/opensfm evaluate_vt_rankings $dataset
+        ./bin/opensfm match_features $dataset
+        ./bin/opensfm create_tracks $dataset
+    fi
+done
 
 for j in `seq 0 0`; do
     if [ "$mode" == "calculate_features" ];then
@@ -77,14 +110,17 @@ for run_name in "${all_runs[@]}"; do
     c_use_weighted_resectioning="${run_ref[use_weighted_resectioning]}"
     c_use_weighted_feature_matches="${run_ref[use_weighted_feature_matches]}"
     c_use_image_matching_thresholding="${run_ref[use_image_matching_thresholding]}"
-    c_use_distance_threshold="${run_ref[use_distance_threshold]}"
+    # c_use_distance_threshold="${run_ref[use_distance_threshold]}"
+    c_use_soft_tracks="${run_ref[use_soft_tracks]}"
     c_image_matching_classifier_threshold="${run_ref[image_matching_classifier_threshold]}"
     c_use_closest_images_pruning="${run_ref[use_closest_images_pruning]}"
     c_closest_images_top_k="${run_ref[closest_images_top_k]}"
     c_use_gt_closest_images_pruning="${run_ref[use_gt_closest_images_pruning]}"
     c_resectioning_config="${run_ref[resectioning_config]}"
-    c_distance_threshold_value="${run_ref[distance_threshold_value]}"
 
+    c_mds_threshold_config="${run_ref[mds_threshold_config]}"
+    # c_distance_threshold_value="${run_ref[distance_threshold_value]}"
+    c_mds_threshold_value="${run_ref[mds_threshold_value]}"
     c_mds_k_closest_images_percentage="${run_ref[mds_k_closest_images_percentage]}"
     c_mds_k_closest_images_min="${run_ref[mds_k_closest_images_min]}"
     c_mds_k_closest_images_max="${run_ref[mds_k_closest_images_max]}"
@@ -94,14 +130,17 @@ for run_name in "${all_runs[@]}"; do
     sed -i "s/use_weighted_resectioning: .*/use_weighted_resectioning: ${c_use_weighted_resectioning}/g" $dataset/config.yaml
     sed -i "s/use_weighted_feature_matches: .*/use_weighted_feature_matches: ${c_use_weighted_feature_matches}/g" $dataset/config.yaml
     sed -i "s/use_image_matching_thresholding: .*/use_image_matching_thresholding: ${c_use_image_matching_thresholding}/g" $dataset/config.yaml
-    sed -i "s/use_distance_threshold: .*/use_distance_threshold: ${c_use_distance_threshold}/g" $dataset/config.yaml
+    # sed -i "s/use_distance_threshold: .*/use_distance_threshold: ${c_use_distance_threshold}/g" $dataset/config.yaml
+    sed -i "s/use_soft_tracks: .*/use_soft_tracks: ${c_use_soft_tracks}/g" $dataset/config.yaml
     sed -i "s/image_matching_classifier_threshold: .*/image_matching_classifier_threshold: ${c_image_matching_classifier_threshold}/g" $dataset/config.yaml
     sed -i "s/use_closest_images_pruning: .*/use_closest_images_pruning: ${c_use_closest_images_pruning}/g" $dataset/config.yaml
     sed -i "s/closest_images_top_k: .*/closest_images_top_k: ${c_closest_images_top_k}/g" $dataset/config.yaml
     sed -i "s/use_gt_closest_images_pruning: .*/use_gt_closest_images_pruning: ${c_use_gt_closest_images_pruning}/g" $dataset/config.yaml
     sed -i "s/resectioning_config: .*/resectioning_config: ${c_resectioning_config}/g" $dataset/config.yaml
     sed -i "s/reconstruction_counter: .*/reconstruction_counter: ${c_reconstruction_counter}/g" $dataset/config.yaml
-    sed -i "s/distance_threshold_value: .*/distance_threshold_value: ${c_distance_threshold_value}/g" $dataset/config.yaml
+    sed -i "s/mds_threshold_config: .*/mds_threshold_config: ${c_mds_threshold_config}/g" $dataset/config.yaml
+    # sed -i "s/distance_threshold_value: .*/distance_threshold_value: ${c_distance_threshold_value}/g" $dataset/config.yaml
+    sed -i "s/mds_threshold_value: .*/mds_threshold_value: ${c_mds_threshold_value}/g" $dataset/config.yaml
     sed -i "s/mds_k_closest_images_percentage: .*/mds_k_closest_images_percentage: ${c_mds_k_closest_images_percentage}/g" $dataset/config.yaml
     sed -i "s/mds_k_closest_images_min: .*/mds_k_closest_images_min: ${c_mds_k_closest_images_min}/g" $dataset/config.yaml
     sed -i "s/mds_k_closest_images_max: .*/mds_k_closest_images_max: ${c_mds_k_closest_images_max}/g" $dataset/config.yaml
@@ -110,14 +149,17 @@ for run_name in "${all_runs[@]}"; do
 	grep "use_weighted_resectioning:" $dataset/config.yaml
 	grep "use_weighted_feature_matches:" $dataset/config.yaml
 	grep "use_image_matching_thresholding:" $dataset/config.yaml
-	grep "use_distance_threshold:" $dataset/config.yaml
+	# grep "use_distance_threshold:" $dataset/config.yaml
+    grep "use_soft_tracks:" $dataset/config.yaml
 	grep "image_matching_classifier_threshold:" $dataset/config.yaml
 	grep "use_closest_images_pruning:" $dataset/config.yaml
 	grep "closest_images_top_k:" $dataset/config.yaml
 	grep "use_gt_closest_images_pruning:" $dataset/config.yaml
 	grep "resectioning_config:" $dataset/config.yaml
 	grep "reconstruction_counter:" $dataset/config.yaml
-	grep "distance_threshold_value:" $dataset/config.yaml
+    grep "mds_threshold_config:" $dataset/config.yaml
+	# grep "distance_threshold_value:" $dataset/config.yaml
+    grep "mds_threshold_value:" $dataset/config.yaml
     grep "mds_k_closest_images_percentage:" $dataset/config.yaml
     grep "mds_k_closest_images_min:" $dataset/config.yaml
     grep "mds_k_closest_images_max:" $dataset/config.yaml
