@@ -110,8 +110,8 @@ def get_reconstruction_results(data):
 
     for r in glob.glob(data.data_path + '/reconstruction-*.json'):
         stats_label= os.path.basename(r).split('reconstruction-')[1].split('.json')[0]
-        imc, fm, wr, resc, udt, dtv, mkcip, mkcimin, mkcimax, recc = [v for v in stats_label.split('-')[1::2]]
-        imc, fm, udt = bool(strtobool(imc)), bool(strtobool(fm)), bool(strtobool(udt))
+        # imc, fm, wr, resc, udt, dtv, mkcip, mkcimin, mkcimax, recc = [v for v in stats_label.split('-')[1::2]]
+        # imc, fm, udt = bool(strtobool(imc)), bool(strtobool(fm)), bool(strtobool(udt))
         reconstruction_fn = 'reconstruction-{}.json'.format(stats_label)
         if data.reconstruction_exists(reconstruction_fn):
             logger.info('Computing reconstruction results - {}'.format(reconstruction_fn))
@@ -208,8 +208,8 @@ def get_gt_results(data, options):
         stats_label= os.path.basename(r).split('reconstruction-')[1].split('.json')[0]
         # imc, wr, colmapr = [v for v in stats_label.split('-')[1::2]]
         # imc, colmapr = bool(strtobool(imc)), bool(strtobool(colmapr))
-        imc, fm, wr, resc, udt, dtv, mkcip, mkcimin, mkcimax, recc = [v for v in stats_label.split('-')[1::2]]
-        imc, fm, udt = bool(strtobool(imc)), bool(strtobool(fm)), bool(strtobool(udt))
+        # imc, fm, wr, resc, udt, dtv, mkcip, mkcimin, mkcimax, recc = [v for v in stats_label.split('-')[1::2]]
+        # imc, fm, udt = bool(strtobool(imc)), bool(strtobool(fm)), bool(strtobool(udt))
         reconstruction_fn = 'reconstruction-{}.json'.format(stats_label)
         if data.reconstruction_exists('reconstruction_gt.json'):
             logger.info('Computing ground-truth evaluation results - {}'.format(reconstruction_fn))
